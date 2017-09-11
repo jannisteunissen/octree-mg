@@ -1,6 +1,7 @@
 octree-mg
 ==
 
+**Work in progress, there is just some text here about what this could become**
 Geometric multigrid framework for octree/quadtree grids, using MPI. Focus on simple and efficient methods:
 
 * 2nd order operators with sparse stencil (5/7-point)
