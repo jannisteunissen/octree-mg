@@ -22,7 +22,7 @@ module m_octree_mg
      integer               :: ix(2)
      integer               :: rank
      integer               :: children(4) = no_box
-     integer               :: neighbors(4)
+     integer               :: neighbors(4) = no_box
      integer               :: parent = no_box
      integer(int64)        :: morton
      real(dp), allocatable :: phi(:, :)
@@ -61,6 +61,7 @@ contains
     integer :: i_ch, ix(2), p_id, nb, nb_id, nb_rev
     integer :: n_boxes, n_done, search_val
     integer :: lvl, highest_lvl, i, n, id, i_box
+    integer :: child_ranks(4)
     integer, allocatable :: leaf_cnt(:), parent_cnt(:), total_cnt(:)
 
     highest_lvl = maxval(blvls)
@@ -131,7 +132,6 @@ contains
 
              tree%boxes(i_box)%lvl = lvl-1
              tree%boxes(i_box)%ix = (tree%boxes(id)%ix + 1) / 2
-             tree%boxes(i_box)%rank = tree%boxes(id)%rank
              tree%boxes(i_box)%morton = &
                   morton_from_ix2(tree%boxes(i_box)%ix-1)
           end if
@@ -176,7 +176,7 @@ contains
        end do
     end do
 
-    ! Set neighbors
+    ! Set neighbors (can optimize this later)
     do lvl = 1, highest_lvl
        mortons = tree%boxes(tree%lvls(lvl)%ids)%morton
 
@@ -201,12 +201,49 @@ contains
        end do
     end do
 
+    ! Fill arrays of parents/leaves, and set ranks of parents
+    leaf_cnt(:)  = 0
+    parent_cnt(:) = 0
+
+    do lvl = highest_lvl, 1, -1
+       do i = 1, size(tree%lvls(lvl)%ids)
+          id = tree%lvls(lvl)%ids(i)
+          if (tree%boxes(id)%children(1) > no_box) then
+             parent_cnt(lvl) = parent_cnt(lvl) + 1
+             tree%lvls(lvl)%parents(parent_cnt(lvl)) = id
+
+             child_ranks = tree%boxes(tree%boxes(id)%children)%rank
+             tree%boxes(id)%rank = most_popular(child_ranks)
+          else
+             leaf_cnt(lvl) = leaf_cnt(lvl) + 1
+             tree%lvls(lvl)%leaves(leaf_cnt(lvl)) = id
+          end if
+       end do
+    end do
+
   end subroutine create_tree_2d
 
   pure logical function first_child(ix)
     integer, intent(in) :: ix(:)
     first_child = all(iand(ix, 1) == 1)
   end function first_child
+
+  pure integer function most_popular(list)
+    integer, intent(in) :: list(:)
+    integer             :: i, best_count, current_count
+
+    best_count   = 0
+    most_popular = -1
+
+    do i = 1, size(list)
+       current_count = count(list == list(i))
+
+       if (current_count > best_count) then
+          most_popular = list(i)
+       end if
+    end do
+
+  end function most_popular
 
   !> Compute the 'child index' for a box with spatial index ix. With 'child
   !> index' we mean the index in the children(:) array of its parent.

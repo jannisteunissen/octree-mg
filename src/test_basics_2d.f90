@@ -13,7 +13,8 @@ program test_basics
 
   lvls(1:3) = 2
   lvls(4:7) = 3
-  ranks(:) = 0
+  ranks(1:3) = 0
+  ranks(4:7) = 1
   ixs(:, 3) = [2,1]
   ixs(:, 2) = [1,2]
   ixs(:, 1) = [2,2]
@@ -31,9 +32,11 @@ program test_basics
   do id = 1, tree%n_boxes
      print *, "lvl", tree%boxes(id)%lvl
      print *, "ix", tree%boxes(id)%ix
+     print *, "rank", tree%boxes(id)%rank
      print *, "parent", tree%boxes(id)%parent
      print *, "children", tree%boxes(id)%children
      print *, "neighbors", tree%boxes(id)%neighbors
+     print *, ""
   end do
 
 end program test_basics
