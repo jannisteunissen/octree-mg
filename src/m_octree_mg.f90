@@ -4,40 +4,6 @@ module m_octree_mg
   implicit none
   private
 
-  integer, parameter :: dp = kind(0.0d0)
-  integer, parameter :: no_box = 0
-
-  integer, parameter :: nb_offset_2d(2, 4) = reshape([-1,0,1,0,0,-1,0,1], [2,4])
-
-  !> Lists of blocks per refinement level
-  type level_t
-     integer, allocatable :: leaves(:)
-     integer, allocatable :: parents(:)
-     integer, allocatable :: ids(:)
-  end type level_t
-
-  !> Block data structure
-  type block_2d_t
-     integer               :: lvl
-     integer               :: ix(2)
-     integer               :: rank
-     integer               :: children(4) = no_box
-     integer               :: neighbors(4) = no_box
-     integer               :: parent = no_box
-     integer(int64)        :: morton
-     real(dp), allocatable :: phi(:, :)
-     real(dp), allocatable :: rhs(:, :)
-     real(dp), allocatable :: tmp(:, :)
-  end type block_2d_t
-
-  type tree_2d
-     integer                       :: block_size(2) = -1
-     integer                       :: highest_lvl   = 0
-     integer                       :: n_boxes
-     type(level_t), allocatable    :: lvls(:)
-     type(block_2d_t), allocatable :: boxes(:)
-  end type tree_2d
-
   ! Public methods
   public :: create_tree_2d
 
@@ -46,211 +12,229 @@ module m_octree_mg
 
 contains
 
-  subroutine create_tree_2d(n_leaves, blvls, branks, bixs, tree)
-    integer, intent(in) :: n_leaves
-    integer, intent(in) :: blvls(n_leaves)
-    integer, intent(in) :: branks(n_leaves)
-    integer, intent(in) :: bixs(2, n_leaves)
-    type(tree_2d), intent(inout) :: tree
+  ! subroutine tree_per_rank(tree, my_tree)
 
-    type(tree_2d) :: copy
-    integer, allocatable :: ids(:), ix_sort(:)
+  subroutine mg2d_fas_vcycle(tree, mg, set_residual, highest_lvl)
+    type(tree_2d_t), intent(inout)    :: tree         !< Tree to do multigrid on
+    type(mg2d_t), intent(in)      :: mg           !< Multigrid options
+    logical, intent(in)           :: set_residual !< If true, store residual in i_tmp
+    integer, intent(in), optional :: highest_lvl  !< Maximum level for V-cycle
+    integer                       :: lvl, min_lvl, i, id, max_lvl
 
-    integer(int64) :: mn
-    integer(int64), allocatable :: mortons(:)
-    integer :: i_ch, ix(2), p_id, nb, nb_id, nb_rev
-    integer :: n_boxes, n_done, search_val
-    integer :: lvl, highest_lvl, i, n, id, i_box
-    integer :: child_ranks(4)
-    integer, allocatable :: leaf_cnt(:), parent_cnt(:), total_cnt(:)
+    call check_mg(mg)           ! Check whether mg options are set
+    min_lvl = lbound(tree%lvls, 1)
+    max_lvl = tree%highest_lvl
+    if (present(highest_lvl)) max_lvl = highest_lvl
 
-    highest_lvl = maxval(blvls)
+    do lvl = max_lvl,  min_lvl+1, -1
+       ! Downwards relaxation
+       call gsrb_boxes(tree, tree%lvls(lvl)%ids, mg, mg%n_cycle_down)
 
-    tree%highest_lvl = highest_lvl
-    allocate(tree%lvls(highest_lvl))
-    allocate(leaf_cnt(highest_lvl))
-    allocate(parent_cnt(highest_lvl))
-    allocate(total_cnt(highest_lvl))
-    leaf_cnt(:)  = 0
-    parent_cnt(:) = 0
-    total_cnt(:) = 0
-
-    ! Create tree structure
-
-    ! First determine number of leaves and parents per level
-    do n = 1, n_leaves
-       lvl = blvls(n)
-       leaf_cnt(lvl) = leaf_cnt(lvl) + 1
+       ! Set rhs on coarse grid, restrict phi, and copy i_phi to i_tmp for the
+       ! correction later
+       call update_coarse(tree, lvl, mg)
     end do
 
-    do lvl = highest_lvl, 2, -1
-       parent_cnt(lvl-1) = (leaf_cnt(lvl) + parent_cnt(lvl))/4
+    lvl = min_lvl
+    call gsrb_boxes(tree, tree%lvls(lvl)%ids, mg, mg%n_cycle_base)
+
+    ! Do the upwards part of the v-cycle in the tree
+    do lvl = min_lvl+1, max_lvl
+       ! Correct solution at this lvl using lvl-1 data
+       ! phi = phi + prolong(phi_coarse - phi_old_coarse)
+       call correct_children(tree%boxes, tree%lvls(lvl-1)%parents, mg)
+
+       ! Have to fill ghost cells after correction
+       call tree_2d_gc_ids(tree, tree%lvls(lvl)%ids, mg%i_phi, &
+            mg%sides_rb, mg%sides_bc)
+
+       ! Upwards relaxation
+       call gsrb_boxes(tree, tree%lvls(lvl)%ids, mg, mg%n_cycle_up)
     end do
 
-    ! Now allocate storage per level
-    n_boxes = 0
-    do lvl = 1, highest_lvl
-       allocate(tree%lvls(lvl)%leaves(leaf_cnt(lvl)))
-       allocate(tree%lvls(lvl)%parents(parent_cnt(lvl)))
-       n        = parent_cnt(lvl) + leaf_cnt(lvl)
-       allocate(tree%lvls(lvl)%ids(n))
-       n_boxes = n_boxes + n
-    end do
+    if (set_residual) then
+       !$omp parallel private(lvl, i, id)
+       do lvl = min_lvl, max_lvl
+          !$omp do
+          do i = 1, size(tree%lvls(lvl)%ids)
+             id = tree%lvls(lvl)%ids(i)
+             call residual_box(tree%boxes(id), mg)
+          end do
+          !$omd end do nowait
+       end do
+       !$omp end parallel
+    end if
+  end subroutine mg2d_fas_vcycle
 
-    tree%n_boxes = n_boxes
-    allocate(tree%boxes(n_boxes))
+    !> Perform Gauss-Seidel relaxation on box for a Laplacian operator
+  subroutine mg2d_box_gsrb_lpl(box, redblack_cntr, mg)
+    type(box$D_t), intent(inout) :: box !< Box to operate on
+    integer, intent(in)         :: redblack_cntr !< Iteration counter
+    type(mg2d_t), intent(in)     :: mg !< Multigrid options
+    integer                     :: i, i0, j, nc, i_phi, i_rhs
+    real(dp)                    :: dx2
+#if $D == 3
+    integer                     :: k
+    real(dp), parameter         :: sixth = 1/6.0_dp
+#endif
 
-    ! First add all leaves
-    total_cnt(:)  = 0
-    i_box = 0
+    dx2   = box%dr**2
+    nc    = box%n_cell
+    i_phi = mg%i_phi
+    i_rhs = mg%i_rhs
 
-    do n = 1, n_leaves
-       i_box = i_box + 1
-       lvl   = blvls(n)
-
-       total_cnt(lvl) = total_cnt(lvl) + 1
-       tree%lvls(lvl)%ids(total_cnt(lvl)) = i_box
-
-       tree%boxes(i_box)%lvl  = blvls(n)
-       tree%boxes(i_box)%ix   = bixs(:, n)
-       tree%boxes(i_box)%rank = branks(n)
-       tree%boxes(i_box)%morton = &
-            morton_from_ix2(tree%boxes(i_box)%ix-1)
-    end do
-
-    ! Then add all the parents
-    do lvl = highest_lvl, 2, -1
-       do n = 1, total_cnt(lvl)
-          id = tree%lvls(lvl)%ids(n)
-
-          if (first_child(tree%boxes(id)%ix)) then
-             ! Add parent
-             i_box = i_box + 1
-
-             total_cnt(lvl-1) = total_cnt(lvl-1) + 1
-             tree%lvls(lvl-1)%ids(total_cnt(lvl-1)) = i_box
-
-             tree%boxes(i_box)%lvl = lvl-1
-             tree%boxes(i_box)%ix = (tree%boxes(id)%ix + 1) / 2
-             tree%boxes(i_box)%morton = &
-                  morton_from_ix2(tree%boxes(i_box)%ix-1)
-          end if
+    ! The parity of redblack_cntr determines which cells we use. If
+    ! redblack_cntr is even, we use the even cells and vice versa.
+#if $D == 2
+    do j = 1, nc
+       i0 = 2 - iand(ieor(redblack_cntr, j), 1)
+       do i = i0, nc, 2
+          box%cc(i, j, i_phi) = 0.25_dp * ( &
+               box%cc(i+1, j, i_phi) + box%cc(i-1, j, i_phi) + &
+               box%cc(i, j+1, i_phi) + box%cc(i, j-1, i_phi) - &
+               dx2 * box%cc(i, j, i_rhs))
        end do
     end do
-
-    copy = tree
-    n_done = 0
-
-    ! Sort all levels according to their Morton order
-    do lvl = 1, highest_lvl
-       n = total_cnt(lvl)
-       ids = copy%lvls(lvl)%ids
-       ix_sort = ids
-
-       call morton_rank(copy%boxes(ids)%morton, ix_sort)
-
-       tree%boxes(n_done+1:n_done+n) = copy%boxes(ids(ix_sort))
-       tree%lvls(lvl)%ids = [(n_done+i, i=1,n)]
-
-       n_done = n_done + n
-    end do
-
-    ! Set parents / children
-    do lvl = 2, highest_lvl
-       mortons = tree%boxes(tree%lvls(lvl-1)%ids)%morton
-
-       do i = 1, size(tree%lvls(lvl)%ids)
-          id = tree%lvls(lvl)%ids(i)
-          ix = tree%boxes(id)%ix
-
-          ! Morton number of parent
-          mn = morton_from_ix2((ix-1)/2)
-
-          ! Find parent in morton list
-          p_id = tree%lvls(lvl-1)%ids(morton_bsearch(mortons, mn))
-          tree%boxes(id)%parent = p_id
-
-          ! Set child on parent
-          i_ch = ix2_to_ichild(ix)
-          tree%boxes(p_id)%children(i_ch) = id
-       end do
-    end do
-
-    ! Set neighbors (can optimize this later)
-    do lvl = 1, highest_lvl
-       mortons = tree%boxes(tree%lvls(lvl)%ids)%morton
-
-       do i = 1, size(tree%lvls(lvl)%ids)
-          id = tree%lvls(lvl)%ids(i)
-          ix = tree%boxes(id)%ix
-
-          do nb = 1, 4
-             mn = morton_from_ix2(ix + nb_offset_2d(:, nb) - 1)
-             search_val = morton_bsearch(mortons, mn)
-
-             if (search_val /= -1) then
-                nb_id = tree%lvls(lvl)%ids(search_val)
-                tree%boxes(id)%neighbors(nb) = nb_id
-                ! Reverse neighbor direction (odd -> +1, even -> -1)
-                nb_rev = nb - 1 + 2 * iand(nb, 1)
-                tree%boxes(nb_id)%neighbors(nb_rev) = id
-             else
-                tree%boxes(id)%neighbors(nb) = no_box
-             end if
+#elif $D == 3
+    do k = 1, nc
+       do j = 1, nc
+          i0 = 2 - iand(ieor(redblack_cntr, k+j), 1)
+          do i = i0, nc, 2
+             box%cc(i, j, k, i_phi) = sixth * ( &
+                  box%cc(i+1, j, k, i_phi) + box%cc(i-1, j, k, i_phi) + &
+                  box%cc(i, j+1, k, i_phi) + box%cc(i, j-1, k, i_phi) + &
+                  box%cc(i, j, k+1, i_phi) + box%cc(i, j, k-1, i_phi) - &
+                  dx2 * box%cc(i, j, k, i_rhs))
           end do
        end do
     end do
+#endif
+  end subroutine mg2d_box_gsrb_lpl
 
-    ! Fill arrays of parents/leaves, and set ranks of parents
-    leaf_cnt(:)  = 0
-    parent_cnt(:) = 0
+  !> Perform Laplacian operator on a box
+  subroutine mg2d_box_lpl(box, i_out, mg)
+    type(box$D_t), intent(inout) :: box !< Box to operate on
+    integer, intent(in)         :: i_out !< Index of variable to store Laplacian in
+    type(mg2d_t), intent(in)     :: mg !< Multigrid options
+    integer                     :: i, j, nc, i_phi
+    real(dp)                    :: inv_dr_sq
+#if $D == 3
+    integer                     :: k
+#endif
 
-    do lvl = highest_lvl, 1, -1
-       do i = 1, size(tree%lvls(lvl)%ids)
-          id = tree%lvls(lvl)%ids(i)
-          if (tree%boxes(id)%children(1) > no_box) then
-             parent_cnt(lvl) = parent_cnt(lvl) + 1
-             tree%lvls(lvl)%parents(parent_cnt(lvl)) = id
+    nc = box%n_cell
+    inv_dr_sq = 1 / box%dr**2
+    i_phi = mg%i_phi
 
-             child_ranks = tree%boxes(tree%boxes(id)%children)%rank
-             tree%boxes(id)%rank = most_popular(child_ranks)
-          else
-             leaf_cnt(lvl) = leaf_cnt(lvl) + 1
-             tree%lvls(lvl)%leaves(leaf_cnt(lvl)) = id
-          end if
+#if $D == 2
+    do j = 1, nc
+       do i = 1, nc
+          box%cc(i, j, i_out) = inv_dr_sq * (box%cc(i-1, j, i_phi) + &
+               box%cc(i+1, j, i_phi) + box%cc(i, j-1, i_phi) + &
+               box%cc(i, j+1, i_phi) - 4 * box%cc(i, j, i_phi))
        end do
     end do
-
-  end subroutine create_tree_2d
-
-  pure logical function first_child(ix)
-    integer, intent(in) :: ix(:)
-    first_child = all(iand(ix, 1) == 1)
-  end function first_child
-
-  pure integer function most_popular(list)
-    integer, intent(in) :: list(:)
-    integer             :: i, best_count, current_count
-
-    best_count   = 0
-    most_popular = -1
-
-    do i = 1, size(list)
-       current_count = count(list == list(i))
-
-       if (current_count > best_count) then
-          most_popular = list(i)
-       end if
+#elif $D == 3
+    do k = 1, nc
+       do j = 1, nc
+          do i = 1, nc
+             box%cc(i, j, k, i_out) = inv_dr_sq * (box%cc(i-1, j, k, i_phi) + &
+                  box%cc(i+1, j, k, i_phi) + box%cc(i, j-1, k, i_phi) + &
+                  box%cc(i, j+1, k, i_phi) + box%cc(i, j, k-1, i_phi) + &
+                  box%cc(i, j, k+1, i_phi) - 6 * box%cc(i, j, k, i_phi))
+          end do
+       end do
     end do
+#endif
+  end subroutine mg2d_box_lpl
 
-  end function most_popular
+    ! Set rhs on coarse grid, restrict phi, and copy i_phi to i_tmp for the
+  ! correction later
+  subroutine update_coarse(tree, lvl, mg)
+    use m_a$D_utils, only: a$D_n_cell, a$D_box_add_cc, a$D_box_copy_cc
+    use m_a$D_ghostcell, only: a$D_gc_ids
+    type(a$D_t), intent(inout) :: tree !< Tree containing full grid
+    integer, intent(in)        :: lvl !< Update coarse values at lvl-1
+    type(mg$D_t), intent(in)   :: mg !< Multigrid options
+    integer                    :: i, id, p_id, nc
+#if $D == 2
+    real(dp), allocatable :: tmp(:,:)
+#elif $D == 3
+    real(dp), allocatable :: tmp(:,:,:)
+#endif
 
-  !> Compute the 'child index' for a box with spatial index ix. With 'child
-  !> index' we mean the index in the children(:) array of its parent.
-  pure integer function ix2_to_ichild(ix)
-    integer, intent(in) :: ix(2) !< Spatial index of the box
-    ! The index can range from 1 (all ix odd) and 2**$D (all ix even)
-    ix2_to_ichild = 4 - 2 * iand(ix(2), 1) - iand(ix(1), 1)
-  end function ix2_to_ichild
+    id = tree%lvls(lvl)%ids(1)
+    nc = a$D_n_cell(tree, lvl)
+#if $D == 2
+    allocate(tmp(1:nc, 1:nc))
+#elif $D == 3
+    allocate(tmp(1:nc, 1:nc, 1:nc))
+#endif
+
+    ! Restrict phi and the residual
+    !$omp parallel do private(id, p_id, tmp)
+    do i = 1, size(tree%lvls(lvl)%ids)
+       id = tree%lvls(lvl)%ids(i)
+       p_id = tree%boxes(id)%parent
+
+       ! Copy the data currently in i_tmp, and restore it later (i_tmp holds the
+       ! previous state of i_phi)
+#if $D == 2
+       tmp = tree%boxes(id)%cc(1:nc, 1:nc, mg%i_tmp)
+#elif $D == 3
+       tmp = tree%boxes(id)%cc(1:nc, 1:nc, 1:nc, mg%i_tmp)
+#endif
+       call residual_box(tree%boxes(id), mg)
+       call mg%box_rstr(tree%boxes(id), tree%boxes(p_id), mg%i_tmp, mg)
+       call mg%box_rstr(tree%boxes(id), tree%boxes(p_id), mg%i_phi, mg)
+#if $D == 2
+       tree%boxes(id)%cc(1:nc, 1:nc, mg%i_tmp) = tmp
+#elif $D == 3
+       tree%boxes(id)%cc(1:nc, 1:nc, 1:nc, mg%i_tmp) = tmp
+#endif
+    end do
+    !$omp end parallel do
+
+    call a$D_gc_ids(tree, tree%lvls(lvl-1)%ids, mg%i_phi, &
+         mg%sides_rb, mg%sides_bc)
+
+    ! Set rhs_c = laplacian(phi_c) + restrict(res) where it is refined, and
+    ! store current coarse phi in tmp.
+
+    !$omp parallel do private(id)
+    do i = 1, size(tree%lvls(lvl-1)%parents)
+       id = tree%lvls(lvl-1)%parents(i)
+
+       ! Set rhs = L phi
+       call mg%box_op(tree%boxes(id), mg%i_rhs, mg)
+
+       ! Add tmp (the fine grid residual) to rhs
+       call a$D_box_add_cc(tree%boxes(id), mg%i_tmp, mg%i_rhs)
+
+       ! Story a copy of phi in tmp
+       call a$D_box_copy_cc(tree%boxes(id), mg%i_phi, mg%i_tmp)
+    end do
+    !$omp end parallel do
+  end subroutine update_coarse
+
+    subroutine gsrb_boxes(tree, ids, mg, n_cycle)
+    use m_a$D_ghostcell, only: a$D_gc_box
+    type(a$D_t), intent(inout) :: tree    !< Tree containing full grid
+    type(mg$D_t), intent(in)   :: mg      !< Multigrid options
+    integer, intent(in)        :: ids(:)  !< Operate on these boxes
+    integer, intent(in)        :: n_cycle !< Number of cycles to perform
+    integer                    :: n, i
+
+    do n = 1, 2 * n_cycle
+       do i = 1, size(ids)
+          call mg%box_gsrb(tree%boxes(ids(i)), n, mg)
+       end do
+
+       do i = 1, size(ids)
+          call a$D_gc_box(tree, ids(i), mg%i_phi, mg%sides_rb, &
+               mg%sides_bc)
+       end do
+    end do
+  end subroutine gsrb_boxes
 
 end module m_octree_mg

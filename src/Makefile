@@ -1,7 +1,7 @@
-SRCS := m_octree_mg.f90 m_morton.f90
+SRCS := m_data_structures.f90 m_build_tree.f90 m_load_balance.f90
 OBJS := $(SRCS:%.f90=%.o)
 VPATH := morton_fortran
-PROGS = test_basics_2d
+PROGS = test_one_level
 
 .PHONY: all clean
 
@@ -10,7 +10,7 @@ all: $(PROGS)
 clean:
 	$(RM) $(OBJS) $(PROGS) *.mod
 
-FC 	:= gfortran
+FC 	:= mpif90
 FFLAGS	:= -O2 -std=f2008 -fopenmp -Wall -Wextra -Wimplicit-interface
 
 ifeq ($(DEBUG), 1)
@@ -29,4 +29,6 @@ endif
 # Depedencies
 $(PROGS:%=%.o): $(OBJS)
 $(PROGS): $(OBJS)
-m_octree_mg.o: m_morton.o
+
+m_build_tree.o: m_data_structures.o
+m_load_balance.o: m_data_structures.o
