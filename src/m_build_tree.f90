@@ -25,7 +25,7 @@ contains
        error stop "Invalid domain_size should be 2^N * block_size"
     end if
 
-    mg%block_size = block_size
+    mg%box_size = block_size
     mg%highest_lvl = max_lvl
 
     n_boxes = 0
@@ -41,8 +41,10 @@ contains
     mg%boxes(1)%id           = 1
     mg%boxes(1)%lvl          = 0
     mg%boxes(1)%ix           = [1, 1]
+    mg%boxes(1)%r_min        = [0.0_dp, 0.0_dp]
     mg%boxes(1)%parent       = no_box
-    mg%boxes(1)%neighbors(:) = physical_boundary
+    ! TODO
+    mg%boxes(1)%neighbors(:) = 1
     mg%boxes(1)%children(:)  = no_box
 
     ! Boxes on finest level
@@ -63,6 +65,7 @@ contains
 
        call set_leaves_parents(mg%boxes, mg%lvls(lvl))
 
+       ! Set next level ids to children of this level
        n = 4 * size(mg%lvls(lvl)%parents)
        allocate(mg%lvls(lvl+1)%ids(n))
 
@@ -74,7 +77,53 @@ contains
 
     call set_leaves_parents(mg%boxes, mg%lvls(max_lvl))
 
+    ! Update connectivity of new boxes
+    do lvl = 2, max_lvl
+       do i = 1, size(mg%lvls(lvl)%ids)
+          id = mg%lvls(lvl)%ids(i)
+          call set_neighbs_2d(mg%boxes, id)
+       end do
+    end do
+
   end subroutine build_uniform_tree
+
+  ! Set the neighbors of id (using their parent)
+  subroutine set_neighbs_2d(boxes, id)
+    type(box_2d_t), intent(inout) :: boxes(:)
+    integer, intent(in)         :: id
+    integer                     :: nb, nb_id
+
+    do nb = 1, num_neighbors
+       if (boxes(id)%neighbors(nb) == no_box) then
+          nb_id = find_neighb_2d(boxes, id, nb)
+          if (nb_id > no_box) then
+             boxes(id)%neighbors(nb) = nb_id
+             boxes(nb_id)%neighbors(neighb_rev(nb)) = id
+          end if
+       end if
+    end do
+  end subroutine set_neighbs_2d
+
+  !> Get the id of neighbor nb of boxes(id), through its parent
+  function find_neighb_2d(boxes, id, nb) result(nb_id)
+    type(box_2d_t), intent(in) :: boxes(:) !< List with all the boxes
+    integer, intent(in)      :: id       !< Box whose neighbor we are looking for
+    integer, intent(in)      :: nb       !< Neighbor index
+    integer                  :: nb_id, p_id, c_ix, d, old_pid
+
+    p_id    = boxes(id)%parent
+    old_pid = p_id
+    c_ix    = ix_to_ichild(boxes(id)%ix)
+    d       = neighb_dim(nb)
+
+    ! Check if neighbor is in same direction as ix is (low/high). If so,
+    ! use neighbor of parent
+    if (child_low(c_ix, d) .eqv. neighb_low(nb)) &
+         p_id = boxes(p_id)%neighbors(nb)
+
+    ! The child ix of the neighbor is reversed in direction d
+    nb_id = boxes(p_id)%children(child_rev(c_ix, d))
+  end function find_neighb_2d
 
   !> Return .true. if a box has children
   elemental logical function has_children(box)
@@ -144,7 +193,7 @@ contains
        mg%boxes(c_id)%children  = no_box
        mg%boxes(c_id)%neighbors = no_box
        mg%boxes(c_id)%r_min     = mg%boxes(id)%r_min + &
-            mg%dr(lvl) * child_dix(:, i) * mg%block_size
+            0.5_dp * mg%dr(lvl) * child_dix(:, i) * mg%box_size
     end do
 
     ! Set boundary conditions at children

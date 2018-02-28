@@ -1,4 +1,5 @@
-SRCS := m_data_structures.f90 m_build_tree.f90 m_load_balance.f90
+SRCS := m_data_structures.f90 m_build_tree.f90 m_load_balance.f90	\
+m_ghost_cells.f90 m_allocate_storage.f90 m_mrgrnk.f90
 OBJS := $(SRCS:%.f90=%.o)
 VPATH := morton_fortran
 PROGS = test_one_level
@@ -32,3 +33,5 @@ $(PROGS): $(OBJS)
 
 m_build_tree.o: m_data_structures.o
 m_load_balance.o: m_data_structures.o
+m_ghost_cells.o: m_data_structures.o m_mrgrnk.o
+m_allocate_storage.o: m_data_structures.o
