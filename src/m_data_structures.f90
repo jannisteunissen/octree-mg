@@ -78,17 +78,22 @@ module m_data_structures
      real(dp), allocatable :: cc(:, :, :)
   end type box_2d_t
 
-  type gc_buf_t
+  type buf_t
      integer               :: i_send
      integer               :: i_recv
-     integer               :: i_id
-     integer, allocatable  :: idbuf(:)
-     real(dp), allocatable :: sendbuf(:)
-     real(dp), allocatable :: recvbuf(:)
-  end type gc_buf_t
+     integer               :: i_ix
+     integer, allocatable  :: ix(:)
+     real(dp), allocatable :: send(:)
+     real(dp), allocatable :: recv(:)
+  end type buf_t
+
+  type comm_t
+     integer, allocatable :: n_send(:, :)
+     integer, allocatable :: n_recv(:, :)
+  end type comm_t
 
   type mg_2d_t
-     integer                     :: n_cpu = -1
+     integer                     :: n_cpu   = -1
      integer                     :: my_rank = -1
      integer                     :: box_size
      integer                     :: highest_lvl
@@ -96,7 +101,9 @@ module m_data_structures
      real(dp), allocatable       :: dr(:)
      type(box_2d_t), allocatable :: boxes(:)
      type(lvl_t), allocatable    :: lvls(:)
-     type(gc_buf_t), allocatable :: gc(:)
+     type(buf_t), allocatable    :: buf(:)
+     type(comm_t)                :: comm_restrict
+     type(comm_t)                :: comm_prolong
   end type mg_2d_t
 
 contains
@@ -108,5 +115,16 @@ contains
     ! The index can range from 1 (all ix odd) and 2**$D (all ix even)
     ix_to_ichild = 4 - 2 * iand(ix(2), 1) - iand(ix(1), 1)
   end function ix_to_ichild
+
+  !> Get the offset of a box with respect to its parent (e.g. in 2d, there can
+  !> be a child at offset 0,0, one at n_cell/2,0, one at 0,n_cell/2 and one at
+  !> n_cell/2, n_cell/2)
+  pure function get_child_offset(mg, id) result(ix_offset)
+    type(mg_2d_t), intent(in) :: mg
+    integer, intent(in)       :: id
+    integer                   :: ix_offset(2)
+
+    ix_offset = iand(mg%boxes(id)%ix-1, 1) * ishft(mg%box_size, -1) ! * n_cell / 2
+  end function get_child_offset
 
 end module m_data_structures

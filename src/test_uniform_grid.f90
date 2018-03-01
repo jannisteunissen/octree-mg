@@ -5,27 +5,25 @@ program test_one_level
   use m_load_balance
   use m_ghost_cells
   use m_allocate_storage
+  use m_restrict
+  use m_communication
+  use m_prolong
 
   implicit none
 
-  integer, parameter :: block_size = 8
-  integer, parameter :: domain_size = 1024
+  integer, parameter :: block_size = 16
+  integer, parameter :: domain_size = 2048
   real(dp), parameter :: dr = 1.0_dp / block_size
 
   integer :: lvl, ierr
   type(mg_2d_t) :: mg
 
-  call mpi_init(ierr)
-  call mpi_comm_rank(MPI_COMM_WORLD, mg%my_rank, ierr)
-  call mpi_comm_size(MPI_COMM_WORLD, mg%n_cpu, ierr)
-
+  call comm_init(mg)
   call build_uniform_tree(mg, block_size, domain_size, dr)
 
   if (mg%my_rank == 0) then
      do lvl = 1, mg%highest_lvl
         print *, lvl, ":", size(mg%lvls(lvl)%ids)
-        ! print *, "parents ", mg%lvls(lvl)%parents
-        ! print *, "leaves ", mg%lvls(lvl)%leaves
      end do
   end if
 
@@ -36,6 +34,10 @@ program test_one_level
   do lvl = 1, mg%highest_lvl
      call fill_ghost_cells_lvl(mg, lvl)
   end do
+  call print_error(mg)
+
+  call prolong(mg, mg%highest_lvl-1)
+  call fill_ghost_cells_lvl(mg, mg%highest_lvl)
   call print_error(mg)
 
   ! call multigrid_vcycle(mg)

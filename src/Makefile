@@ -1,8 +1,9 @@
 SRCS := m_data_structures.f90 m_build_tree.f90 m_load_balance.f90	\
-m_ghost_cells.f90 m_allocate_storage.f90 m_mrgrnk.f90
+m_ghost_cells.f90 m_allocate_storage.f90 m_mrgrnk.f90 m_restrict.f90	\
+m_communication.f90 m_prolong.f90
 OBJS := $(SRCS:%.f90=%.o)
 VPATH := morton_fortran
-PROGS = test_one_level
+PROGS = test_uniform_grid
 
 .PHONY: all clean
 
@@ -12,7 +13,7 @@ clean:
 	$(RM) $(OBJS) $(PROGS) *.mod
 
 FC 	:= mpif90
-FFLAGS	:= -O2 -std=f2008 -fopenmp -Wall -Wextra -Wimplicit-interface
+FFLAGS	:= -O2 -std=f2008 -fopenmp -Wall -Wextra
 
 ifeq ($(DEBUG), 1)
 	FFLAGS += -fcheck=all -g -ffpe-trap=invalid,zero,overflow \
@@ -33,5 +34,6 @@ $(PROGS): $(OBJS)
 
 m_build_tree.o: m_data_structures.o
 m_load_balance.o: m_data_structures.o
-m_ghost_cells.o: m_data_structures.o m_mrgrnk.o
-m_allocate_storage.o: m_data_structures.o
+m_ghost_cells.o: m_data_structures.o m_communication.o
+m_allocate_storage.o: m_data_structures.o m_ghost_cells.o m_restrict.o m_prolong.o
+m_communication.o: m_mrgrnk.o
