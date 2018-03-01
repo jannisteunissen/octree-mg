@@ -5,6 +5,16 @@ module m_data_structures
 
   integer, parameter :: dp = kind(0.0d0)
 
+  !> Value to indicate a Dirichlet boundary condition
+  integer, parameter :: bc_dirichlet = -10
+
+  !> Value to indicate a Neumann boundary condition
+  integer, parameter :: bc_neumann = -11
+
+  !> Value to indicate a continuous boundary condition
+  integer, parameter :: bc_continuous = -12
+
+
   integer, parameter :: n_var = 3
   integer, parameter :: i_phi = 1
   integer, parameter :: i_rhs = 2
@@ -104,7 +114,20 @@ module m_data_structures
      type(buf_t), allocatable    :: buf(:)
      type(comm_t)                :: comm_restrict
      type(comm_t)                :: comm_prolong
+
+     procedure(subr_bc), pointer, nopass :: boundary_cond => null()
   end type mg_2d_t
+
+  interface
+     !> To fill ghost cells near physical boundaries
+     subroutine subr_bc(mg, id, nb, bc_type)
+       import
+       type(mg_2d_t), intent(inout) :: mg
+       integer, intent(in)          :: id
+       integer, intent(in)          :: nb      !< Direction
+       integer, intent(out)         :: bc_type !< Type of b.c.
+     end subroutine subr_bc
+  end interface
 
 contains
 

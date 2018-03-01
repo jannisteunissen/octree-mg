@@ -7,6 +7,9 @@ module m_ghost_cells
   ! Public methods
   public :: ghost_cell_buffer_size
   public :: fill_ghost_cells_lvl
+  public :: set_bc_continuous
+  public :: set_bc_dirichlet_zero
+  public :: set_bc_neumann_zero
 
 contains
 
@@ -99,7 +102,7 @@ contains
   subroutine set_ghost_cells(mg, id)
     type(mg_2d_t), intent(inout) :: mg
     integer, intent(in)          :: id
-    integer                      :: nb, nb_id, nb_rank
+    integer                      :: nb, nb_id, nb_rank, bc_type
 
     do nb = 1, num_neighbors
        nb_id = mg%boxes(id)%neighbors(nb)
@@ -113,14 +116,17 @@ contains
           else
              call fill_buffered_nb(mg, mg%boxes(id), nb_rank, nb)
           end if
+       else
+          ! Physical boundary
+          if (.not. associated(mg%boundary_cond)) then
+             error stop "Physical boundary but mg%boundary_cond not set"
+          end if
+          call mg%boundary_cond(mg, id, nb, bc_type)
+          call bc_to_gc(mg, id, nb, bc_type)
        end if
-       ! else if (nb_id == af_no_box) then
+       ! else if (nb_id == no_box) then
        !    ! Refinement boundary
        !    call subr_rb(boxes, id, nb, iv)
-       ! else
-       !    ! Physical boundary
-       !    call subr_bc(boxes(id), nb, iv, bc_type)
-       !    call bc_to_gc(boxes(id), nb, iv, bc_type)
 
     end do
   end subroutine set_ghost_cells
@@ -223,5 +229,104 @@ contains
        box%cc(1:nc, nc+1, i_phi) = gc
     end select
   end subroutine box_set_gc
+
+  subroutine bc_to_gc(mg, id, nb, bc_type)
+    type(mg_2d_t), intent(inout) :: mg
+    integer, intent(in)          :: id
+    integer, intent(in)          :: nb      !< Neighbor direction
+    integer, intent(in)          :: bc_type !< Type of b.c.
+    real(dp)                     :: c0, c1, c2
+    integer                      :: nc
+
+    nc = mg%box_size
+
+    ! If we call the interior point x1, x2 and the ghost point x0, then a
+    ! Dirichlet boundary value b can be imposed as:
+    ! x0 = -x1 + 2*b
+    ! A Neumann b.c. can be imposed as:
+    ! x0 = x1 +/- dx * b
+    ! A continuous boundary (same slope) as:
+    ! x0 = 2 * x1 - x2
+    ! Below, we set coefficients to handle these cases
+    select case (bc_type)
+    case (bc_dirichlet)
+       c0 = 2
+       c1 = -1
+       c2 = 0
+    case (bc_neumann)
+       c0 = mg%dr(mg%boxes(id)%lvl) * neighb_high_pm(nb) ! This gives a + or - sign
+       c1 = 1
+       c2 = 0
+    case (bc_continuous)
+       c0 = 0
+       c1 = 2
+       c2 = -1
+    case default
+       error stop "bc_to_gc: unknown boundary condition"
+    end select
+
+    select case (nb)
+    case (neighb_lowx)
+       mg%boxes(id)%cc(0, 1:nc, i_phi) = &
+            c0 * mg%boxes(id)%cc(0, 1:nc, i_phi) + &
+            c1 * mg%boxes(id)%cc(1, 1:nc, i_phi) + &
+            c2 * mg%boxes(id)%cc(2, 1:nc, i_phi)
+    case (neighb_highx)
+       mg%boxes(id)%cc(nc+1, 1:nc, i_phi) = &
+            c0 * mg%boxes(id)%cc(nc+1, 1:nc, i_phi) + &
+            c1 * mg%boxes(id)%cc(nc, 1:nc, i_phi) + &
+            c2 * mg%boxes(id)%cc(nc-1, 1:nc, i_phi)
+    case (neighb_lowy)
+       mg%boxes(id)%cc(1:nc, 0, i_phi) = &
+            c0 * mg%boxes(id)%cc(1:nc, 0, i_phi) + &
+            c1 * mg%boxes(id)%cc(1:nc, 1, i_phi) + &
+            c2 * mg%boxes(id)%cc(1:nc, 2, i_phi)
+    case (neighb_highy)
+       mg%boxes(id)%cc(1:nc, nc+1, i_phi) = &
+            c0 * mg%boxes(id)%cc(1:nc, nc+1, i_phi) + &
+            c1 * mg%boxes(id)%cc(1:nc, nc, i_phi) + &
+            c2 * mg%boxes(id)%cc(1:nc, nc-1, i_phi)
+    end select
+  end subroutine bc_to_gc
+
+    ! This fills ghost cells near physical boundaries using Neumann zero
+  subroutine set_bc_neumann_zero(mg, id, nb, bc_type)
+    type(mg_2d_t), intent(inout) :: mg
+    integer, intent(in)          :: id
+    integer, intent(in)          :: nb
+    integer, intent(out)         :: bc_type
+    integer                      :: i
+
+    bc_type = bc_neumann
+    call box_set_gc(mg%boxes(id), nb, mg%box_size, &
+         [(0.0_dp, i=1, mg%box_size)])
+  end subroutine set_bc_neumann_zero
+
+  ! This fills ghost cells near physical boundaries using Neumann zero
+  subroutine set_bc_dirichlet_zero(mg, id, nb, bc_type)
+    type(mg_2d_t), intent(inout) :: mg
+    integer, intent(in)          :: id
+    integer, intent(in)          :: nb
+    integer, intent(out)         :: bc_type
+    integer                      :: i
+
+    bc_type = bc_dirichlet
+    call box_set_gc(mg%boxes(id), nb, mg%box_size, &
+         [(0.0_dp, i=1, mg%box_size)])
+  end subroutine set_bc_dirichlet_zero
+
+  ! This fills ghost cells near physical boundaries using the same slope
+  subroutine set_bc_continuous(mg, id, nb, bc_type)
+    type(mg_2d_t), intent(inout) :: mg
+    integer, intent(in)          :: id
+    integer, intent(in)          :: nb
+    integer, intent(out)         :: bc_type
+    integer                      :: i
+
+    bc_type = bc_continuous
+    ! Set values to zero (to prevent problems with NaN)
+    call box_set_gc(mg%boxes(id), nb, mg%box_size, &
+         [(0.0_dp, i=1, mg%box_size)])
+  end subroutine set_bc_continuous
 
 end module m_ghost_cells

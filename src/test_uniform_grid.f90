@@ -11,12 +11,14 @@ program test_one_level
 
   implicit none
 
-  integer, parameter :: block_size = 16
+  integer, parameter :: block_size = 32
   integer, parameter :: domain_size = 2048
   real(dp), parameter :: dr = 1.0_dp / block_size
 
   integer :: lvl, ierr
   type(mg_2d_t) :: mg
+
+  mg%boundary_cond => my_bc
 
   call comm_init(mg)
   call build_uniform_tree(mg, block_size, domain_size, dr)
@@ -36,8 +38,8 @@ program test_one_level
   end do
   call print_error(mg)
 
-  call prolong(mg, mg%highest_lvl-1)
-  call fill_ghost_cells_lvl(mg, mg%highest_lvl)
+  ! call prolong(mg, mg%highest_lvl-1)
+  ! call fill_ghost_cells_lvl(mg, mg%highest_lvl)
   call print_error(mg)
 
   ! call multigrid_vcycle(mg)
@@ -91,4 +93,13 @@ contains
     print *, mg%my_rank, "max err", err
   end subroutine print_error
 
-end program test_one_level
+  subroutine my_bc(mg, id, nb, bc_type)
+    type(mg_2d_t), intent(inout) :: mg
+    integer, intent(in)          :: id
+    integer, intent(in)          :: nb      !< Direction
+    integer, intent(out)         :: bc_type !< Type of b.c.
+
+    call set_bc_dirichlet_zero(mg, id, nb, bc_type)
+  end subroutine my_bc
+
+end program

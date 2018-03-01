@@ -44,7 +44,7 @@ contains
     mg%boxes(1)%r_min        = [0.0_dp, 0.0_dp]
     mg%boxes(1)%parent       = no_box
     ! TODO
-    mg%boxes(1)%neighbors(:) = 1
+    mg%boxes(1)%neighbors(:) = physical_boundary
     mg%boxes(1)%children(:)  = no_box
 
     ! Boxes on finest level

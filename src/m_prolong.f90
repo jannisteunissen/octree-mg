@@ -49,6 +49,7 @@ contains
     integer                      :: i, id, dsize
 
     if (lvl == mg%highest_lvl) error stop "cannot prolong highest level"
+    if (lvl < 1) error stop "cannot prolong level < 1"
 
     dsize            = (mg%box_size/2 + 2)**2
     mg%buf(:)%i_send = 0
