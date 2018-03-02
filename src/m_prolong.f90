@@ -42,10 +42,13 @@ contains
 
   end subroutine prolong_buffer_size
 
-  subroutine prolong(mg, lvl)
+  subroutine prolong(mg, lvl, iv, iv_to, add)
     use m_communication
     type(mg_2d_t), intent(inout) :: mg
     integer, intent(in)          :: lvl
+    integer, intent(in)          :: iv
+    integer, intent(in)          :: iv_to
+    logical, intent(in)          :: add
     integer                      :: i, id, dsize
 
     if (lvl == mg%highest_lvl) error stop "cannot prolong highest level"
@@ -57,7 +60,7 @@ contains
 
     do i = 1, size(mg%lvls(lvl)%my_ids)
        id = mg%lvls(lvl)%my_ids(i)
-       call prolong_set_buffer(mg, id)
+       call prolong_set_buffer(mg, id, iv)
     end do
 
     mg%buf(:)%i_recv = mg%comm_prolong%n_recv(:, lvl) * dsize
@@ -66,13 +69,14 @@ contains
 
     do i = 1, size(mg%lvls(lvl+1)%my_ids)
        id = mg%lvls(lvl+1)%my_ids(i)
-       call prolong_onto(mg, id)
+       call prolong_onto(mg, id, iv, iv_to, add)
     end do
   end subroutine prolong
 
-  subroutine prolong_set_buffer(mg, id)
+  subroutine prolong_set_buffer(mg, id, iv)
     type(mg_2d_t), intent(inout) :: mg
     integer, intent(in)          :: id
+    integer, intent(in)          :: iv
     integer                      :: i, hnc, dix(2)
     integer                      :: i_c, c_id, c_rank, dsize
 
@@ -89,7 +93,7 @@ contains
              i = mg%buf(c_rank)%i_send
              mg%buf(c_rank)%send(i+1:i+dsize) = &
                   pack(mg%boxes(id)%cc(dix(1):dix(1)+hnc+1, &
-                  dix(2):dix(2)+hnc+1, i_phi), .true.)
+                  dix(2):dix(2)+hnc+1, iv), .true.)
              mg%buf(c_rank)%i_send = mg%buf(c_rank)%i_send + dsize
 
              i = mg%buf(c_rank)%i_ix
@@ -100,13 +104,17 @@ contains
     end do
   end subroutine prolong_set_buffer
 
-  subroutine prolong_onto(mg, id)
+  subroutine prolong_onto(mg, id, iv, iv_to, add)
     type(mg_2d_t), intent(inout) :: mg
     integer, intent(in)          :: id
-    integer                      :: i, j, hnc, p_id, p_rank, dix(2), dsize
+    integer, intent(in)          :: iv
+    integer, intent(in)          :: iv_to
+    logical, intent(in)          :: add
+    integer                      :: i, j, nc, hnc, p_id, p_rank, dix(2), dsize
     real(dp)                     :: tmp(0:mg%box_size/2+1, 0:mg%box_size/2+1)
     real(dp)                     :: f0, flx, fhx, fly, fhy
 
+    nc     = mg%box_size
     hnc    = mg%box_size/2
     dsize  = (hnc+2)**2
     p_id   = mg%boxes(id)%parent
@@ -115,11 +123,15 @@ contains
 
     if (p_rank == mg%my_rank) then
        tmp = mg%boxes(p_id)%cc(dix(1):dix(1)+hnc+1, &
-                  dix(2):dix(2)+hnc+1, i_phi)
+            dix(2):dix(2)+hnc+1, iv)
     else
        i = mg%buf(p_rank)%i_recv
        tmp = reshape(mg%buf(p_rank)%recv(i+1:i+dsize), [hnc+2, hnc+2])
        mg%buf(p_rank)%i_recv = mg%buf(p_rank)%i_recv + dsize
+    end if
+
+    if (.not. add) then
+       mg%boxes(id)%cc(1:nc, 1:nc, iv_to) = 0.0_dp
     end if
 
     do j = 1, hnc
@@ -130,10 +142,10 @@ contains
           fly = 0.25_dp * tmp(i, j-1)
           fhy = 0.25_dp * tmp(i, j+1)
 
-          mg%boxes(id)%cc(2*i-1, 2*j-1, i_phi) = f0 + flx + fly
-          mg%boxes(id)%cc(2*i  , 2*j-1, i_phi) = f0 + fhx + fly
-          mg%boxes(id)%cc(2*i-1, 2*j,   i_phi) = f0 + flx + fhy
-          mg%boxes(id)%cc(2*i  , 2*j,   i_phi) = f0 + fhx + fhy
+          mg%boxes(id)%cc(2*i-1, 2*j-1, iv_to) = f0 + flx + fly
+          mg%boxes(id)%cc(2*i  , 2*j-1, iv_to) = f0 + fhx + fly
+          mg%boxes(id)%cc(2*i-1, 2*j,   iv_to) = f0 + flx + fhy
+          mg%boxes(id)%cc(2*i  , 2*j,   iv_to) = f0 + fhx + fhy
        end do
     end do
 

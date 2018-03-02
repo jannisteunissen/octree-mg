@@ -39,7 +39,7 @@ contains
     mg%n_boxes               = 1
     mg%boxes(1)%rank         = 0
     mg%boxes(1)%id           = 1
-    mg%boxes(1)%lvl          = 0
+    mg%boxes(1)%lvl          = 1
     mg%boxes(1)%ix           = [1, 1]
     mg%boxes(1)%r_min        = [0.0_dp, 0.0_dp]
     mg%boxes(1)%parent       = no_box

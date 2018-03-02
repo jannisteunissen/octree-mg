@@ -1,6 +1,6 @@
 SRCS := m_data_structures.f90 m_build_tree.f90 m_load_balance.f90	\
 m_ghost_cells.f90 m_allocate_storage.f90 m_mrgrnk.f90 m_restrict.f90	\
-m_communication.f90 m_prolong.f90
+m_communication.f90 m_prolong.f90 m_multigrid.f90
 OBJS := $(SRCS:%.f90=%.o)
 VPATH := morton_fortran
 PROGS = test_uniform_grid

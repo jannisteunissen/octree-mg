@@ -15,10 +15,11 @@ module m_data_structures
   integer, parameter :: bc_continuous = -12
 
 
-  integer, parameter :: n_var = 3
+  integer, parameter :: n_var = 4
   integer, parameter :: i_phi = 1
   integer, parameter :: i_rhs = 2
-  integer, parameter :: i_tmp = 3
+  integer, parameter :: i_old = 3
+  integer, parameter :: i_res = 4
 
   integer, parameter :: no_box = 0
   integer, parameter :: physical_boundary = -1
@@ -120,6 +121,12 @@ module m_data_structures
 
      procedure(subr_bc), pointer, nopass :: boundary_cond => null()
      procedure(subr_rb), pointer, nopass :: refinement_bnd => null()
+
+     integer                                 :: n_cycle_down =  2
+     integer                                 :: n_cycle_up   =  2
+     integer                                 :: n_cycle_base =  4
+     procedure(mg_box_op), pointer, nopass   :: box_op       => null()
+     procedure(mg_box_gsrb), pointer, nopass :: box_gsrb     => null()
   end type mg_2d_t
 
   interface
@@ -140,6 +147,22 @@ module m_data_structures
        integer, intent(in)          :: nb !< Direction
        real(dp), intent(in)         :: cgc(mg%box_size) !< Coarse data
      end subroutine subr_rb
+
+     !> Subroutine that performs A * cc(..., i_in) = cc(..., i_out)
+     subroutine mg_box_op(mg, id, i_out)
+       import
+       type(mg_2d_t), intent(inout) :: mg
+       integer, intent(in)          :: id
+       integer, intent(in)          :: i_out
+     end subroutine mg_box_op
+
+     !> Subroutine that performs Gauss-Seidel relaxation
+     subroutine mg_box_gsrb(mg, id, redblack_cntr)
+       import
+       type(mg_2d_t), intent(inout) :: mg
+       integer, intent(in)          :: id
+       integer, intent(in)          :: redblack_cntr
+     end subroutine mg_box_gsrb
   end interface
 
 contains

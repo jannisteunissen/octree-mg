@@ -63,9 +63,10 @@ contains
     n_recv = maxval(n_in, dim=2)
   end subroutine restrict_buffer_size
 
-  subroutine restrict(mg, lvl)
+  subroutine restrict(mg, iv, lvl)
     use m_communication
     type(mg_2d_t), intent(inout) :: mg
+    integer, intent(in)          :: iv
     integer, intent(in)          :: lvl
     integer                      :: i, id, dsize
 
@@ -78,7 +79,7 @@ contains
 
     do i = 1, size(mg%lvls(lvl)%my_ids)
        id = mg%lvls(lvl)%my_ids(i)
-       call restrict_set_buffer(mg, id)
+       call restrict_set_buffer(mg, id, iv)
     end do
 
     mg%buf(:)%i_recv = mg%comm_restrict%n_recv(:, lvl) * dsize
@@ -87,13 +88,14 @@ contains
 
     do i = 1, size(mg%lvls(lvl-1)%my_parents)
        id = mg%lvls(lvl-1)%my_parents(i)
-       call restrict_onto(mg, id)
+       call restrict_onto(mg, id, iv)
     end do
   end subroutine restrict
 
-  subroutine restrict_set_buffer(mg, id)
+  subroutine restrict_set_buffer(mg, id, iv)
     type(mg_2d_t), intent(inout) :: mg
     integer, intent(in)          :: id
+    integer, intent(in)          :: iv
     real(dp)                     :: tmp(mg%box_size/2, mg%box_size/2)
     integer                      :: i, j, n, hnc, p_id, p_rank
 
@@ -105,7 +107,7 @@ contains
        do j = 1, hnc
           do i = 1, hnc
              tmp(i, j) = 0.25_dp * &
-                  sum(mg%boxes(id)%cc(2*i-1:2*i, 2*j-1:2*j, i_phi))
+                  sum(mg%boxes(id)%cc(2*i-1:2*i, 2*j-1:2*j, iv))
           end do
        end do
 
@@ -123,9 +125,10 @@ contains
     end if
   end subroutine restrict_set_buffer
 
-  subroutine restrict_onto(mg, id)
+  subroutine restrict_onto(mg, id, iv)
     type(mg_2d_t), intent(inout) :: mg
     integer, intent(in)          :: id
+    integer, intent(in)          :: iv
     integer                      :: i, j, hnc, dsize, i_c, c_id
     integer                      :: c_rank, dix(2)
 
@@ -140,14 +143,14 @@ contains
        if (c_rank == mg%my_rank) then
           do j = 1, hnc
              do i = 1, hnc
-                mg%boxes(id)%cc(dix(1)+i, dix(2)+j, i_phi) = 0.25_dp * &
-                     sum(mg%boxes(c_id)%cc(2*i-1:2*i, 2*j-1:2*j, i_phi))
+                mg%boxes(id)%cc(dix(1)+i, dix(2)+j, iv) = 0.25_dp * &
+                     sum(mg%boxes(c_id)%cc(2*i-1:2*i, 2*j-1:2*j, iv))
              end do
           end do
        else
           i = mg%buf(c_rank)%i_recv
           mg%boxes(id)%cc(dix(1)+1:dix(1)+hnc, &
-               dix(2)+1:dix(2)+hnc, i_phi) = &
+               dix(2)+1:dix(2)+hnc, iv) = &
                reshape(mg%buf(c_rank)%recv(i+1:i+dsize), [hnc, hnc])
           mg%buf(c_rank)%i_recv = mg%buf(c_rank)%i_recv + dsize
        end if
