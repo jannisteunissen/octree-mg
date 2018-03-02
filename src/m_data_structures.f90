@@ -67,9 +67,11 @@ module m_data_structures
   type lvl_t
      integer, allocatable :: leaves(:)
      integer, allocatable :: parents(:)
+     integer, allocatable :: ref_bnds(:)
      integer, allocatable :: ids(:)
      integer, allocatable :: my_leaves(:)
      integer, allocatable :: my_parents(:)
+     integer, allocatable :: my_ref_bnds(:)
      integer, allocatable :: my_ids(:)
   end type lvl_t
 
@@ -114,8 +116,10 @@ module m_data_structures
      type(buf_t), allocatable    :: buf(:)
      type(comm_t)                :: comm_restrict
      type(comm_t)                :: comm_prolong
+     type(comm_t)                :: comm_ghostcell
 
      procedure(subr_bc), pointer, nopass :: boundary_cond => null()
+     procedure(subr_rb), pointer, nopass :: refinement_bnd => null()
   end type mg_2d_t
 
   interface
@@ -127,9 +131,27 @@ module m_data_structures
        integer, intent(in)          :: nb      !< Direction
        integer, intent(out)         :: bc_type !< Type of b.c.
      end subroutine subr_bc
+
+     !> To fill ghost cells near refinement boundaries
+     subroutine subr_rb(mg, id, nb, cgc)
+       import
+       type(mg_2d_t), intent(inout) :: mg
+       integer, intent(in)          :: id
+       integer, intent(in)          :: nb !< Direction
+       real(dp), intent(in)         :: cgc(mg%box_size) !< Coarse data
+     end subroutine subr_rb
   end interface
 
 contains
+
+  !> Return .true. if a box has children
+  elemental logical function has_children(box)
+    type(box_2d_t), intent(in) :: box
+
+    ! Boxes are either fully refined or not, so we only need to check one of the
+    ! children
+    has_children = (box%children(1) /= no_box)
+  end function has_children
 
   !> Compute the 'child index' for a box with spatial index ix. With 'child
   !> index' we mean the index in the children(:) array of its parent.

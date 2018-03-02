@@ -35,5 +35,7 @@ $(PROGS): $(OBJS)
 m_build_tree.o: m_data_structures.o
 m_load_balance.o: m_data_structures.o
 m_ghost_cells.o: m_data_structures.o m_communication.o
+m_prolong.o: m_data_structures.o m_communication.o
+m_restrict.o: m_data_structures.o m_communication.o
 m_allocate_storage.o: m_data_structures.o m_ghost_cells.o m_restrict.o m_prolong.o
 m_communication.o: m_mrgrnk.o

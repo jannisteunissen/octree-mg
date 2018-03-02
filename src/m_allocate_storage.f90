@@ -30,14 +30,14 @@ contains
        end do
     end do
 
+    allocate(mg%buf(0:mg%n_cpu-1))
+
     call ghost_cell_buffer_size(mg, n_send(:, 1), &
          n_recv(:, 1), dsize(1))
     call restrict_buffer_size(mg, n_send(:, 2), &
          n_recv(:, 2), dsize(2))
     call prolong_buffer_size(mg, n_send(:, 3), &
          n_recv(:, 3), dsize(3))
-
-    allocate(mg%buf(0:mg%n_cpu-1))
 
     do i = 0, mg%n_cpu-1
        n_out = maxval(n_send(i, :) * dsize(:))

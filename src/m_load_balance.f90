@@ -33,6 +33,8 @@ contains
          mg%boxes(lvl%leaves)%rank == mg%my_rank)
     lvl%my_parents = pack(lvl%parents, &
          mg%boxes(lvl%parents)%rank == mg%my_rank)
+    lvl%my_ref_bnds = pack(lvl%ref_bnds, &
+         mg%boxes(lvl%ref_bnds)%rank == mg%my_rank)
   end subroutine update_lvl_info
 
 end module m_load_balance

@@ -11,8 +11,8 @@ program test_one_level
 
   implicit none
 
-  integer, parameter :: block_size = 32
-  integer, parameter :: domain_size = 2048
+  integer, parameter :: block_size = 16
+  integer, parameter :: domain_size = 64
   real(dp), parameter :: dr = 1.0_dp / block_size
 
   integer :: lvl, ierr
@@ -38,8 +38,8 @@ program test_one_level
   end do
   call print_error(mg)
 
-  ! call prolong(mg, mg%highest_lvl-1)
-  ! call fill_ghost_cells_lvl(mg, mg%highest_lvl)
+  call prolong(mg, mg%highest_lvl-1)
+  call fill_ghost_cells_lvl(mg, mg%highest_lvl)
   call print_error(mg)
 
   ! call multigrid_vcycle(mg)

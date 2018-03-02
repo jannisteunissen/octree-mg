@@ -85,6 +85,11 @@ contains
        end do
     end do
 
+    ! Store boxes with refinement boundaries (from the coarse side)
+    do lvl = 1, max_lvl
+       call set_refinement_boundaries(mg%boxes, mg%lvls(lvl))
+    end do
+
   end subroutine build_uniform_tree
 
   ! Set the neighbors of id (using their parent)
@@ -125,15 +130,6 @@ contains
     nb_id = boxes(p_id)%children(child_rev(c_ix, d))
   end function find_neighb_2d
 
-  !> Return .true. if a box has children
-  elemental logical function has_children(box)
-    type(box_2d_t), intent(in) :: box
-
-    ! Boxes are either fully refined or not, so we only need to check one of the
-    ! children
-    has_children = (box%children(1) /= no_box)
-  end function has_children
-
   !> Create a list of leaves and a list of parents for a level
   subroutine set_leaves_parents(boxes, level)
     type(box_2d_t), intent(in)   :: boxes(:) !< List of boxes
@@ -171,6 +167,39 @@ contains
        end if
     end do
   end subroutine set_leaves_parents
+
+  !> Create a list of refinement boundaries (from the coarse side)
+  subroutine set_refinement_boundaries(boxes, level)
+    type(box_2d_t), intent(in) :: boxes(:)
+    type(lvl_t), intent(inout) :: level
+    integer, allocatable       :: tmp(:)
+    integer                    :: i, id, nb, nb_id, ix
+
+    if (size(level%parents) == 0) then
+       ! There are no refinement boundaries
+       allocate(level%ref_bnds(0))
+    else
+       allocate(tmp(size(level%leaves)))
+       ix = 0
+       do i = 1, size(level%leaves)
+          id = level%leaves(i)
+
+          do nb = 1, num_neighbors
+             nb_id = boxes(id)%neighbors(nb)
+             if (nb_id > no_box) then
+                if (has_children(boxes(nb_id))) then
+                   ix = ix + 1
+                   tmp(ix) = id
+                   exit
+                end if
+             end if
+          end do
+       end do
+
+       allocate(level%ref_bnds(ix))
+       level%ref_bnds(:) = tmp(1:ix)
+    end if
+  end subroutine set_refinement_boundaries
 
   subroutine add_children(mg, id)
     type(mg_2d_t), intent(inout) :: mg
