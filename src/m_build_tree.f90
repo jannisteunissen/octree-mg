@@ -222,7 +222,7 @@ contains
        mg%boxes(c_id)%children  = no_box
        mg%boxes(c_id)%neighbors = no_box
        mg%boxes(c_id)%r_min     = mg%boxes(id)%r_min + &
-            0.5_dp * mg%dr(lvl) * child_dix(:, i) * mg%box_size
+            mg%dr(lvl) * child_dix(:, i) * mg%box_size
     end do
 
     ! Set boundary conditions at children

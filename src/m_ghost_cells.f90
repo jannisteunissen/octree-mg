@@ -213,7 +213,7 @@ contains
     integer, intent(in)           :: nb
     real(dp)                      :: gc(mg%box_size)
 
-    call box_gc_from_neighbor(box_nb, nb, mg%box_size, gc)
+    call box_gc_for_neighbor(box_nb, neighb_rev(nb), mg%box_size, gc)
     call box_set_gc(box, nb, mg%box_size, gc)
   end subroutine copy_from_nb
 
@@ -275,26 +275,9 @@ contains
     case (neighb_lowy)
        gc = box%cc(1:nc, 1, i_phi)
     case (neighb_highy)
-       gc =box%cc(1:nc, nc, i_phi)
+       gc = box%cc(1:nc, nc, i_phi)
     end select
   end subroutine box_gc_for_neighbor
-
-  subroutine box_gc_from_neighbor(box_nb, nb, nc, gc)
-    type(box_2d_t), intent(in) :: box_nb
-    integer, intent(in)        :: nb, nc
-    real(dp), intent(out)      :: gc(nc)
-
-    select case (nb)
-    case (neighb_lowx)
-       gc = box_nb%cc(nc, 1:nc, i_phi)
-    case (neighb_highx)
-       gc = box_nb%cc(1, 1:nc, i_phi)
-    case (neighb_lowy)
-       gc = box_nb%cc(1:nc, nc, i_phi)
-    case (neighb_highy)
-       gc = box_nb%cc(1:nc, 1, i_phi)
-    end select
-  end subroutine box_gc_from_neighbor
 
   subroutine box_set_gc(box, nb, nc, gc)
     type(box_2d_t), intent(inout) :: box

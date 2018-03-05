@@ -12,11 +12,12 @@ program test_one_level
 
   implicit none
 
-  integer, parameter :: block_size = 2
-  integer, parameter :: domain_size = 4
+  integer, parameter :: block_size = 8
+  integer, parameter :: domain_size = 1024
   real(dp), parameter :: dr = 1.0_dp / block_size
+  real(dp), parameter :: pi = acos(-1.0_dp)
 
-  integer :: lvl, ierr
+  integer :: lvl, n, ierr
   type(mg_2d_t) :: mg
 
   mg%boundary_cond => my_bc
@@ -37,13 +38,13 @@ program test_one_level
   do lvl = 1, mg%highest_lvl
      call fill_ghost_cells_lvl(mg, lvl)
   end do
+
   call print_error(mg)
 
-  ! call prolong(mg, mg%highest_lvl-1, i_phi, i_phi, .false.)
-  ! call fill_ghost_cells_lvl(mg, mg%highest_lvl)
-  ! call print_error(mg)
-
-  call mg_fas_vcycle(mg, .true.)
+  do n = 1, 10
+     call mg_fas_vcycle(mg, .true.)
+     call print_error(mg)
+  end do
   call mpi_finalize(ierr)
 
 contains
@@ -56,14 +57,17 @@ contains
     do lvl = 1, mg%highest_lvl
        do n = 1, size(mg%lvls(lvl)%my_ids)
           id = mg%lvls(lvl)%my_ids(n)
-          do j = 1, mg%box_size
-             do i = 1, mg%box_size
+          do j = 0, mg%box_size+1
+             do i = 0, mg%box_size+1
                 r = mg%boxes(id)%r_min + &
                      [i-0.5_dp, j-0.5_dp] * mg%dr(lvl)
-                sol = product(sin(2 * acos(-1.0_dp) * r))
-                mg%boxes(id)%cc(i, j, i_rhs) = sol
+                sol = product(sin(2 * pi * r))
+                mg%boxes(id)%cc(i, j, i_phi) = sol
              end do
           end do
+
+          call box_lpl(mg, id, i_rhs)
+          mg%boxes(id)%cc(:, :, i_phi) = 0
        end do
     end do
   end subroutine set_initial_conditions
@@ -75,17 +79,18 @@ contains
 
     err = 0.0_dp
 
-    do lvl = 1, mg%highest_lvl
+    do lvl = mg%highest_lvl, mg%highest_lvl
        do n = 1, size(mg%lvls(lvl)%my_ids)
           id = mg%lvls(lvl)%my_ids(n)
           do j = 0, mg%box_size+1
              do i = 1, mg%box_size
                 r = mg%boxes(id)%r_min + &
                      [i-0.5_dp, j-0.5_dp] * mg%dr(lvl)
-                sol = product(sin(2 * acos(-1.0_dp) * r))
+                sol = product(sin(2 * pi * r))
                 val = mg%boxes(id)%cc(i, j, i_phi)
                 err = max(err, abs(val-sol))
-                ! print *, mg%my_rank, lvl, i, j, r, sol, val
+                ! err = max(err, abs(mg%boxes(id)%cc(i, j, i_res)))
+                ! print *, lvl, id, i, j, r, sol, val, abs(sol-val)
              end do
           end do
        end do

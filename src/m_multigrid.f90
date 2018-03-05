@@ -9,6 +9,7 @@ module m_multigrid
 
   ! Public methods
   public :: mg_fas_vcycle
+  public :: box_lpl
 
 contains
 
@@ -21,6 +22,11 @@ contains
     min_lvl = 1
     max_lvl = mg%highest_lvl
     if (present(highest_lvl)) max_lvl = highest_lvl
+
+    ! do lvl = 1, max_lvl
+    !    print *, "relaxation", lvl
+    !    call gsrb_boxes(mg, lvl, mg%n_cycle_base)
+    ! end do
 
     do lvl = max_lvl,  min_lvl+1, -1
        ! Downwards relaxation

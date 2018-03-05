@@ -142,10 +142,14 @@ contains
           fly = 0.25_dp * tmp(i, j-1)
           fhy = 0.25_dp * tmp(i, j+1)
 
-          mg%boxes(id)%cc(2*i-1, 2*j-1, iv_to) = f0 + flx + fly
-          mg%boxes(id)%cc(2*i  , 2*j-1, iv_to) = f0 + fhx + fly
-          mg%boxes(id)%cc(2*i-1, 2*j,   iv_to) = f0 + flx + fhy
-          mg%boxes(id)%cc(2*i  , 2*j,   iv_to) = f0 + fhx + fhy
+          mg%boxes(id)%cc(2*i-1, 2*j-1, iv_to) = f0 + flx + fly + &
+               mg%boxes(id)%cc(2*i-1, 2*j-1, iv_to)
+          mg%boxes(id)%cc(2*i  , 2*j-1, iv_to) = f0 + fhx + fly + &
+               mg%boxes(id)%cc(2*i  , 2*j-1, iv_to)
+          mg%boxes(id)%cc(2*i-1, 2*j,   iv_to) = f0 + flx + fhy + &
+               mg%boxes(id)%cc(2*i-1, 2*j,   iv_to)
+          mg%boxes(id)%cc(2*i  , 2*j,   iv_to) = f0 + fhx + fhy + &
+               mg%boxes(id)%cc(2*i  , 2*j,   iv_to)
        end do
     end do
 
