@@ -12,15 +12,17 @@ program test_one_level
 
   implicit none
 
-  integer, parameter :: block_size = 8
-  integer, parameter :: domain_size = 1024
+  integer, parameter :: block_size = 32
+  integer, parameter :: domain_size = 512
   real(dp), parameter :: dr = 1.0_dp / block_size
   real(dp), parameter :: pi = acos(-1.0_dp)
 
   integer :: lvl, n, ierr
+  real(dp) :: t0, t1
   type(mg_2d_t) :: mg
 
   mg%boundary_cond => my_bc
+  mg%n_cycle_base = block_size**2
 
   call comm_init(mg)
   call build_uniform_tree(mg, block_size, domain_size, dr)
@@ -41,10 +43,13 @@ program test_one_level
 
   call print_error(mg)
 
+  t0 = mpi_wtime()
   do n = 1, 10
      call mg_fas_vcycle(mg, .true.)
      call print_error(mg)
   end do
+  t1 = mpi_wtime()
+  if (mg%my_rank == 0) print *, "time", t1-t0
   call mpi_finalize(ierr)
 
 contains
@@ -74,8 +79,8 @@ contains
 
   subroutine print_error(mg)
     type(mg_2d_t), intent(inout) :: mg
-    integer                      :: n, id, lvl, i, j
-    real(dp)                     :: r(2), sol, val, err
+    integer                      :: n, id, lvl, i, j, ierr
+    real(dp)                     :: r(2), sol, val, err, max_err
 
     err = 0.0_dp
 
@@ -96,7 +101,9 @@ contains
        end do
     end do
 
-    print *, mg%my_rank, "max err", err
+    call mpi_reduce(err, max_err, 1, MPI_DOUBLE, MPI_MAX, 0, &
+         mpi_comm_world, ierr)
+    if (mg%my_rank == 0) print *, mg%my_rank, "max err", max_err
   end subroutine print_error
 
   subroutine my_bc(mg, id, nb, bc_type)
