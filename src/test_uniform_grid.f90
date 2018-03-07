@@ -12,8 +12,8 @@ program test_one_level
 
   implicit none
 
-  integer, parameter :: block_size = 16
-  integer, parameter :: domain_size = 2048
+  integer, parameter :: block_size = 32
+  integer, parameter :: domain_size = 4096
   real(dp), parameter :: dr = 1.0_dp / block_size
   real(dp), parameter :: pi = acos(-1.0_dp)
 
@@ -52,8 +52,9 @@ program test_one_level
 
   t0 = mpi_wtime()
   do n = 1, 10
-     call mg_fas_fmg(mg, n==1, .true.)
-     call print_error(mg)
+     ! call mg_fas_fmg(mg, n==1, .true.)
+     call mg_fas_vcycle(mg, .true.)
+     ! call print_error(mg)
   end do
   t1 = mpi_wtime()
   if (mg%my_rank == 0) then

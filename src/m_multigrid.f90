@@ -7,6 +7,10 @@ module m_multigrid
   implicit none
   private
 
+  integer, parameter :: smoother_type = 2
+  integer, parameter :: smoother_gsrb = 1
+  integer, parameter :: smoother_jacobi = 2
+
   integer :: timer_total         = -1
   integer :: timer_gsrb          = -1
   integer :: timer_gsrb_gc       = -1
@@ -193,6 +197,32 @@ contains
     end associate
   end subroutine box_gsrb_lpl
 
+  !> Perform Jacobi relaxation on box for a Laplacian operator
+  subroutine box_jacobi_lpl(mg, id)
+    type(mg_2d_t), intent(inout) :: mg
+    integer, intent(in)          :: id
+    integer                      :: i, j, nc
+    real(dp)                     :: tmp(0:mg%box_size+1, 0:mg%box_size+1)
+    real(dp)                     :: dx2
+    real(dp), parameter          :: w = 2.0_dp / 3
+
+    dx2   = mg%dr(mg%boxes(id)%lvl)**2
+    nc    = mg%box_size
+
+    associate (box => mg%boxes(id))
+      tmp = box%cc(:, :, i_phi)
+      do j = 1, nc
+         do i = 1, nc
+            box%cc(i, j, i_phi) = (1-w) * box%cc(i, j, i_phi) + &
+                 0.25_dp * w * ( &
+                 tmp(i+1, j) + tmp(i-1, j) + &
+                 tmp(i, j+1) + tmp(i, j-1) - &
+                 dx2 * box%cc(i, j, i_rhs))
+         end do
+      end do
+    end associate
+  end subroutine box_jacobi_lpl
+
   !> Perform Laplacian operator on a box
   subroutine box_lpl(mg, id, i_out)
     type(mg_2d_t), intent(inout) :: mg
@@ -279,18 +309,29 @@ contains
     integer, intent(in)          :: n_cycle !< Number of cycles to perform
     integer                      :: n, i, id
 
-    do n = 1, 2 * n_cycle
-       call timer_start(mg%timers(timer_gsrb))
-       do i = 1, size(mg%lvls(lvl)%my_ids)
-          id = mg%lvls(lvl)%my_ids(i)
-          call box_gsrb_lpl(mg, id, n)
+    select case (smoother_type)
+    case (smoother_jacobi)
+       do n = 1, n_cycle
+          do i = 1, size(mg%lvls(lvl)%my_ids)
+             id = mg%lvls(lvl)%my_ids(i)
+             call box_jacobi_lpl(mg, id)
+          end do
+          call fill_ghost_cells_lvl(mg, lvl)
        end do
-       call timer_end(mg%timers(timer_gsrb))
+    case (smoother_gsrb)
+       do n = 1, 2 * n_cycle
+          call timer_start(mg%timers(timer_gsrb))
+          do i = 1, size(mg%lvls(lvl)%my_ids)
+             id = mg%lvls(lvl)%my_ids(i)
+             call box_gsrb_lpl(mg, id, n)
+          end do
+          call timer_end(mg%timers(timer_gsrb))
 
-       call timer_start(mg%timers(timer_gsrb_gc))
-       call fill_ghost_cells_lvl(mg, lvl)
-       call timer_end(mg%timers(timer_gsrb_gc))
-    end do
+          call timer_start(mg%timers(timer_gsrb_gc))
+          call fill_ghost_cells_lvl(mg, lvl)
+          call timer_end(mg%timers(timer_gsrb_gc))
+       end do
+    end select
   end subroutine gsrb_boxes
 
   subroutine residual_box(mg, id)
