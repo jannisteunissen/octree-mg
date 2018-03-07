@@ -12,10 +12,24 @@ contains
   subroutine load_balance(mg)
     type(mg_2d_t), intent(inout) :: mg
     integer :: i, id, lvl
+    integer :: work_left, my_work, i_cpu
 
     do lvl = 1, mg%highest_lvl
+       work_left = size(mg%lvls(lvl)%ids)
+       my_work   = 0
+       i_cpu     = 0
+
        do i = 1, size(mg%lvls(lvl)%ids)
+          if ((mg%n_cpu - i_cpu - 1) * my_work >= work_left) then
+             i_cpu   = i_cpu + 1
+             my_work = 0
+          end if
+
+          my_work = my_work + 1
+          work_left = work_left - 1
+
           id = mg%lvls(lvl)%ids(i)
+          mg%boxes(id)%rank = i_cpu
           mg%boxes(id)%rank = modulo(i, mg%n_cpu)
        end do
        call update_lvl_info(mg, mg%lvls(lvl))

@@ -12,8 +12,8 @@ program test_one_level
 
   implicit none
 
-  integer, parameter :: block_size = 32
-  integer, parameter :: domain_size = 512
+  integer, parameter :: block_size = 16
+  integer, parameter :: domain_size = 1024
   real(dp), parameter :: dr = 1.0_dp / block_size
   real(dp), parameter :: pi = acos(-1.0_dp)
 
@@ -22,7 +22,8 @@ program test_one_level
   type(mg_2d_t) :: mg
 
   mg%boundary_cond => my_bc
-  mg%n_cycle_base = block_size**2
+  mg%n_cycle_up = 2
+  mg%n_cycle_down = 2
 
   call comm_init(mg)
   call build_uniform_tree(mg, block_size, domain_size, dr)
@@ -37,6 +38,12 @@ program test_one_level
   call allocate_storage(mg)
   call set_initial_conditions(mg)
 
+  do n = 1, num_neighbors
+     allocate(mg%bc(n)%d(mg%box_size))
+     mg%bc(n)%d = 0.0_dp
+     mg%bc(n)%bc_type = bc_dirichlet
+  end do
+
   do lvl = 1, mg%highest_lvl
      call fill_ghost_cells_lvl(mg, lvl)
   end do
@@ -49,7 +56,9 @@ program test_one_level
      call print_error(mg)
   end do
   t1 = mpi_wtime()
-  if (mg%my_rank == 0) print *, "time", t1-t0
+  if (mg%my_rank == 0) print *, "unknowns/microsec", &
+       1e-6_dp * 10 * domain_size**2 / (t1-t0)
+  call timers_show(mg)
   call mpi_finalize(ierr)
 
 contains

@@ -4,6 +4,10 @@ module m_data_structures
   public
 
   integer, parameter :: dp = kind(0.0d0)
+  integer, parameter :: max_timers = 20
+
+  !> Value to indicate a periodic boundary condition
+  integer, parameter :: bc_periodic = -9
 
   !> Value to indicate a Dirichlet boundary condition
   integer, parameter :: bc_dirichlet = -10
@@ -105,6 +109,17 @@ module m_data_structures
      integer, allocatable :: n_recv(:, :)
   end type comm_t
 
+  type bc_t
+     integer               :: bc_type ! Type of boundary condition
+     real(dp), allocatable :: d(:)    ! Data for boundary condition
+  end type bc_t
+
+  type timer_t
+     character(len=20) :: name
+     real(dp)          :: t = 0.0_dp
+     real(dp)          :: t0
+  end type timer_t
+
   type mg_2d_t
      integer                     :: n_cpu   = -1
      integer                     :: my_rank = -1
@@ -119,14 +134,17 @@ module m_data_structures
      type(comm_t)                :: comm_prolong
      type(comm_t)                :: comm_ghostcell
 
-     procedure(subr_bc), pointer, nopass :: boundary_cond => null()
+     type(bc_t)                          :: bc(num_neighbors)
+     procedure(subr_bc), pointer, nopass :: boundary_cond  => null()
      procedure(subr_rb), pointer, nopass :: refinement_bnd => null()
 
      integer                                 :: n_cycle_down =  2
      integer                                 :: n_cycle_up   =  2
-     integer                                 :: n_cycle_base =  4
      procedure(mg_box_op), pointer, nopass   :: box_op       => null()
      procedure(mg_box_gsrb), pointer, nopass :: box_gsrb     => null()
+
+     integer       :: n_timers = 0
+     type(timer_t) :: timers(max_timers)
   end type mg_2d_t
 
   interface
@@ -194,5 +212,46 @@ contains
 
     ix_offset = iand(mg%boxes(id)%ix-1, 1) * ishft(mg%box_size, -1) ! * n_cell / 2
   end function get_child_offset
+
+  integer function add_timer(mg, name)
+    type(mg_2d_t), intent(inout) :: mg
+    character(len=*), intent(in) :: name
+
+    mg%n_timers               = mg%n_timers + 1
+    add_timer                 = mg%n_timers
+    mg%timers(add_timer)%name = name
+  end function add_timer
+
+  subroutine timer_start(timer)
+    use mpi
+    type(timer_t), intent(inout) :: timer
+    timer%t0 = mpi_wtime()
+  end subroutine timer_start
+
+  subroutine timer_end(timer)
+    use mpi
+    type(timer_t), intent(inout) :: timer
+    timer%t = mpi_wtime() - timer%t0
+  end subroutine timer_end
+
+  subroutine timers_show(mg)
+    use mpi
+    type(mg_2d_t), intent(in) :: mg
+    integer                   :: n, ierr
+    real(dp)                  :: tmin(mg%n_timers)
+    real(dp)                  :: tmax(mg%n_timers)
+
+    call mpi_reduce(mg%timers(1:mg%n_timers)%t, tmin, mg%n_timers, &
+         mpi_double, mpi_min, 0, mpi_comm_world, ierr)
+    call mpi_reduce(mg%timers(1:mg%n_timers)%t, tmax, mg%n_timers, &
+         mpi_double, mpi_max, 0, mpi_comm_world, ierr)
+
+    if (mg%my_rank == 0) then
+       do n = 1, mg%n_timers
+          write(*, "(I4,' ',A20,2E12.4)") mg%my_rank, mg%timers(n)%name, &
+               tmin(n), tmax(n)
+       end do
+    end if
+  end subroutine timers_show
 
 end module m_data_structures

@@ -21,9 +21,10 @@ contains
 
     max_lvl = 1 + nint(log(real(domain_size, dp)/block_size) / log(2.0_dp))
 
-    if (block_size * 2**(max_lvl-1) /= domain_size) then
-       error stop "Invalid domain_size should be 2^N * block_size"
-    end if
+    if (modulo(block_size, 2) /= 0) &
+         error stop "block_size should be even"
+    if (block_size * 2**(max_lvl-1) /= domain_size) &
+         error stop "Invalid domain_size should be 2^N * block_size"
 
     mg%box_size = block_size
     mg%highest_lvl = max_lvl

@@ -7,17 +7,42 @@ module m_multigrid
   implicit none
   private
 
+  integer :: timer_total         = -1
+  integer :: timer_gsrb          = -1
+  integer :: timer_gsrb_gc       = -1
+  integer :: timer_coarse        = -1
+  integer :: timer_up            = -1
+  integer :: timer_down          = -1
+  integer :: timer_update_coarse = -1
+
   ! Public methods
   public :: mg_fas_vcycle
   public :: box_lpl
 
 contains
 
+  subroutine mg_add_timers(mg)
+    type(mg_2d_t), intent(inout) :: mg
+    timer_total         = add_timer(mg, "mg total")
+    timer_gsrb          = add_timer(mg, "mg gsrb")
+    timer_gsrb_gc       = add_timer(mg, "mg gsrb_gc")
+    timer_coarse        = add_timer(mg, "mg coarse")
+    timer_up            = add_timer(mg, "mg up")
+    timer_down          = add_timer(mg, "mg down")
+    timer_update_coarse = add_timer(mg, "mg update coarse")
+  end subroutine mg_add_timers
+
   subroutine mg_fas_vcycle(mg, set_residual, highest_lvl)
     type(mg_2d_t), intent(inout)  :: mg
     logical, intent(in)           :: set_residual !< If true, store residual in i_res
     integer, intent(in), optional :: highest_lvl  !< Maximum level for V-cycle
     integer                       :: lvl, min_lvl, i, id, max_lvl
+
+    if (timer_gsrb == -1) then
+       call mg_add_timers(mg)
+    end if
+
+    call timer_start(mg%timers(timer_total))
 
     min_lvl = 1
     max_lvl = mg%highest_lvl
@@ -28,19 +53,28 @@ contains
     !    call gsrb_boxes(mg, lvl, mg%n_cycle_base)
     ! end do
 
+    call timer_start(mg%timers(timer_down))
     do lvl = max_lvl,  min_lvl+1, -1
        ! Downwards relaxation
+       call timer_start(mg%timers(timer_gsrb))
        call gsrb_boxes(mg, lvl, mg%n_cycle_down)
+       call timer_end(mg%timers(timer_gsrb))
 
        ! Set rhs on coarse grid, restrict phi, and copy i_phi to i_old for the
        ! correction later
+       call timer_start(mg%timers(timer_update_coarse))
        call update_coarse(mg, lvl)
+       call timer_end(mg%timers(timer_update_coarse))
     end do
+    call timer_end(mg%timers(timer_down))
 
-    lvl = min_lvl
-    call gsrb_boxes(mg, lvl, mg%n_cycle_base)
+    ! Use direct method
+    call timer_start(mg%timers(timer_coarse))
+    call solve_coarse_grid(mg)
+    call timer_end(mg%timers(timer_coarse))
 
     ! Do the upwards part of the v-cycle in the tree
+    call timer_start(mg%timers(timer_up))
     do lvl = min_lvl+1, max_lvl
        ! Correct solution at this lvl using lvl-1 data
        ! phi = phi + prolong(phi_coarse - phi_old_coarse)
@@ -52,6 +86,7 @@ contains
        ! Upwards relaxation
        call gsrb_boxes(mg, lvl, mg%n_cycle_up)
     end do
+    call timer_end(mg%timers(timer_up))
 
     if (set_residual) then
        do lvl = min_lvl, max_lvl
@@ -61,7 +96,35 @@ contains
           end do
        end do
     end if
+
+    call timer_end(mg%timers(timer_total))
   end subroutine mg_fas_vcycle
+
+  subroutine solve_coarse_grid(mg)
+    use m_fishpack
+    type(mg_2d_t), intent(inout) :: mg
+    real(dp)                     :: rhs(mg%box_size, mg%box_size)
+    real(dp)                     :: rmin(2), rmax(2)
+    integer                      :: nx(2), my_boxes, total_boxes
+
+    my_boxes = size(mg%lvls(1)%my_ids)
+    total_boxes = size(mg%lvls(1)%ids)
+
+    if (my_boxes == total_boxes) then
+       nx(:) = mg%box_size
+       rmin  = [0.0_dp, 0.0_dp]
+       rmax  = mg%dr(1) * [mg%box_size, mg%box_size]
+       rhs   = mg%boxes(1)%cc(1:mg%box_size, 1:mg%box_size, i_rhs)
+
+       call fishpack_2d(nx, rhs, mg%bc, rmin, rmax)
+
+       mg%boxes(1)%cc(1:mg%box_size, 1:mg%box_size, i_phi) = rhs
+    else if (my_boxes > 0) then
+       error stop "Boxes at level 1 at different processors"
+    end if
+
+    call fill_ghost_cells_lvl(mg, 1)
+  end subroutine solve_coarse_grid
 
   !> Perform Gauss-Seidel relaxation on box for a Laplacian operator
   subroutine box_gsrb_lpl(mg, id, redblack_cntr)
@@ -181,7 +244,9 @@ contains
           call box_gsrb_lpl(mg, id, n)
        end do
 
+       call timer_start(mg%timers(timer_gsrb_gc))
        call fill_ghost_cells_lvl(mg, lvl)
+       call timer_end(mg%timers(timer_gsrb_gc))
     end do
   end subroutine gsrb_boxes
 
