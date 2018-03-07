@@ -231,7 +231,7 @@ contains
   subroutine timer_end(timer)
     use mpi
     type(timer_t), intent(inout) :: timer
-    timer%t = mpi_wtime() - timer%t0
+    timer%t = timer%t + mpi_wtime() - timer%t0
   end subroutine timer_end
 
   subroutine timers_show(mg)
@@ -247,8 +247,9 @@ contains
          mpi_double, mpi_max, 0, mpi_comm_world, ierr)
 
     if (mg%my_rank == 0) then
+       write(*, "(A20,2A16)") "name                ", "min(s)", "max(s)"
        do n = 1, mg%n_timers
-          write(*, "(I4,' ',A20,2E12.4)") mg%my_rank, mg%timers(n)%name, &
+          write(*, "(A20,2F16.6)") mg%timers(n)%name, &
                tmin(n), tmax(n)
        end do
     end if

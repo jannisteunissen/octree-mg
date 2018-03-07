@@ -13,6 +13,7 @@ contains
     type(mg_2d_t), intent(inout) :: mg
     integer :: i, id, lvl
     integer :: work_left, my_work, i_cpu
+    integer :: c_ids(4), c_ranks(4)
 
     do lvl = 1, mg%highest_lvl
        work_left = size(mg%lvls(lvl)%ids)
@@ -30,12 +31,43 @@ contains
 
           id = mg%lvls(lvl)%ids(i)
           mg%boxes(id)%rank = i_cpu
-          mg%boxes(id)%rank = modulo(i, mg%n_cpu)
+          ! mg%boxes(id)%rank = modulo(i, mg%n_cpu)
        end do
+    end do
+
+    ! do lvl = mg%highest_lvl-1, 1, -1
+    !    do i = 1, size(mg%lvls(lvl)%ids)
+    !       id = mg%lvls(lvl)%ids(i)
+    !       if (has_children(mg%boxes(id))) then
+    !          c_ids = mg%boxes(id)%children
+    !          c_ranks = mg%boxes(c_ids)%rank
+    !          mg%boxes(id)%rank = most_popular(c_ranks)
+    !       end if
+    !    end do
+    ! end do
+
+    do lvl = 1, mg%highest_lvl
        call update_lvl_info(mg, mg%lvls(lvl))
     end do
 
   end subroutine load_balance
+
+  pure integer function most_popular(list)
+    integer, intent(in) :: list(:)
+    integer             :: i, best_count, current_count
+
+    best_count   = 0
+    most_popular = -1
+
+    do i = 1, size(list)
+       current_count = count(list == list(i))
+
+       if (current_count > best_count) then
+          most_popular = list(i)
+       end if
+    end do
+
+  end function most_popular
 
   subroutine update_lvl_info(mg, lvl)
     type(mg_2d_t), intent(inout) :: mg

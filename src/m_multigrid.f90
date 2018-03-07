@@ -11,12 +11,12 @@ module m_multigrid
   integer :: timer_gsrb          = -1
   integer :: timer_gsrb_gc       = -1
   integer :: timer_coarse        = -1
-  integer :: timer_up            = -1
-  integer :: timer_down          = -1
+  integer :: timer_correct       = -1
   integer :: timer_update_coarse = -1
 
   ! Public methods
   public :: mg_fas_vcycle
+  public :: mg_fas_fmg
   public :: box_lpl
 
 contains
@@ -27,11 +27,61 @@ contains
     timer_gsrb          = add_timer(mg, "mg gsrb")
     timer_gsrb_gc       = add_timer(mg, "mg gsrb_gc")
     timer_coarse        = add_timer(mg, "mg coarse")
-    timer_up            = add_timer(mg, "mg up")
-    timer_down          = add_timer(mg, "mg down")
+    timer_correct       = add_timer(mg, "mg correct")
     timer_update_coarse = add_timer(mg, "mg update coarse")
   end subroutine mg_add_timers
 
+  !> Perform FAS-FMG cycle (full approximation scheme, full multigrid). Note
+  !> that this routine needs valid ghost cells (for i_phi) on input, and gives
+  !> back valid ghost cells on output
+  subroutine mg_fas_fmg(mg, set_residual, have_guess)
+    type(mg_2d_t), intent(inout) :: mg
+    logical, intent(in)          :: set_residual !< If true, store residual in i_tmp
+    logical, intent(in)          :: have_guess   !< If false, start from phi = 0
+    integer                      :: lvl, min_lvl, i, id
+
+    min_lvl = 1
+
+    if (.not. have_guess) then
+       do lvl = mg%highest_lvl, 1
+          do i = 1, size(mg%lvls(lvl)%my_ids)
+             id = mg%lvls(lvl)%my_ids(i)
+             mg%boxes(id)%cc(:, :, i_phi) = 0.0_dp
+          end do
+       end do
+    end if
+
+    do lvl = mg%highest_lvl,  min_lvl+1, -1
+       ! Set rhs on coarse grid and restrict phi
+       call update_coarse(mg, lvl)
+    end do
+
+    do lvl = min_lvl, mg%highest_lvl
+       ! Store phi_old
+       do i = 1, size(mg%lvls(lvl)%my_ids)
+          id = mg%lvls(lvl)%my_ids(i)
+          mg%boxes(id)%cc(:, :, i_old) = &
+            mg%boxes(id)%cc(:, :, i_phi)
+       end do
+
+       if (lvl > min_lvl) then
+          ! Correct solution at this lvl using lvl-1 data
+          ! phi = phi + prolong(phi_coarse - phi_old_coarse)
+          call correct_children(mg, lvl-1)
+
+          ! Update ghost cells
+          call fill_ghost_cells_lvl(mg, lvl)
+       end if
+
+       ! Perform V-cycle, only set residual on last iteration
+       call mg_fas_vcycle(mg, &
+            set_residual .and. lvl == mg%highest_lvl, lvl)
+    end do
+  end subroutine mg_fas_fmg
+
+  !> Perform FAS V-cycle (full approximation scheme). Note that this routine
+  !> needs valid ghost cells (for i_phi) on input, and gives back valid ghost
+  !> cells on output
   subroutine mg_fas_vcycle(mg, set_residual, highest_lvl)
     type(mg_2d_t), intent(inout)  :: mg
     logical, intent(in)           :: set_residual !< If true, store residual in i_res
@@ -48,17 +98,9 @@ contains
     max_lvl = mg%highest_lvl
     if (present(highest_lvl)) max_lvl = highest_lvl
 
-    ! do lvl = 1, max_lvl
-    !    print *, "relaxation", lvl
-    !    call gsrb_boxes(mg, lvl, mg%n_cycle_base)
-    ! end do
-
-    call timer_start(mg%timers(timer_down))
     do lvl = max_lvl,  min_lvl+1, -1
        ! Downwards relaxation
-       call timer_start(mg%timers(timer_gsrb))
        call gsrb_boxes(mg, lvl, mg%n_cycle_down)
-       call timer_end(mg%timers(timer_gsrb))
 
        ! Set rhs on coarse grid, restrict phi, and copy i_phi to i_old for the
        ! correction later
@@ -66,7 +108,6 @@ contains
        call update_coarse(mg, lvl)
        call timer_end(mg%timers(timer_update_coarse))
     end do
-    call timer_end(mg%timers(timer_down))
 
     ! Use direct method
     call timer_start(mg%timers(timer_coarse))
@@ -74,19 +115,19 @@ contains
     call timer_end(mg%timers(timer_coarse))
 
     ! Do the upwards part of the v-cycle in the tree
-    call timer_start(mg%timers(timer_up))
     do lvl = min_lvl+1, max_lvl
        ! Correct solution at this lvl using lvl-1 data
        ! phi = phi + prolong(phi_coarse - phi_old_coarse)
+       call timer_start(mg%timers(timer_correct))
        call correct_children(mg, lvl-1)
 
        ! Have to fill ghost cells after correction
        call fill_ghost_cells_lvl(mg, lvl)
+       call timer_end(mg%timers(timer_correct))
 
        ! Upwards relaxation
        call gsrb_boxes(mg, lvl, mg%n_cycle_up)
     end do
-    call timer_end(mg%timers(timer_up))
 
     if (set_residual) then
        do lvl = min_lvl, max_lvl
@@ -203,12 +244,12 @@ contains
        ! Set rhs = L phi
        call box_lpl(mg, id, i_rhs)
 
-       ! Add tmp (the fine grid residual) to rhs
+       ! Add the fine grid residual to rhs
        mg%boxes(id)%cc(1:nc, 1:nc, i_rhs) = &
             mg%boxes(id)%cc(1:nc, 1:nc, i_rhs) + &
             mg%boxes(id)%cc(1:nc, 1:nc, i_res)
 
-       ! Story a copy of phi in tmp
+       ! Story a copy of phi
        mg%boxes(id)%cc(:, :, i_old) = &
             mg%boxes(id)%cc(:, :, i_phi)
     end do
@@ -239,10 +280,12 @@ contains
     integer                      :: n, i, id
 
     do n = 1, 2 * n_cycle
+       call timer_start(mg%timers(timer_gsrb))
        do i = 1, size(mg%lvls(lvl)%my_ids)
           id = mg%lvls(lvl)%my_ids(i)
           call box_gsrb_lpl(mg, id, n)
        end do
+       call timer_end(mg%timers(timer_gsrb))
 
        call timer_start(mg%timers(timer_gsrb_gc))
        call fill_ghost_cells_lvl(mg, lvl)

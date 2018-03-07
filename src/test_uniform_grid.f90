@@ -13,7 +13,7 @@ program test_one_level
   implicit none
 
   integer, parameter :: block_size = 16
-  integer, parameter :: domain_size = 1024
+  integer, parameter :: domain_size = 2048
   real(dp), parameter :: dr = 1.0_dp / block_size
   real(dp), parameter :: pi = acos(-1.0_dp)
 
@@ -52,12 +52,14 @@ program test_one_level
 
   t0 = mpi_wtime()
   do n = 1, 10
-     call mg_fas_vcycle(mg, .true.)
+     call mg_fas_fmg(mg, n==1, .true.)
      call print_error(mg)
   end do
   t1 = mpi_wtime()
-  if (mg%my_rank == 0) print *, "unknowns/microsec", &
-       1e-6_dp * 10 * domain_size**2 / (t1-t0)
+  if (mg%my_rank == 0) then
+     print *, "time, time per iteration:", t1-t0, (t1-t0) / 10
+     print *, "unknowns/microsec", 1e-6_dp * 10 * domain_size**2 / (t1-t0)
+  end if
   call timers_show(mg)
   call mpi_finalize(ierr)
 

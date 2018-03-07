@@ -16,11 +16,15 @@ clean:
 	$(RM) $(OBJS) $(PROGS) *.mod
 
 FC 	:= mpif90
-FFLAGS	:= -O2 -std=f2008 -fopenmp -Wall -Wextra
+FFLAGS	:= -O2 -std=f2008 -fopenmp -Wall -Wextra -g
 
 ifeq ($(DEBUG), 1)
-	FFLAGS += -fcheck=all -g -ffpe-trap=invalid,zero,overflow \
+	FFLAGS += -fcheck=all -ffpe-trap=invalid,zero,overflow \
 	-pedantic -finit-real=snan
+endif
+
+ifeq ($(PROF), 1)
+	FFLAGS += -pg -O0
 endif
 
 # How to get .o object files from .f90 source files
