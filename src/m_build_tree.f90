@@ -10,47 +10,72 @@ module m_build_tree
 
 contains
 
-  subroutine build_uniform_tree(mg, block_size, domain_size, dr_coarse)
+  subroutine build_uniform_tree(mg, box_size, domain_size, dr_coarse)
     type(mg_t), intent(inout) :: mg
-    integer, intent(in)       :: block_size
+    integer, intent(in)       :: box_size
     integer, intent(in)       :: domain_size
     real(dp), intent(in)      :: dr_coarse
 
     integer              :: i, id, lvl, n
-    integer              :: max_lvl, n_boxes
+    integer              :: min_lvl, max_lvl, n_boxes
 
-    max_lvl = 1 + nint(log(real(domain_size, dp)/block_size) / log(2.0_dp))
+    max_lvl = 1 + nint(log(real(domain_size, dp)/box_size) / log(2.0_dp))
 
-    if (modulo(block_size, 2) /= 0) &
-         error stop "block_size should be even"
-    if (block_size * 2**(max_lvl-1) /= domain_size) &
-         error stop "Invalid domain_size should be 2^N * block_size"
+    if (modulo(box_size, 2) /= 0) &
+         error stop "box_size should be even"
+    if (box_size * 2**(max_lvl-1) /= domain_size) &
+         error stop "Invalid domain_size should be 2^N * box_size"
 
-    mg%box_size    = block_size
+    mg%box_size    = box_size
     mg%highest_lvl = max_lvl
 
-    n_boxes = 0
+    ! Determine minimum level
+    n = box_size
+    do min_lvl = 1, -1000, -1
+       if (modulo(n, 2) == 1 .or. n == 2) exit
+       n = n / 2
+    end do
+    mg%lowest_lvl = min_lvl
+
+    n_boxes = -min_lvl + 1
     do lvl = 1, max_lvl
        n_boxes = n_boxes + 2**((lvl-1) * NDIM)
     end do
     allocate(mg%boxes(n_boxes))
+    allocate(mg%dr(min_lvl:max_lvl))
+    allocate(mg%box_size_lvl(min_lvl:max_lvl))
+    allocate(mg%lvls(min_lvl:max_lvl))
 
-    mg%dr = [(dr_coarse * 0.5**(n-1), n = 1, max_lvl)]
+    mg%dr(:) = [(dr_coarse * 0.5**(n-1), n = min_lvl, max_lvl)]
+    mg%box_size_lvl(min_lvl:0) = [(box_size / 2**(1-n), n = min_lvl, 0)]
+    mg%box_size_lvl(1:max_lvl) = box_size
+    print *, mg%box_size_lvl
+    mg%n_boxes = 0
 
-    mg%n_boxes               = 1
-    mg%boxes(1)%rank         = 0
-    mg%boxes(1)%id           = 1
-    mg%boxes(1)%lvl          = 1
-    mg%boxes(1)%ix(:)        = 1
-    mg%boxes(1)%r_min(:)     = 0.0_dp
-    mg%boxes(1)%parent       = no_box
-    ! TODO
-    mg%boxes(1)%neighbors(:) = physical_boundary
-    mg%boxes(1)%children(:)  = no_box
+    do lvl = min_lvl, 1
+       mg%n_boxes               = mg%n_boxes + 1
+       n                        = mg%n_boxes
+       mg%boxes(n)%rank         = 0
+       mg%boxes(n)%id           = n
+       mg%boxes(n)%lvl          = lvl
+       mg%boxes(n)%ix(:)        = 1
+       mg%boxes(n)%r_min(:)     = 0.0_dp
+       if (lvl > min_lvl) then
+          mg%boxes(n)%parent = n-1
+       else
+          mg%boxes(n)%parent = no_box
+       end if
+       ! TODO
+       mg%boxes(n)%neighbors(:) = physical_boundary
+       mg%boxes(n)%children(:)  = no_box
+       if (lvl < 1) then
+          mg%boxes(n)%children(1)  = n + 1
+       end if
 
-    allocate(mg%lvls(max_lvl))
-    allocate(mg%lvls(1)%ids(1))
-    mg%lvls(1)%ids(1) = 1
+       allocate(mg%lvls(lvl)%ids(1))
+       mg%lvls(lvl)%ids(1) = n
+       call set_leaves_parents(mg%boxes, mg%lvls(lvl))
+    end do
 
     do lvl = 1, max_lvl-1
        do i = 1, size(mg%lvls(lvl)%ids)

@@ -53,7 +53,7 @@ contains
     integer                   :: i, id, dsize
 
     if (lvl == mg%highest_lvl) error stop "cannot prolong highest level"
-    if (lvl < 1) error stop "cannot prolong level < 1"
+    if (lvl < mg%lowest_lvl) error stop "cannot prolong below lowest level"
 
     dsize            = (mg%box_size/2 + 2)**NDIM
     mg%buf(:)%i_send = 0
@@ -72,6 +72,7 @@ contains
        id = mg%lvls(lvl+1)%my_ids(i)
        call prolong_onto(mg, id, iv, iv_to, add)
     end do
+
   end subroutine prolong
 
   subroutine prolong_set_buffer(mg, id, iv)

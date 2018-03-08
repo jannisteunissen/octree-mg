@@ -357,11 +357,11 @@ contains
 
   subroutine bc_to_gc(mg, id, nb, bc_type)
     type(mg_t), intent(inout) :: mg
-    integer, intent(in)          :: id
-    integer, intent(in)          :: nb      !< Neighbor direction
-    integer, intent(in)          :: bc_type !< Type of b.c.
-    real(dp)                     :: c0, c1, c2
-    integer                      :: nc
+    integer, intent(in)       :: id
+    integer, intent(in)       :: nb      !< Neighbor direction
+    integer, intent(in)       :: bc_type !< Type of b.c.
+    real(dp)                  :: c0, c1, c2
+    integer                   :: nc
 
     nc = mg%box_size
 

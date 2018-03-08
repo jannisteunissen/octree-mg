@@ -72,10 +72,11 @@ contains
 
   subroutine set_initial_conditions(mg)
     type(mg_t), intent(inout) :: mg
-    integer                   :: n, id, lvl, IJK
+    integer                   :: n, id, lvl, nc, IJK
     real(dp)                  :: r(NDIM), sol
 
     do lvl = 1, mg%highest_lvl
+       nc = mg%box_size_lvl(lvl)
        do n = 1, size(mg%lvls(lvl)%my_ids)
           id = mg%lvls(lvl)%my_ids(n)
           do KJI_DO(0, mg%box_size+1)
@@ -93,7 +94,7 @@ contains
 #endif
           end do; CLOSE_DO
 
-          call box_lpl(mg, id, i_rhs)
+          call box_lpl(mg, id, nc, i_rhs)
           mg%boxes(id)%cc(DTIMES(:), i_phi) = 0
        end do
     end do

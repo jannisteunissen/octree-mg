@@ -2,7 +2,7 @@ NDIM ?= 2
 
 SRCS := m_data_structures.f90 m_build_tree.f90 m_load_balance.f90	\
 m_ghost_cells.f90 m_allocate_storage.f90 m_mrgrnk.f90 m_restrict.f90	\
-m_communication.f90 m_prolong.f90 m_multigrid.f90 m_fishpack.f90
+m_communication.f90 m_prolong.f90 m_multigrid.f90
 OBJS := $(SRCS:%.f90=%.o)
 VPATH := morton_fortran
 PROGS = test_uniform_grid
@@ -48,5 +48,5 @@ m_prolong.o: m_data_structures.o m_communication.o
 m_restrict.o: m_data_structures.o m_communication.o
 m_allocate_storage.o: m_data_structures.o m_ghost_cells.o m_restrict.o m_prolong.o
 m_communication.o: m_mrgrnk.o
-m_multigrid.o: m_data_structures.o m_prolong.o m_restrict.o m_fishpack.o
+m_multigrid.o: m_data_structures.o m_prolong.o m_restrict.o
 

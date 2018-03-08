@@ -71,7 +71,7 @@ contains
     integer, intent(in)       :: lvl
     integer                   :: i, id, dsize
 
-    if (lvl <= 1) error stop "cannot restrict for lvl <= 1"
+    if (lvl <= mg%lowest_lvl) error stop "cannot restrict lvl <= lowest_lvl"
 
     dsize = (mg%box_size/2)**NDIM
 

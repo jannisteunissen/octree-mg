@@ -189,7 +189,9 @@ module m_data_structures
      integer                  :: my_rank = -1
      integer                  :: box_size
      integer                  :: highest_lvl
+     integer                  :: lowest_lvl
      integer                  :: n_boxes
+     integer, allocatable     :: box_size_lvl(:)
      real(dp), allocatable    :: dr(:)
      type(box_t), allocatable :: boxes(:)
      type(lvl_t), allocatable :: lvls(:)
