@@ -12,7 +12,7 @@ contains
 
   subroutine comm_init(mg)
     use mpi
-    type(mg_2d_t), intent(inout) :: mg
+    type(mg_t), intent(inout) :: mg
     integer                      :: ierr
 
     call mpi_init(ierr)
@@ -22,7 +22,7 @@ contains
 
   subroutine sort_and_transfer_buffers(mg, dsize)
     use mpi
-    type(mg_2d_t), intent(inout) :: mg
+    type(mg_t), intent(inout) :: mg
     integer, intent(in)          :: dsize
     integer                      :: i
     integer                      :: send_req(0:mg%n_cpu-1)

@@ -16,7 +16,7 @@ clean:
 	$(RM) $(OBJS) $(PROGS) *.mod
 
 FC 	:= mpif90
-FFLAGS	:= -O2 -std=f2008 -fopenmp -Wall -Wextra -g
+FFLAGS	:= -O2 -std=f2008 -fopenmp -Wall -Wextra -g -cpp -DNDIM=2
 
 ifeq ($(DEBUG), 1)
 	FFLAGS += -fcheck=all -ffpe-trap=invalid,zero,overflow \

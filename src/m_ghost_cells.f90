@@ -15,7 +15,7 @@ contains
 
   !> Specify minimum buffer size (per process) for communication
   subroutine ghost_cell_buffer_size(mg, n_send, n_recv, dsize)
-    type(mg_2d_t), intent(inout) :: mg
+    type(mg_t), intent(inout) :: mg
     integer, intent(out)         :: n_send(0:mg%n_cpu-1)
     integer, intent(out)         :: n_recv(0:mg%n_cpu-1)
     integer, intent(out)         :: dsize
@@ -62,7 +62,7 @@ contains
 
   subroutine fill_ghost_cells_lvl(mg, lvl)
     use m_communication
-    type(mg_2d_t)        :: mg
+    type(mg_t)        :: mg
     integer, intent(in)  :: lvl
     integer              :: i, id
 
@@ -99,7 +99,7 @@ contains
   end subroutine fill_ghost_cells_lvl
 
   subroutine buffer_ghost_cells(mg, id, dry_run)
-    type(mg_2d_t), intent(inout) :: mg
+    type(mg_t), intent(inout) :: mg
     integer, intent(in)          :: id
     logical, intent(in)          :: dry_run
     integer                      :: nb, nb_id, nb_rank
@@ -119,7 +119,7 @@ contains
   end subroutine buffer_ghost_cells
 
   subroutine buffer_refinement_boundaries(mg, id, dry_run)
-    type(mg_2d_t), intent(inout) :: mg
+    type(mg_t), intent(inout) :: mg
     integer, intent(in)          :: id
     logical, intent(in)          :: dry_run
     integer                      :: nb, nb_id, c_ids(2), n, c_id, c_rank
@@ -145,7 +145,7 @@ contains
   end subroutine buffer_refinement_boundaries
 
   subroutine set_ghost_cells(mg, id, dry_run)
-    type(mg_2d_t), intent(inout) :: mg
+    type(mg_t), intent(inout) :: mg
     integer, intent(in)          :: id
     logical, intent(in)          :: dry_run
     integer                      :: nb, nb_id, nb_rank, bc_type
@@ -177,7 +177,7 @@ contains
   end subroutine set_ghost_cells
 
   subroutine fill_refinement_bnd(mg, id, nb, dry_run)
-    type(mg_2d_t), intent(inout) :: mg
+    type(mg_t), intent(inout) :: mg
     integer, intent(in)          :: id
     integer, intent(in)          :: nb
     logical, intent(in)          :: dry_run
@@ -207,9 +207,9 @@ contains
   end subroutine fill_refinement_bnd
 
   subroutine copy_from_nb(mg, box, box_nb, nb)
-    type(mg_2d_t), intent(inout)  :: mg
-    type(box_2d_t), intent(inout) :: box
-    type(box_2d_t), intent(in)    :: box_nb
+    type(mg_t), intent(inout)  :: mg
+    type(box_t), intent(inout) :: box
+    type(box_t), intent(in)    :: box_nb
     integer, intent(in)           :: nb
     real(dp)                      :: gc(mg%box_size)
 
@@ -219,8 +219,8 @@ contains
 
   subroutine buffer_for_nb(mg, box, nb_id, nb_rank, nb, dry_run)
     use mpi
-    type(mg_2d_t), intent(inout)  :: mg
-    type(box_2d_t), intent(inout) :: box
+    type(mg_t), intent(inout)  :: mg
+    type(box_t), intent(inout) :: box
     integer, intent(in)           :: nb_id
     integer, intent(in)           :: nb_rank
     integer, intent(in)           :: nb
@@ -246,8 +246,8 @@ contains
 
   subroutine fill_buffered_nb(mg, box, nb_rank, nb, dry_run)
     use mpi
-    type(mg_2d_t), intent(inout)  :: mg
-    type(box_2d_t), intent(inout) :: box
+    type(mg_t), intent(inout)  :: mg
+    type(box_t), intent(inout) :: box
     integer, intent(in)           :: nb_rank
     integer, intent(in)           :: nb
     logical, intent(in)           :: dry_run
@@ -263,7 +263,7 @@ contains
   end subroutine fill_buffered_nb
 
   subroutine box_gc_for_neighbor(box, nb, nc, gc)
-    type(box_2d_t), intent(in) :: box
+    type(box_t), intent(in) :: box
     integer, intent(in)        :: nb, nc
     real(dp), intent(out)      :: gc(nc)
 
@@ -280,7 +280,7 @@ contains
   end subroutine box_gc_for_neighbor
 
   subroutine box_set_gc(box, nb, nc, gc)
-    type(box_2d_t), intent(inout) :: box
+    type(box_t), intent(inout) :: box
     integer, intent(in)           :: nb, nc
     real(dp), intent(in)          :: gc(nc)
 
@@ -297,7 +297,7 @@ contains
   end subroutine box_set_gc
 
   subroutine bc_to_gc(mg, id, nb, bc_type)
-    type(mg_2d_t), intent(inout) :: mg
+    type(mg_t), intent(inout) :: mg
     integer, intent(in)          :: id
     integer, intent(in)          :: nb      !< Neighbor direction
     integer, intent(in)          :: bc_type !< Type of b.c.
@@ -357,7 +357,7 @@ contains
 
     ! This fills ghost cells near physical boundaries using Neumann zero
   subroutine set_bc_neumann_zero(mg, id, nb, bc_type)
-    type(mg_2d_t), intent(inout) :: mg
+    type(mg_t), intent(inout) :: mg
     integer, intent(in)          :: id
     integer, intent(in)          :: nb
     integer, intent(out)         :: bc_type
@@ -370,7 +370,7 @@ contains
 
   ! This fills ghost cells near physical boundaries using Neumann zero
   subroutine set_bc_dirichlet_zero(mg, id, nb, bc_type)
-    type(mg_2d_t), intent(inout) :: mg
+    type(mg_t), intent(inout) :: mg
     integer, intent(in)          :: id
     integer, intent(in)          :: nb
     integer, intent(out)         :: bc_type
@@ -383,7 +383,7 @@ contains
 
   ! This fills ghost cells near physical boundaries using the same slope
   subroutine set_bc_continuous(mg, id, nb, bc_type)
-    type(mg_2d_t), intent(inout) :: mg
+    type(mg_t), intent(inout) :: mg
     integer, intent(in)          :: id
     integer, intent(in)          :: nb
     integer, intent(out)         :: bc_type
@@ -401,7 +401,7 @@ contains
   !> take the average between this corner point and a coarse neighbor to fill
   !> ghost cells for the fine cells.
   subroutine sides_rb(mg, id, nb, cgc)
-    type(mg_2d_t), intent(inout) :: mg
+    type(mg_t), intent(inout) :: mg
     integer, intent(in)          :: id !< Id of box
     integer, intent(in)          :: nb !< Ghost cell direction
     !> Unmodified coarse grid ghost cells (including data for neighbors)

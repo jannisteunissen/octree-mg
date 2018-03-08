@@ -1,3 +1,4 @@
+#include "cpp_macros.h"
 module m_data_structures
 
   implicit none
@@ -28,6 +29,7 @@ module m_data_structures
   integer, parameter :: no_box = 0
   integer, parameter :: physical_boundary = -1
 
+#if NDIM == 2
   ! Numbering of children (same location as **corners**)
   integer, parameter :: num_children = 4
   integer, parameter :: child_lowx_lowy = 1
@@ -67,6 +69,68 @@ module m_data_structures
   integer, parameter :: neighb_rev(4) = [2, 1, 4, 3]
   ! Direction (dimension) for a neighbor
   integer, parameter :: neighb_dim(4) = [1, 1, 2, 2]
+#elif NDIM == 3
+    ! Numbering of children (same location as **corners**)
+  integer, parameter :: num_children = 8
+  integer, parameter :: child_lowx_lowy_lowz = 1
+  integer, parameter :: child_highx_lowy_lowz = 2
+  integer, parameter :: child_lowx_highy_lowz = 3
+  integer, parameter :: child_highx_highy_lowz = 4
+  integer, parameter :: child_lowx_lowy_highz = 5
+  integer, parameter :: child_highx_lowy_highz = 6
+  integer, parameter :: child_lowx_highy_highz = 7
+  integer, parameter :: child_highx_highy_highz = 8
+
+  ! Index offset for each child
+  integer, parameter :: child_dix(3, 8) = reshape( &
+       [0,0,0, 1,0,0, 0,1,0, 1,1,0, &
+       0,0,1, 1,0,1, 0,1,1, 1,1,1], [3,8])
+  ! Children adjacent to a neighbor
+  integer, parameter :: child_adj_nb(4, 6) = reshape( &
+       [1,3,5,7, 2,4,6,8, 1,2,5,6, 3,4,7,8, 1,2,3,4, 5,6,7,8], [4,6])
+  ! Neighbors adjacent to a child
+  integer, parameter :: nb_adj_child(3, 8) = reshape( &
+       [1,3,5, 2,3,5, 1,4,5, 2,4,5, 1,3,6, 2,3,6, 1,4,6, 2,4,6], [3,8])
+  ! Which children have a low index per dimension
+  logical, parameter :: child_low(3, 8) = reshape([ &
+       .true., .true., .true., .false., .true., .true., &
+       .true., .false., .true., .false., .false., .true., &
+       .true., .true., .false., .false., .true., .false., &
+       .true., .false., .false., .false., .false., .false.], [3, 8])
+  ! Which children have a high index per dimension
+  integer, parameter :: child_high_01(3, 8) = reshape([ &
+       0, 0, 0, 1, 0, 0, &
+       0, 1, 0, 1, 1, 0, &
+       0, 0, 1, 1, 0, 1, &
+       0, 1, 1, 1, 1, 1], [3, 8])
+
+  ! Neighbor topology information
+  integer, parameter :: num_neighbors = 6
+  integer, parameter :: neighb_lowx = 1
+  integer, parameter :: neighb_highx = 2
+  integer, parameter :: neighb_lowy = 3
+  integer, parameter :: neighb_highy = 4
+  integer, parameter :: neighb_lowz = 5
+  integer, parameter :: neighb_highz = 6
+  ! Index offsets of neighbors
+  integer, parameter :: neighb_dix(3, 6) = reshape( &
+       [-1,0,0, 1,0,0, 0,-1,0, 0,1,0, 0,0,-1, 0,0,1], [3,6])
+  ! Which neighbors have a lower index
+  logical, parameter :: neighb_low(6) = &
+       [.true., .false., .true., .false., .true., .false.]
+  ! The low neighbors
+  integer, parameter :: low_neighbs(3) = [1, 3, 5]
+  ! The high neighbors
+  integer, parameter :: high_neighbs(3) = [2, 4, 6]
+  ! Opposite of nb_low, but now as 0,1 integers
+  integer, parameter :: neighb_high_01(6) = [0, 1, 0, 1, 0, 1]
+  ! Opposite of nb_low, but now as -1,1 integers
+  integer, parameter :: neighb_high_pm(6) = [-1, 1, -1, 1, -1, 1]
+  ! Reverse neighbors
+  integer, parameter :: neighb_rev(6) = [2, 1, 4, 3, 6, 5]
+  ! Direction (dimension) for a neighbor
+  integer, parameter :: neighb_dim(6) = [1, 1, 2, 2, 3, 3]
+#endif
 
   !> Lists of blocks per refinement level
   type lvl_t
@@ -81,19 +145,19 @@ module m_data_structures
   end type lvl_t
 
   !> Box data structure
-  type box_2d_t
+  type box_t
      integer  :: rank
      integer  :: id
      integer  :: lvl
-     integer  :: ix(2)
+     integer  :: ix(NDIM)
      integer  :: parent
-     integer  :: children(4)
-     integer  :: neighbors(4)
-     real(dp) :: r_min(2)
+     integer  :: children(2**NDIM)
+     integer  :: neighbors(2*NDIM)
+     real(dp) :: r_min(NDIM)
 
      ! integer(int64)        :: morton
-     real(dp), allocatable :: cc(:, :, :)
-  end type box_2d_t
+     real(dp), allocatable :: cc(DTIMES(:), :)
+  end type box_t
 
   type buf_t
      integer               :: i_send
@@ -120,19 +184,19 @@ module m_data_structures
      real(dp)          :: t0
   end type timer_t
 
-  type mg_2d_t
-     integer                     :: n_cpu   = -1
-     integer                     :: my_rank = -1
-     integer                     :: box_size
-     integer                     :: highest_lvl
-     integer                     :: n_boxes
-     real(dp), allocatable       :: dr(:)
-     type(box_2d_t), allocatable :: boxes(:)
-     type(lvl_t), allocatable    :: lvls(:)
-     type(buf_t), allocatable    :: buf(:)
-     type(comm_t)                :: comm_restrict
-     type(comm_t)                :: comm_prolong
-     type(comm_t)                :: comm_ghostcell
+  type mg_t
+     integer                  :: n_cpu   = -1
+     integer                  :: my_rank = -1
+     integer                  :: box_size
+     integer                  :: highest_lvl
+     integer                  :: n_boxes
+     real(dp), allocatable    :: dr(:)
+     type(box_t), allocatable :: boxes(:)
+     type(lvl_t), allocatable :: lvls(:)
+     type(buf_t), allocatable :: buf(:)
+     type(comm_t)             :: comm_restrict
+     type(comm_t)             :: comm_prolong
+     type(comm_t)             :: comm_ghostcell
 
      type(bc_t)                          :: bc(num_neighbors)
      procedure(subr_bc), pointer, nopass :: boundary_cond  => null()
@@ -145,13 +209,13 @@ module m_data_structures
 
      integer       :: n_timers = 0
      type(timer_t) :: timers(max_timers)
-  end type mg_2d_t
+  end type mg_t
 
   interface
      !> To fill ghost cells near physical boundaries
      subroutine subr_bc(mg, id, nb, bc_type)
        import
-       type(mg_2d_t), intent(inout) :: mg
+       type(mg_t), intent(inout) :: mg
        integer, intent(in)          :: id
        integer, intent(in)          :: nb      !< Direction
        integer, intent(out)         :: bc_type !< Type of b.c.
@@ -160,26 +224,31 @@ module m_data_structures
      !> To fill ghost cells near refinement boundaries
      subroutine subr_rb(mg, id, nb, cgc)
        import
-       type(mg_2d_t), intent(inout) :: mg
+       type(mg_t), intent(inout) :: mg
        integer, intent(in)          :: id
        integer, intent(in)          :: nb !< Direction
-       real(dp), intent(in)         :: cgc(mg%box_size) !< Coarse data
+       !> Coarse data
+#if NDIM == 2
+       real(dp), intent(in)         :: cgc(mg%box_size)
+#elif NDIM == 3
+       real(dp), intent(in)         :: cgc(mg%box_size, mg%box_size)
+#endif
      end subroutine subr_rb
 
      !> Subroutine that performs A * cc(..., i_in) = cc(..., i_out)
      subroutine mg_box_op(mg, id, i_out)
        import
-       type(mg_2d_t), intent(inout) :: mg
-       integer, intent(in)          :: id
-       integer, intent(in)          :: i_out
+       type(mg_t), intent(inout) :: mg
+       integer, intent(in)       :: id
+       integer, intent(in)       :: i_out
      end subroutine mg_box_op
 
      !> Subroutine that performs Gauss-Seidel relaxation
      subroutine mg_box_gsrb(mg, id, redblack_cntr)
        import
-       type(mg_2d_t), intent(inout) :: mg
-       integer, intent(in)          :: id
-       integer, intent(in)          :: redblack_cntr
+       type(mg_t), intent(inout) :: mg
+       integer, intent(in)       :: id
+       integer, intent(in)       :: redblack_cntr
      end subroutine mg_box_gsrb
   end interface
 
@@ -187,7 +256,7 @@ contains
 
   !> Return .true. if a box has children
   elemental logical function has_children(box)
-    type(box_2d_t), intent(in) :: box
+    type(box_t), intent(in) :: box
 
     ! Boxes are either fully refined or not, so we only need to check one of the
     ! children
@@ -197,24 +266,28 @@ contains
   !> Compute the 'child index' for a box with spatial index ix. With 'child
   !> index' we mean the index in the children(:) array of its parent.
   integer function ix_to_ichild(ix)
-    integer, intent(in) :: ix(2) !< Spatial index of the box
+    integer, intent(in) :: ix(NDIM) !< Spatial index of the box
     ! The index can range from 1 (all ix odd) and 2**$D (all ix even)
+#if NDIM == 2
     ix_to_ichild = 4 - 2 * iand(ix(2), 1) - iand(ix(1), 1)
+#elif NDIM == 3
+    ix_to_ichild = 8 - 4 * iand(ix(3), 1) - 2 * iand(ix(2), 1) - iand(ix(1), 1)
+#endif
   end function ix_to_ichild
 
   !> Get the offset of a box with respect to its parent (e.g. in 2d, there can
   !> be a child at offset 0,0, one at n_cell/2,0, one at 0,n_cell/2 and one at
   !> n_cell/2, n_cell/2)
   pure function get_child_offset(mg, id) result(ix_offset)
-    type(mg_2d_t), intent(in) :: mg
-    integer, intent(in)       :: id
-    integer                   :: ix_offset(2)
+    type(mg_t), intent(in) :: mg
+    integer, intent(in)    :: id
+    integer                :: ix_offset(NDIM)
 
     ix_offset = iand(mg%boxes(id)%ix-1, 1) * ishft(mg%box_size, -1) ! * n_cell / 2
   end function get_child_offset
 
   integer function add_timer(mg, name)
-    type(mg_2d_t), intent(inout) :: mg
+    type(mg_t), intent(inout) :: mg
     character(len=*), intent(in) :: name
 
     mg%n_timers               = mg%n_timers + 1
@@ -236,10 +309,10 @@ contains
 
   subroutine timers_show(mg)
     use mpi
-    type(mg_2d_t), intent(in) :: mg
-    integer                   :: n, ierr
-    real(dp)                  :: tmin(mg%n_timers)
-    real(dp)                  :: tmax(mg%n_timers)
+    type(mg_t), intent(in) :: mg
+    integer                :: n, ierr
+    real(dp)               :: tmin(mg%n_timers)
+    real(dp)               :: tmax(mg%n_timers)
 
     call mpi_reduce(mg%timers(1:mg%n_timers)%t, tmin, mg%n_timers, &
          mpi_double, mpi_min, 0, mpi_comm_world, ierr)

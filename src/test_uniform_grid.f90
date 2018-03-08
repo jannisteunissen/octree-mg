@@ -12,14 +12,14 @@ program test_one_level
 
   implicit none
 
-  integer, parameter :: block_size = 32
-  integer, parameter :: domain_size = 4096
+  integer, parameter :: block_size = 64
+  integer, parameter :: domain_size = 1024
   real(dp), parameter :: dr = 1.0_dp / block_size
   real(dp), parameter :: pi = acos(-1.0_dp)
 
   integer :: lvl, n, ierr
   real(dp) :: t0, t1
-  type(mg_2d_t) :: mg
+  type(mg_t) :: mg
 
   mg%boundary_cond => my_bc
   mg%n_cycle_up = 2
@@ -52,9 +52,9 @@ program test_one_level
 
   t0 = mpi_wtime()
   do n = 1, 10
-     ! call mg_fas_fmg(mg, n==1, .true.)
-     call mg_fas_vcycle(mg, .true.)
-     ! call print_error(mg)
+     call mg_fas_fmg(mg, n==1, .true.)
+     ! call mg_fas_vcycle(mg, .true.)
+     call print_error(mg)
   end do
   t1 = mpi_wtime()
   if (mg%my_rank == 0) then
@@ -67,7 +67,7 @@ program test_one_level
 contains
 
   subroutine set_initial_conditions(mg)
-    type(mg_2d_t), intent(inout) :: mg
+    type(mg_t), intent(inout) :: mg
     integer                      :: n, id, lvl, i, j
     real(dp)                     :: r(2), sol
 
@@ -90,7 +90,7 @@ contains
   end subroutine set_initial_conditions
 
   subroutine print_error(mg)
-    type(mg_2d_t), intent(inout) :: mg
+    type(mg_t), intent(inout) :: mg
     integer                      :: n, id, lvl, i, j, ierr
     real(dp)                     :: r(2), sol, val, err, max_err
 
@@ -119,7 +119,7 @@ contains
   end subroutine print_error
 
   subroutine my_bc(mg, id, nb, bc_type)
-    type(mg_2d_t), intent(inout) :: mg
+    type(mg_t), intent(inout) :: mg
     integer, intent(in)          :: id
     integer, intent(in)          :: nb      !< Direction
     integer, intent(out)         :: bc_type !< Type of b.c.

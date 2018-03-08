@@ -12,7 +12,7 @@ contains
     use m_ghost_cells, only: ghost_cell_buffer_size
     use m_restrict, only: restrict_buffer_size
     use m_prolong, only: prolong_buffer_size
-    type(mg_2d_t), intent(inout) :: mg
+    type(mg_t), intent(inout) :: mg
     integer                      :: i, id, lvl, nc
     integer                      :: n_send(0:mg%n_cpu-1, 3)
     integer                      :: n_recv(0:mg%n_cpu-1, 3)

@@ -1,3 +1,4 @@
+#include "cpp_macros.h"
 module m_restrict
   use m_data_structures
 
@@ -12,14 +13,14 @@ contains
 
   !> Specify minimum buffer size (per process) for communication
   subroutine restrict_buffer_size(mg, n_send, n_recv, dsize)
-    type(mg_2d_t), intent(inout) :: mg
-    integer, intent(out)         :: n_send(0:mg%n_cpu-1)
-    integer, intent(out)         :: n_recv(0:mg%n_cpu-1)
-    integer, intent(out)         :: dsize
-    integer                      :: n_out(0:mg%n_cpu-1, mg%highest_lvl)
-    integer                      :: n_in(0:mg%n_cpu-1, mg%highest_lvl)
-    integer                      :: lvl, i, id, p_id, p_rank
-    integer                      :: i_c, c_id, c_rank
+    type(mg_t), intent(inout) :: mg
+    integer, intent(out)      :: n_send(0:mg%n_cpu-1)
+    integer, intent(out)      :: n_recv(0:mg%n_cpu-1)
+    integer, intent(out)      :: dsize
+    integer                   :: n_out(0:mg%n_cpu-1, mg%highest_lvl)
+    integer                   :: n_in(0:mg%n_cpu-1, mg%highest_lvl)
+    integer                   :: lvl, i, id, p_id, p_rank
+    integer                   :: i_c, c_id, c_rank
 
     n_out(:, :) = 0
     n_in(:, :)  = 0
@@ -58,21 +59,21 @@ contains
     mg%comm_restrict%n_send = n_out
     mg%comm_restrict%n_recv = n_in
 
-    dsize  = (mg%box_size/2)**2
+    dsize  = (mg%box_size/2)**NDIM
     n_send = maxval(n_out, dim=2)
     n_recv = maxval(n_in, dim=2)
   end subroutine restrict_buffer_size
 
   subroutine restrict(mg, iv, lvl)
     use m_communication
-    type(mg_2d_t), intent(inout) :: mg
-    integer, intent(in)          :: iv
-    integer, intent(in)          :: lvl
-    integer                      :: i, id, dsize
+    type(mg_t), intent(inout) :: mg
+    integer, intent(in)       :: iv
+    integer, intent(in)       :: lvl
+    integer                   :: i, id, dsize
 
     if (lvl <= 1) error stop "cannot restrict for lvl <= 1"
 
-    dsize = (mg%box_size/2)**2
+    dsize = (mg%box_size/2)**NDIM
 
     mg%buf(:)%i_send = 0
     mg%buf(:)%i_ix   = 0
@@ -93,26 +94,37 @@ contains
   end subroutine restrict
 
   subroutine restrict_set_buffer(mg, id, iv)
-    type(mg_2d_t), intent(inout) :: mg
+    type(mg_t), intent(inout) :: mg
     integer, intent(in)          :: id
     integer, intent(in)          :: iv
-    real(dp)                     :: tmp(mg%box_size/2, mg%box_size/2)
-    integer                      :: i, j, n, hnc, p_id, p_rank
+    integer                      :: IJK, n, hnc, p_id, p_rank
+    real(dp) :: tmp(DTIMES(mg%box_size/2))
 
     hnc    = mg%box_size/2
     p_id   = mg%boxes(id)%parent
     p_rank = mg%boxes(p_id)%rank
 
     if (p_rank /= mg%my_rank) then
+#if NDIM == 2
        do j = 1, hnc
           do i = 1, hnc
              tmp(i, j) = 0.25_dp * &
                   sum(mg%boxes(id)%cc(2*i-1:2*i, 2*j-1:2*j, iv))
           end do
        end do
+#elif NDIM == 3
+       do k = 1, hnc
+          do j = 1, hnc
+             do i = 1, hnc
+                tmp(i, j, k) = 0.25_dp * sum(mg%boxes(id)%cc(2*i-1:2*i, &
+                     2*j-1:2*j, 2*k-1:2*k, iv))
+             end do
+          end do
+       end do
+#endif
 
        ! Buffer
-       n = hnc**2
+       n = size(tmp)
        i = mg%buf(p_rank)%i_send
        mg%buf(p_rank)%send(i+1:i+n) = pack(tmp, .true.)
        mg%buf(p_rank)%i_send = mg%buf(p_rank)%i_send + n
@@ -126,14 +138,14 @@ contains
   end subroutine restrict_set_buffer
 
   subroutine restrict_onto(mg, id, iv)
-    type(mg_2d_t), intent(inout) :: mg
-    integer, intent(in)          :: id
-    integer, intent(in)          :: iv
-    integer                      :: i, j, hnc, dsize, i_c, c_id
-    integer                      :: c_rank, dix(2)
+    type(mg_t), intent(inout) :: mg
+    integer, intent(in)       :: id
+    integer, intent(in)       :: iv
+    integer                   :: IJK, hnc, dsize, i_c, c_id
+    integer                   :: c_rank, dix(NDIM)
 
     hnc   = mg%box_size/2
-    dsize = hnc**2
+    dsize = hnc**NDIM
 
     do i_c = 1, num_children
        c_id   = mg%boxes(id)%children(i_c)
@@ -141,17 +153,35 @@ contains
        dix    = get_child_offset(mg, c_id)
 
        if (c_rank == mg%my_rank) then
+#if NDIM == 2
           do j = 1, hnc
              do i = 1, hnc
                 mg%boxes(id)%cc(dix(1)+i, dix(2)+j, iv) = 0.25_dp * &
                      sum(mg%boxes(c_id)%cc(2*i-1:2*i, 2*j-1:2*j, iv))
              end do
           end do
+#elif NDIM == 3
+          do k = 1, hnc
+             do j = 1, hnc
+                do i = 1, hnc
+                   mg%boxes(id)%cc(dix(1)+i, dix(2)+j, dix(3)+k, iv) = &
+                        0.25_dp * sum(mg%boxes(c_id)%cc(2*i-1:2*i, &
+                        2*j-1:2*j, 2*k-1:2*k, iv))
+                end do
+             end do
+          end do
+#endif
        else
           i = mg%buf(c_rank)%i_recv
+#if NDIM == 2
           mg%boxes(id)%cc(dix(1)+1:dix(1)+hnc, &
                dix(2)+1:dix(2)+hnc, iv) = &
                reshape(mg%buf(c_rank)%recv(i+1:i+dsize), [hnc, hnc])
+#elif NDIM == 3
+          mg%boxes(id)%cc(dix(1)+1:dix(1)+hnc, &
+               dix(2)+1:dix(2)+hnc, dix(3)+1:dix(3)+hnc, iv) = &
+               reshape(mg%buf(c_rank)%recv(i+1:i+dsize), [DTIMES(hnc)])
+#endif
           mg%buf(c_rank)%i_recv = mg%buf(c_rank)%i_recv + dsize
        end if
     end do

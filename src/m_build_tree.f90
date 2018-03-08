@@ -10,7 +10,7 @@ module m_build_tree
 contains
 
   subroutine build_uniform_tree(mg, block_size, domain_size, dr_coarse)
-    type(mg_2d_t), intent(inout) :: mg
+    type(mg_t), intent(inout) :: mg
     integer, intent(in) :: block_size
     integer, intent(in) :: domain_size
     real(dp), intent(in) :: dr_coarse
@@ -95,7 +95,7 @@ contains
 
   ! Set the neighbors of id (using their parent)
   subroutine set_neighbs_2d(boxes, id)
-    type(box_2d_t), intent(inout) :: boxes(:)
+    type(box_t), intent(inout) :: boxes(:)
     integer, intent(in)         :: id
     integer                     :: nb, nb_id
 
@@ -112,7 +112,7 @@ contains
 
   !> Get the id of neighbor nb of boxes(id), through its parent
   function find_neighb_2d(boxes, id, nb) result(nb_id)
-    type(box_2d_t), intent(in) :: boxes(:) !< List with all the boxes
+    type(box_t), intent(in) :: boxes(:) !< List with all the boxes
     integer, intent(in)      :: id       !< Box whose neighbor we are looking for
     integer, intent(in)      :: nb       !< Neighbor index
     integer                  :: nb_id, p_id, c_ix, d, old_pid
@@ -133,7 +133,7 @@ contains
 
   !> Create a list of leaves and a list of parents for a level
   subroutine set_leaves_parents(boxes, level)
-    type(box_2d_t), intent(in)   :: boxes(:) !< List of boxes
+    type(box_t), intent(in)   :: boxes(:) !< List of boxes
     type(lvl_t), intent(inout) :: level !< Level type which contains the indices of boxes
     integer                    :: i, id, i_leaf, i_parent
     integer                    :: n_parents, n_leaves
@@ -171,7 +171,7 @@ contains
 
   !> Create a list of refinement boundaries (from the coarse side)
   subroutine set_refinement_boundaries(boxes, level)
-    type(box_2d_t), intent(in) :: boxes(:)
+    type(box_t), intent(in) :: boxes(:)
     type(lvl_t), intent(inout) :: level
     integer, allocatable       :: tmp(:)
     integer                    :: i, id, nb, nb_id, ix
@@ -203,7 +203,7 @@ contains
   end subroutine set_refinement_boundaries
 
   subroutine add_children(mg, id)
-    type(mg_2d_t), intent(inout) :: mg
+    type(mg_t), intent(inout) :: mg
     integer, intent(in)          :: id      !< Id of box that gets children
     integer                      :: lvl, i, nb, child_nb(2**(2-1))
     integer                      :: c_ids(4), c_id, c_ix_base(2)

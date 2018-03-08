@@ -10,10 +10,10 @@ module m_load_balance
 contains
 
   subroutine load_balance(mg)
-    type(mg_2d_t), intent(inout) :: mg
+    type(mg_t), intent(inout) :: mg
     integer :: i, id, lvl
     integer :: work_left, my_work, i_cpu
-    integer :: c_ids(4), c_ranks(4)
+    ! integer :: c_ids(4), c_ranks(4)
 
     do lvl = 1, mg%highest_lvl
        work_left = size(mg%lvls(lvl)%ids)
@@ -70,7 +70,7 @@ contains
   end function most_popular
 
   subroutine update_lvl_info(mg, lvl)
-    type(mg_2d_t), intent(inout) :: mg
+    type(mg_t), intent(inout) :: mg
     type(lvl_t), intent(inout)   :: lvl
 
     lvl%my_ids = pack(lvl%ids, &

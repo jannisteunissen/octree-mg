@@ -87,6 +87,4 @@ contains
     end if
   end subroutine fishpack_2d
 
-
-
 end module m_fishpack

@@ -1,3 +1,4 @@
+#include "cpp_macros.h"
 module m_multigrid
   use m_data_structures
   use m_prolong
@@ -7,8 +8,8 @@ module m_multigrid
   implicit none
   private
 
-  integer, parameter :: smoother_type = 2
-  integer, parameter :: smoother_gsrb = 1
+  integer, parameter :: smoother_type   = 2
+  integer, parameter :: smoother_gsrb   = 1
   integer, parameter :: smoother_jacobi = 2
 
   integer :: timer_total         = -1
@@ -26,7 +27,7 @@ module m_multigrid
 contains
 
   subroutine mg_add_timers(mg)
-    type(mg_2d_t), intent(inout) :: mg
+    type(mg_t), intent(inout) :: mg
     timer_total         = add_timer(mg, "mg total")
     timer_gsrb          = add_timer(mg, "mg gsrb")
     timer_gsrb_gc       = add_timer(mg, "mg gsrb_gc")
@@ -39,10 +40,10 @@ contains
   !> that this routine needs valid ghost cells (for i_phi) on input, and gives
   !> back valid ghost cells on output
   subroutine mg_fas_fmg(mg, set_residual, have_guess)
-    type(mg_2d_t), intent(inout) :: mg
-    logical, intent(in)          :: set_residual !< If true, store residual in i_tmp
-    logical, intent(in)          :: have_guess   !< If false, start from phi = 0
-    integer                      :: lvl, min_lvl, i, id
+    type(mg_t), intent(inout) :: mg
+    logical, intent(in)       :: set_residual !< If true, store residual in i_tmp
+    logical, intent(in)       :: have_guess   !< If false, start from phi = 0
+    integer                   :: lvl, min_lvl, i, id
 
     min_lvl = 1
 
@@ -50,7 +51,7 @@ contains
        do lvl = mg%highest_lvl, 1
           do i = 1, size(mg%lvls(lvl)%my_ids)
              id = mg%lvls(lvl)%my_ids(i)
-             mg%boxes(id)%cc(:, :, i_phi) = 0.0_dp
+             mg%boxes(id)%cc(DTIMES(:), i_phi) = 0.0_dp
           end do
        end do
     end if
@@ -64,8 +65,8 @@ contains
        ! Store phi_old
        do i = 1, size(mg%lvls(lvl)%my_ids)
           id = mg%lvls(lvl)%my_ids(i)
-          mg%boxes(id)%cc(:, :, i_old) = &
-            mg%boxes(id)%cc(:, :, i_phi)
+          mg%boxes(id)%cc(DTIMES(:), i_old) = &
+            mg%boxes(id)%cc(DTIMES(:), i_phi)
        end do
 
        if (lvl > min_lvl) then
@@ -87,7 +88,7 @@ contains
   !> needs valid ghost cells (for i_phi) on input, and gives back valid ghost
   !> cells on output
   subroutine mg_fas_vcycle(mg, set_residual, highest_lvl)
-    type(mg_2d_t), intent(inout)  :: mg
+    type(mg_t), intent(inout)  :: mg
     logical, intent(in)           :: set_residual !< If true, store residual in i_res
     integer, intent(in), optional :: highest_lvl  !< Maximum level for V-cycle
     integer                       :: lvl, min_lvl, i, id, max_lvl
@@ -147,23 +148,29 @@ contains
 
   subroutine solve_coarse_grid(mg)
     use m_fishpack
-    type(mg_2d_t), intent(inout) :: mg
-    real(dp)                     :: rhs(mg%box_size, mg%box_size)
-    real(dp)                     :: rmin(2), rmax(2)
-    integer                      :: nx(2), my_boxes, total_boxes
+    type(mg_t), intent(inout) :: mg
 
-    my_boxes = size(mg%lvls(1)%my_ids)
+    real(dp) :: rhs(DTIMES(mg%box_size))
+    real(dp) :: rmin(NDIM), rmax(NDIM)
+    integer  :: nc, nx(NDIM), my_boxes, total_boxes
+
+    my_boxes    = size(mg%lvls(1)%my_ids)
     total_boxes = size(mg%lvls(1)%ids)
+    nc          = mg%box_size
 
     if (my_boxes == total_boxes) then
-       nx(:) = mg%box_size
-       rmin  = [0.0_dp, 0.0_dp]
-       rmax  = mg%dr(1) * [mg%box_size, mg%box_size]
-       rhs   = mg%boxes(1)%cc(1:mg%box_size, 1:mg%box_size, i_rhs)
+       nx(:) = nc
+       rmin  = [DTIMES(0.0_dp)]
+       rmax  = mg%dr(1) * [DTIMES(nc)]
+       rhs   = mg%boxes(1)%cc(DTIMES(1:nc), i_rhs)
 
+#if NDIM == 2
        call fishpack_2d(nx, rhs, mg%bc, rmin, rmax)
+#elif NDIM == 3
+       call fishpack_3d(nx, rhs, mg%bc, rmin, rmax)
+#endif
 
-       mg%boxes(1)%cc(1:mg%box_size, 1:mg%box_size, i_phi) = rhs
+       mg%boxes(1)%cc(DTIMES(1:nc), i_phi) = rhs
     else if (my_boxes > 0) then
        error stop "Boxes at level 1 at different processors"
     end if
@@ -173,11 +180,11 @@ contains
 
   !> Perform Gauss-Seidel relaxation on box for a Laplacian operator
   subroutine box_gsrb_lpl(mg, id, redblack_cntr)
-    type(mg_2d_t), intent(inout) :: mg
-    integer, intent(in)          :: id
-    integer, intent(in)          :: redblack_cntr !< Iteration counter
-    integer                      :: i, i0, j, nc
-    real(dp)                     :: dx2
+    type(mg_t), intent(inout) :: mg
+    integer, intent(in)       :: id
+    integer, intent(in)       :: redblack_cntr !< Iteration counter
+    integer                   :: IJK, i0, nc
+    real(dp)                  :: dx2
 
     dx2   = mg%dr(mg%boxes(id)%lvl)**2
     nc    = mg%box_size
@@ -185,6 +192,7 @@ contains
     ! The parity of redblack_cntr determines which cells we use. If
     ! redblack_cntr is even, we use the even cells and vice versa.
     associate (box => mg%boxes(id))
+#if NDIM == 2
       do j = 1, nc
          i0 = 2 - iand(ieor(redblack_cntr, j), 1)
          do i = i0, nc, 2
@@ -194,23 +202,42 @@ contains
                  dx2 * box%cc(i, j, i_rhs))
          end do
       end do
+#elif NDIM == 3
+      do k = 1, nc
+         do j = 1, nc
+            i0 = 2 - iand(ieor(redblack_cntr, k+j), 1)
+            do i = i0, nc, 2
+               box%cc(i, j, k, i_phi) = sixth * ( &
+                    box%cc(i+1, j, k, i_phi) + box%cc(i-1, j, k, i_phi) + &
+                    box%cc(i, j+1, k, i_phi) + box%cc(i, j-1, k, i_phi) + &
+                    box%cc(i, j, k+1, i_phi) + box%cc(i, j, k-1, i_phi) - &
+                    dx2 * box%cc(i, j, k, i_rhs))
+            end do
+         end do
+      end do
+#endif
     end associate
   end subroutine box_gsrb_lpl
 
   !> Perform Jacobi relaxation on box for a Laplacian operator
   subroutine box_jacobi_lpl(mg, id)
-    type(mg_2d_t), intent(inout) :: mg
+    type(mg_t), intent(inout) :: mg
     integer, intent(in)          :: id
-    integer                      :: i, j, nc
-    real(dp)                     :: tmp(0:mg%box_size+1, 0:mg%box_size+1)
-    real(dp)                     :: dx2
+    integer                      :: IJK, nc
     real(dp), parameter          :: w = 2.0_dp / 3
+
+    real(dp) :: tmp(DTIMES(0:mg%box_size+1))
+    real(dp) :: dx2
+#if NDIM == 3
+    real(dp), parameter :: sixth = 1/6.0_dp
+#endif
 
     dx2   = mg%dr(mg%boxes(id)%lvl)**2
     nc    = mg%box_size
 
     associate (box => mg%boxes(id))
-      tmp = box%cc(:, :, i_phi)
+      tmp = box%cc(DTIMES(:), i_phi)
+#if NDIM == 2
       do j = 1, nc
          do i = 1, nc
             box%cc(i, j, i_phi) = (1-w) * box%cc(i, j, i_phi) + &
@@ -220,21 +247,37 @@ contains
                  dx2 * box%cc(i, j, i_rhs))
          end do
       end do
+#elif NDIM == 3
+      do k = 1, nc
+         do j = 1, nc
+            do i = 1, nc
+               box%cc(i, j, k, i_phi) = (1-w) * &
+                    box%cc(i, j, k, i_phi) + &
+                    sixth * w * ( &
+                    tmp(i+1, j, k) + tmp(i-1, j, k) + &
+                    tmp(i, j+1, k) + tmp(i, j-1, k) + &
+                    tmp(i, j, k+1) + tmp(i, j, k-1) - &
+                    dx2 * box%cc(i, j, i_rhs))
+            end do
+         end do
+      end do
+#endif
     end associate
   end subroutine box_jacobi_lpl
 
   !> Perform Laplacian operator on a box
   subroutine box_lpl(mg, id, i_out)
-    type(mg_2d_t), intent(inout) :: mg
+    type(mg_t), intent(inout) :: mg
     integer, intent(in)          :: id
     integer, intent(in)          :: i_out !< Index of variable to store Laplacian in
     integer                      :: i, j, nc
     real(dp)                     :: inv_dr_sq
 
-    nc    = mg%box_size
+    nc        = mg%box_size
     inv_dr_sq = 1 / mg%dr(mg%boxes(id)%lvl)**2
 
     associate (box => mg%boxes(id))
+#if NDIM == 2
       do j = 1, nc
          do i = 1, nc
             box%cc(i, j, i_out) = inv_dr_sq * (box%cc(i-1, j, i_phi) + &
@@ -242,15 +285,28 @@ contains
                  box%cc(i, j+1, i_phi) - 4 * box%cc(i, j, i_phi))
          end do
       end do
+#elif NDIM == 3
+      do k = 1, nc
+         do j = 1, nc
+            do i = 1, nc
+               box%cc(i, j, k, i_out) = inv_dr_sq * &
+                    (box%cc(i-1, j, k, i_phi) + &
+                    box%cc(i+1, j, k, i_phi) + box%cc(i, j-1, k, i_phi) + &
+                    box%cc(i, j+1, k, i_phi) + box%cc(i, j, k-1, i_phi) + &
+                    box%cc(i, j, k+1, i_phi) - 6 * box%cc(i, j, k, i_phi))
+            end do
+         end do
+      end do
+#endif
     end associate
   end subroutine box_lpl
 
   ! Set rhs on coarse grid, restrict phi, and copy i_phi to i_old for the
   ! correction later
   subroutine update_coarse(mg, lvl)
-    type(mg_2d_t), intent(inout) :: mg  !< Tree containing full grid
-    integer, intent(in)          :: lvl !< Update coarse values at lvl-1
-    integer                      :: i, id, nc
+    type(mg_t), intent(inout) :: mg     !< Tree containing full grid
+    integer, intent(in)       :: lvl !< Update coarse values at lvl-1
+    integer                   :: i, id, nc
 
     nc = mg%box_size
 
@@ -275,39 +331,39 @@ contains
        call box_lpl(mg, id, i_rhs)
 
        ! Add the fine grid residual to rhs
-       mg%boxes(id)%cc(1:nc, 1:nc, i_rhs) = &
-            mg%boxes(id)%cc(1:nc, 1:nc, i_rhs) + &
-            mg%boxes(id)%cc(1:nc, 1:nc, i_res)
+       mg%boxes(id)%cc(DTIMES(1:nc), i_rhs) = &
+            mg%boxes(id)%cc(DTIMES(1:nc), i_rhs) + &
+            mg%boxes(id)%cc(DTIMES(1:nc), i_res)
 
        ! Story a copy of phi
-       mg%boxes(id)%cc(:, :, i_old) = &
-            mg%boxes(id)%cc(:, :, i_phi)
+       mg%boxes(id)%cc(DTIMES(:), i_old) = &
+            mg%boxes(id)%cc(DTIMES(:), i_phi)
     end do
   end subroutine update_coarse
 
   ! Sets phi = phi + prolong(phi_coarse - phi_old_coarse)
   subroutine correct_children(mg, lvl)
-    type(mg_2d_t), intent(inout) :: mg
-    integer, intent(in)          :: lvl
-    integer                      :: i, id
+    type(mg_t), intent(inout) :: mg
+    integer, intent(in)       :: lvl
+    integer                   :: i, id
 
     do i = 1, size(mg%lvls(lvl)%my_parents)
        id = mg%lvls(lvl)%my_parents(i)
 
        ! Store the correction in i_res
-       mg%boxes(id)%cc(:, :, i_res) = &
-            mg%boxes(id)%cc(:, :, i_phi) - &
-            mg%boxes(id)%cc(:, :, i_old)
+       mg%boxes(id)%cc(DTIMES(:), i_res) = &
+            mg%boxes(id)%cc(DTIMES(:), i_phi) - &
+            mg%boxes(id)%cc(DTIMES(:), i_old)
     end do
 
     call prolong(mg, lvl, i_res, i_phi, add=.true.)
   end subroutine correct_children
 
   subroutine gsrb_boxes(mg, lvl, n_cycle)
-    type(mg_2d_t), intent(inout) :: mg
-    integer, intent(in)          :: lvl
-    integer, intent(in)          :: n_cycle !< Number of cycles to perform
-    integer                      :: n, i, id
+    type(mg_t), intent(inout) :: mg
+    integer, intent(in)       :: lvl
+    integer, intent(in)       :: n_cycle !< Number of cycles to perform
+    integer                   :: n, i, id
 
     select case (smoother_type)
     case (smoother_jacobi)
@@ -335,17 +391,17 @@ contains
   end subroutine gsrb_boxes
 
   subroutine residual_box(mg, id)
-    type(mg_2d_t), intent(inout) :: mg
-    integer, intent(in)          :: id
-    integer                      :: nc
+    type(mg_t), intent(inout) :: mg
+    integer, intent(in)       :: id
+    integer                   :: nc
 
     nc = mg%box_size
 
     call box_lpl(mg, id, i_res)
 
-    mg%boxes(id)%cc(1:nc, 1:nc, i_res) = &
-         mg%boxes(id)%cc(1:nc, 1:nc, i_rhs) &
-         - mg%boxes(id)%cc(1:nc, 1:nc, i_res)
+    mg%boxes(id)%cc(DTIMES(1:nc), i_res) = &
+         mg%boxes(id)%cc(DTIMES(1:nc), i_rhs) &
+         - mg%boxes(id)%cc(DTIMES(1:nc), i_res)
   end subroutine residual_box
 
 end module m_multigrid
