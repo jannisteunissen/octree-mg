@@ -204,6 +204,7 @@ module m_data_structures
 
      integer                                 :: n_cycle_down =  2
      integer                                 :: n_cycle_up   =  2
+     integer                                 :: n_cycle_base =  4
      procedure(mg_box_op), pointer, nopass   :: box_op       => null()
      procedure(mg_box_gsrb), pointer, nopass :: box_gsrb     => null()
 

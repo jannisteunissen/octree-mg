@@ -8,13 +8,14 @@ module m_multigrid
   implicit none
   private
 
-  integer, parameter :: smoother_type   = 1
+  integer, parameter :: smoother_type   = 3
   integer, parameter :: smoother_gsrb   = 1
   integer, parameter :: smoother_jacobi = 2
+  integer, parameter :: smoother_gs     = 3
 
   integer :: timer_total         = -1
-  integer :: timer_gsrb          = -1
-  integer :: timer_gsrb_gc       = -1
+  integer :: timer_smoother      = -1
+  integer :: timer_smoother_gc   = -1
   integer :: timer_coarse        = -1
   integer :: timer_correct       = -1
   integer :: timer_update_coarse = -1
@@ -29,8 +30,8 @@ contains
   subroutine mg_add_timers(mg)
     type(mg_t), intent(inout) :: mg
     timer_total         = add_timer(mg, "mg total")
-    timer_gsrb          = add_timer(mg, "mg gsrb")
-    timer_gsrb_gc       = add_timer(mg, "mg gsrb_gc")
+    timer_smoother      = add_timer(mg, "mg smoother")
+    timer_smoother_gc   = add_timer(mg, "mg smoother g.c.")
     timer_coarse        = add_timer(mg, "mg coarse")
     timer_correct       = add_timer(mg, "mg correct")
     timer_update_coarse = add_timer(mg, "mg update coarse")
@@ -88,12 +89,12 @@ contains
   !> needs valid ghost cells (for i_phi) on input, and gives back valid ghost
   !> cells on output
   subroutine mg_fas_vcycle(mg, set_residual, highest_lvl)
-    type(mg_t), intent(inout)  :: mg
+    type(mg_t), intent(inout)     :: mg
     logical, intent(in)           :: set_residual !< If true, store residual in i_res
     integer, intent(in), optional :: highest_lvl  !< Maximum level for V-cycle
     integer                       :: lvl, min_lvl, i, id, max_lvl
 
-    if (timer_gsrb == -1) then
+    if (timer_smoother == -1) then
        call mg_add_timers(mg)
     end if
 
@@ -114,14 +115,13 @@ contains
        call timer_end(mg%timers(timer_update_coarse))
     end do
 
-#if NDIM == 2
-    ! Use direct method
     call timer_start(mg%timers(timer_coarse))
-    call solve_coarse_grid(mg)
+    ! #if NDIM == 2
+    !     ! Use direct method
+    !     call solve_coarse_grid(mg)
+    ! #elif NDIM == 3
+    call smooth_boxes(mg, 1, mg%n_cycle_base)
     call timer_end(mg%timers(timer_coarse))
-#elif NDIM == 3
-    call smooth_boxes(mg, 1, 100)
-#endif
 
     ! Do the upwards part of the v-cycle in the tree
     do lvl = min_lvl+1, max_lvl
@@ -225,6 +225,47 @@ contains
 #endif
     end associate
   end subroutine box_gsrb_lpl
+
+  !> Perform Gauss-Seidel relaxation on box for a Laplacian operator
+  subroutine box_gs_lpl(mg, id)
+    type(mg_t), intent(inout) :: mg
+    integer, intent(in)       :: id
+    integer                   :: IJK, nc
+    real(dp)                  :: dx2
+#if NDIM == 3
+    real(dp), parameter       :: sixth = 1/6.0_dp
+#endif
+
+    dx2 = mg%dr(mg%boxes(id)%lvl)**2
+    nc  = mg%box_size
+
+    ! The parity of redblack_cntr determines which cells we use. If
+    ! redblack_cntr is even, we use the even cells and vice versa.
+    associate (box => mg%boxes(id))
+#if NDIM == 2
+      do j = 1, nc
+         do i = 1, nc
+            box%cc(i, j, i_phi) = 0.25_dp * ( &
+                 box%cc(i+1, j, i_phi) + box%cc(i-1, j, i_phi) + &
+                 box%cc(i, j+1, i_phi) + box%cc(i, j-1, i_phi) - &
+                 dx2 * box%cc(i, j, i_rhs))
+         end do
+      end do
+#elif NDIM == 3
+      do k = 1, nc
+         do j = 1, nc
+            do i = 1, nc
+               box%cc(i, j, k, i_phi) = sixth * ( &
+                    box%cc(i+1, j, k, i_phi) + box%cc(i-1, j, k, i_phi) + &
+                    box%cc(i, j+1, k, i_phi) + box%cc(i, j-1, k, i_phi) + &
+                    box%cc(i, j, k+1, i_phi) + box%cc(i, j, k-1, i_phi) - &
+                    dx2 * box%cc(i, j, k, i_rhs))
+            end do
+         end do
+      end do
+#endif
+    end associate
+  end subroutine box_gs_lpl
 
   !> Perform Jacobi relaxation on box for a Laplacian operator
   subroutine box_jacobi_lpl(mg, id)
@@ -365,26 +406,34 @@ contains
     integer                   :: n, i, id
 
     select case (smoother_type)
-    case (smoother_jacobi)
+    case (smoother_jacobi, smoother_gs)
        do n = 1, n_cycle
+          call timer_start(mg%timers(timer_smoother))
           do i = 1, size(mg%lvls(lvl)%my_ids)
              id = mg%lvls(lvl)%my_ids(i)
-             call box_jacobi_lpl(mg, id)
+             if (smoother_type == smoother_jacobi) then
+                call box_jacobi_lpl(mg, id)
+             else
+                call box_gs_lpl(mg, id)
+             end if
           end do
+          call timer_end(mg%timers(timer_smoother))
+          call timer_start(mg%timers(timer_smoother_gc))
           call fill_ghost_cells_lvl(mg, lvl)
+          call timer_end(mg%timers(timer_smoother_gc))
        end do
     case (smoother_gsrb)
        do n = 1, 2 * n_cycle
-          call timer_start(mg%timers(timer_gsrb))
+          call timer_start(mg%timers(timer_smoother))
           do i = 1, size(mg%lvls(lvl)%my_ids)
              id = mg%lvls(lvl)%my_ids(i)
              call box_gsrb_lpl(mg, id, n)
           end do
-          call timer_end(mg%timers(timer_gsrb))
+          call timer_end(mg%timers(timer_smoother))
 
-          call timer_start(mg%timers(timer_gsrb_gc))
+          call timer_start(mg%timers(timer_smoother_gc))
           call fill_ghost_cells_lvl(mg, lvl)
-          call timer_end(mg%timers(timer_gsrb_gc))
+          call timer_end(mg%timers(timer_smoother_gc))
        end do
     end select
   end subroutine smooth_boxes

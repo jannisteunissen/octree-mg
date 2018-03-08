@@ -13,8 +13,8 @@ program test_one_level
 
   implicit none
 
-  integer, parameter  :: block_size  = 32
-  integer, parameter  :: domain_size = 512
+  integer, parameter  :: block_size  = 16
+  integer, parameter  :: domain_size = 128
   real(dp), parameter :: dr          = 1.0_dp / block_size
   real(dp), parameter :: pi          = acos(-1.0_dp)
 
@@ -25,6 +25,7 @@ program test_one_level
   mg%boundary_cond => my_bc
   mg%n_cycle_up = 2
   mg%n_cycle_down = 2
+  mg%n_cycle_base = 4
 
   call comm_init(mg)
   call build_uniform_tree(mg, block_size, domain_size, dr)
@@ -48,13 +49,6 @@ program test_one_level
   do lvl = 1, mg%highest_lvl
      call fill_ghost_cells_lvl(mg, lvl)
   end do
-
-  ! call prolong(mg, 1, i_phi, i_phi, .false.)
-  ! call restrict(mg, i_phi, mg%highest_lvl)
-
-  ! do lvl = 1, mg%highest_lvl
-  !    call fill_ghost_cells_lvl(mg, lvl)
-  ! end do
 
   call print_error(mg)
 
@@ -119,20 +113,15 @@ contains
 #if NDIM == 2
              r = mg%boxes(id)%r_min + &
                   [i-0.5_dp, j-0.5_dp] * mg%dr(lvl)
-             sol = product(sin(2 * pi * r))
-             val = mg%boxes(id)%cc(i, j, i_phi)
-             err = max(err, abs(val-sol))
-             ! err = max(err, abs(mg%boxes(id)%cc(i, j, i_res)))
-             ! print *, lvl, id, i, j, r, sol, val, abs(sol-val)
 #elif NDIM == 3
              r = mg%boxes(id)%r_min + &
                   [i-0.5_dp, j-0.5_dp, k-0.5_dp] * mg%dr(lvl)
-             sol = product(sin(2 * pi * r))
-             val = mg%boxes(id)%cc(i, j, k, i_phi)
-             err = max(err, abs(val-sol))
-             ! err = max(err, abs(mg%boxes(id)%cc(i, j, i_res)))
-             ! print *, lvl, id, i, j, r, sol, val, abs(sol-val)
 #endif
+             sol = product(sin(2 * pi * r))
+             val = mg%boxes(id)%cc(IJK, i_phi)
+             err = max(err, abs(val-sol))
+             ! err = max(err, abs(mg%boxes(id)%cc(IJK, i_res)))
+             ! print *, lvl, id, i, j, r, sol, val, abs(sol-val)
           end do; CLOSE_DO
        end do
     end do
