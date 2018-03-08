@@ -1,3 +1,5 @@
+NDIM ?= 2
+
 SRCS := m_data_structures.f90 m_build_tree.f90 m_load_balance.f90	\
 m_ghost_cells.f90 m_allocate_storage.f90 m_mrgrnk.f90 m_restrict.f90	\
 m_communication.f90 m_prolong.f90 m_multigrid.f90 m_fishpack.f90
@@ -16,7 +18,7 @@ clean:
 	$(RM) $(OBJS) $(PROGS) *.mod
 
 FC 	:= mpif90
-FFLAGS	:= -O2 -std=f2008 -fopenmp -Wall -Wextra -g -cpp -DNDIM=2
+FFLAGS	:= -O2 -std=f2008 -fopenmp -Wall -Wextra -g -cpp -DNDIM=$(NDIM)
 
 ifeq ($(DEBUG), 1)
 	FFLAGS += -fcheck=all -ffpe-trap=invalid,zero,overflow \

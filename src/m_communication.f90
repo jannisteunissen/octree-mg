@@ -13,7 +13,7 @@ contains
   subroutine comm_init(mg)
     use mpi
     type(mg_t), intent(inout) :: mg
-    integer                      :: ierr
+    integer                   :: ierr
 
     call mpi_init(ierr)
     call mpi_comm_rank(MPI_COMM_WORLD, mg%my_rank, ierr)
@@ -23,11 +23,11 @@ contains
   subroutine sort_and_transfer_buffers(mg, dsize)
     use mpi
     type(mg_t), intent(inout) :: mg
-    integer, intent(in)          :: dsize
-    integer                      :: i
-    integer                      :: send_req(0:mg%n_cpu-1)
-    integer                      :: recv_req(0:mg%n_cpu-1)
-    integer                      :: ierr
+    integer, intent(in)       :: dsize
+    integer                   :: i
+    integer                   :: send_req(0:mg%n_cpu-1)
+    integer                   :: recv_req(0:mg%n_cpu-1)
+    integer                   :: ierr
 
     do i = 0, mg%n_cpu - 1
        call sort_sendbuf(mg%buf(i), dsize)

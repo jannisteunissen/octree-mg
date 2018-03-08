@@ -8,7 +8,7 @@ module m_multigrid
   implicit none
   private
 
-  integer, parameter :: smoother_type   = 2
+  integer, parameter :: smoother_type   = 1
   integer, parameter :: smoother_gsrb   = 1
   integer, parameter :: smoother_jacobi = 2
 
@@ -105,7 +105,7 @@ contains
 
     do lvl = max_lvl,  min_lvl+1, -1
        ! Downwards relaxation
-       call gsrb_boxes(mg, lvl, mg%n_cycle_down)
+       call smooth_boxes(mg, lvl, mg%n_cycle_down)
 
        ! Set rhs on coarse grid, restrict phi, and copy i_phi to i_old for the
        ! correction later
@@ -114,10 +114,14 @@ contains
        call timer_end(mg%timers(timer_update_coarse))
     end do
 
+#if NDIM == 2
     ! Use direct method
     call timer_start(mg%timers(timer_coarse))
     call solve_coarse_grid(mg)
     call timer_end(mg%timers(timer_coarse))
+#elif NDIM == 3
+    call smooth_boxes(mg, 1, 100)
+#endif
 
     ! Do the upwards part of the v-cycle in the tree
     do lvl = min_lvl+1, max_lvl
@@ -131,7 +135,7 @@ contains
        call timer_end(mg%timers(timer_correct))
 
        ! Upwards relaxation
-       call gsrb_boxes(mg, lvl, mg%n_cycle_up)
+       call smooth_boxes(mg, lvl, mg%n_cycle_up)
     end do
 
     if (set_residual) then
@@ -185,9 +189,12 @@ contains
     integer, intent(in)       :: redblack_cntr !< Iteration counter
     integer                   :: IJK, i0, nc
     real(dp)                  :: dx2
+#if NDIM == 3
+    real(dp), parameter       :: sixth = 1/6.0_dp
+#endif
 
-    dx2   = mg%dr(mg%boxes(id)%lvl)**2
-    nc    = mg%box_size
+    dx2 = mg%dr(mg%boxes(id)%lvl)**2
+    nc  = mg%box_size
 
     ! The parity of redblack_cntr determines which cells we use. If
     ! redblack_cntr is even, we use the even cells and vice versa.
@@ -237,31 +244,23 @@ contains
 
     associate (box => mg%boxes(id))
       tmp = box%cc(DTIMES(:), i_phi)
+      do KJI_DO(1, nc)
 #if NDIM == 2
-      do j = 1, nc
-         do i = 1, nc
-            box%cc(i, j, i_phi) = (1-w) * box%cc(i, j, i_phi) + &
-                 0.25_dp * w * ( &
-                 tmp(i+1, j) + tmp(i-1, j) + &
-                 tmp(i, j+1) + tmp(i, j-1) - &
-                 dx2 * box%cc(i, j, i_rhs))
-         end do
-      end do
+         box%cc(i, j, i_phi) = (1-w) * box%cc(i, j, i_phi) + &
+              0.25_dp * w * ( &
+              tmp(i+1, j) + tmp(i-1, j) + &
+              tmp(i, j+1) + tmp(i, j-1) - &
+              dx2 * box%cc(i, j, i_rhs))
 #elif NDIM == 3
-      do k = 1, nc
-         do j = 1, nc
-            do i = 1, nc
-               box%cc(i, j, k, i_phi) = (1-w) * &
-                    box%cc(i, j, k, i_phi) + &
-                    sixth * w * ( &
-                    tmp(i+1, j, k) + tmp(i-1, j, k) + &
-                    tmp(i, j+1, k) + tmp(i, j-1, k) + &
-                    tmp(i, j, k+1) + tmp(i, j, k-1) - &
-                    dx2 * box%cc(i, j, i_rhs))
-            end do
-         end do
-      end do
+         box%cc(i, j, k, i_phi) = (1-w) * &
+              box%cc(i, j, k, i_phi) + &
+              sixth * w * ( &
+              tmp(i+1, j, k) + tmp(i-1, j, k) + &
+              tmp(i, j+1, k) + tmp(i, j-1, k) + &
+              tmp(i, j, k+1) + tmp(i, j, k-1) - &
+              dx2 * box%cc(i, j, k, i_rhs))
 #endif
+      end do; CLOSE_DO
     end associate
   end subroutine box_jacobi_lpl
 
@@ -270,7 +269,7 @@ contains
     type(mg_t), intent(inout) :: mg
     integer, intent(in)          :: id
     integer, intent(in)          :: i_out !< Index of variable to store Laplacian in
-    integer                      :: i, j, nc
+    integer                      :: IJK, nc
     real(dp)                     :: inv_dr_sq
 
     nc        = mg%box_size
@@ -359,7 +358,7 @@ contains
     call prolong(mg, lvl, i_res, i_phi, add=.true.)
   end subroutine correct_children
 
-  subroutine gsrb_boxes(mg, lvl, n_cycle)
+  subroutine smooth_boxes(mg, lvl, n_cycle)
     type(mg_t), intent(inout) :: mg
     integer, intent(in)       :: lvl
     integer, intent(in)       :: n_cycle !< Number of cycles to perform
@@ -388,7 +387,7 @@ contains
           call timer_end(mg%timers(timer_gsrb_gc))
        end do
     end select
-  end subroutine gsrb_boxes
+  end subroutine smooth_boxes
 
   subroutine residual_box(mg, id)
     type(mg_t), intent(inout) :: mg

@@ -46,8 +46,8 @@ module m_data_structures
   ! Children adjacent to a neighbor
   integer, parameter :: child_adj_nb(2, 4) = reshape([1,3,2,4,1,2,3,4], [2,4])
   ! Which children have a low index per dimension
-  logical, parameter :: child_low(4, 2) = reshape([.true., .false., .true., &
-       .false., .true., .true., .false., .false.], [4,2])
+  logical, parameter :: child_low(2, 4) = reshape([.true., .true., &
+       .false., .true., .true., .false., .false., .false.], [2, 4])
 
   ! Neighbor topology information
   integer, parameter :: num_neighbors = 4
@@ -85,12 +85,12 @@ module m_data_structures
   integer, parameter :: child_dix(3, 8) = reshape( &
        [0,0,0, 1,0,0, 0,1,0, 1,1,0, &
        0,0,1, 1,0,1, 0,1,1, 1,1,1], [3,8])
+  ! Reverse child index in each direction
+  integer, parameter :: child_rev(8, 3) = reshape( &
+       [2,1,4,3,6,5,8,7, 3,4,1,2,7,8,5,6, 5,6,7,8,1,2,3,4], [8,3])
   ! Children adjacent to a neighbor
   integer, parameter :: child_adj_nb(4, 6) = reshape( &
        [1,3,5,7, 2,4,6,8, 1,2,5,6, 3,4,7,8, 1,2,3,4, 5,6,7,8], [4,6])
-  ! Neighbors adjacent to a child
-  integer, parameter :: nb_adj_child(3, 8) = reshape( &
-       [1,3,5, 2,3,5, 1,4,5, 2,4,5, 1,3,6, 2,3,6, 1,4,6, 2,4,6], [3,8])
   ! Which children have a low index per dimension
   logical, parameter :: child_low(3, 8) = reshape([ &
        .true., .true., .true., .false., .true., .true., &
@@ -216,22 +216,22 @@ module m_data_structures
      subroutine subr_bc(mg, id, nb, bc_type)
        import
        type(mg_t), intent(inout) :: mg
-       integer, intent(in)          :: id
-       integer, intent(in)          :: nb      !< Direction
-       integer, intent(out)         :: bc_type !< Type of b.c.
+       integer, intent(in)       :: id
+       integer, intent(in)       :: nb      !< Direction
+       integer, intent(out)      :: bc_type !< Type of b.c.
      end subroutine subr_bc
 
      !> To fill ghost cells near refinement boundaries
      subroutine subr_rb(mg, id, nb, cgc)
        import
        type(mg_t), intent(inout) :: mg
-       integer, intent(in)          :: id
-       integer, intent(in)          :: nb !< Direction
+       integer, intent(in)       :: id
+       integer, intent(in)       :: nb !< Direction
        !> Coarse data
 #if NDIM == 2
-       real(dp), intent(in)         :: cgc(mg%box_size)
+       real(dp), intent(in)      :: cgc(mg%box_size)
 #elif NDIM == 3
-       real(dp), intent(in)         :: cgc(mg%box_size, mg%box_size)
+       real(dp), intent(in)      :: cgc(mg%box_size, mg%box_size)
 #endif
      end subroutine subr_rb
 

@@ -78,7 +78,7 @@ contains
     type(mg_t), intent(inout) :: mg
     integer, intent(in)          :: id
     integer, intent(in)          :: iv
-    integer                      :: i, hnc, dix(2)
+    integer                      :: i, hnc, dix(NDIM)
     integer                      :: i_c, c_id, c_rank, dsize
 
     hnc   = mg%box_size/2
@@ -117,7 +117,7 @@ contains
     integer, intent(in)       :: iv
     integer, intent(in)       :: iv_to
     logical, intent(in)       :: add
-    integer                   :: i, j, nc, hnc, p_id, p_rank, dix(NDIM), dsize
+    integer                   :: IJK, nc, hnc, p_id, p_rank, dix(NDIM), dsize
 #if NDIM == 2
     real(dp)                  :: f0, flx, fhx, fly, fhy
 #elif NDIM == 3
@@ -171,42 +171,43 @@ contains
     end do
 #elif NDIM == 3
     do k = 1, hnc
-    do j = 1, hnc
-       do i = 1, hnc
-          f0  = 0.5_dp * tmp(i, j, k)
-          flx = 0.25_dp * tmp(i-1, j, k)
-          fhx = 0.25_dp * tmp(i+1, j, k)
-          fly = 0.25_dp * tmp(i, j-1, k)
-          fhy = 0.25_dp * tmp(i, j+1, k)
-          flz = 0.25_dp * tmp(i, j, k-1)
-          fhz = 0.25_dp * tmp(i, j, k+1)
+       do j = 1, hnc
+          do i = 1, hnc
+             f0  = 0.25_dp * tmp(i, j, k)
+             flx = 0.25_dp * tmp(i-1, j, k)
+             fhx = 0.25_dp * tmp(i+1, j, k)
+             fly = 0.25_dp * tmp(i, j-1, k)
+             fhy = 0.25_dp * tmp(i, j+1, k)
+             flz = 0.25_dp * tmp(i, j, k-1)
+             fhz = 0.25_dp * tmp(i, j, k+1)
 
-          mg%boxes(id)%cc(2*i-1, 2*j-1, 2*k-1, iv_to) = &
-               f0 + flx + fly + flz + &
-               mg%boxes(id)%cc(2*i-1, 2*j-1, 2*k-1, iv_to)
-          mg%boxes(id)%cc(2*i, 2*j-1, 2*k-1, iv_to)   = &
-               f0 + fhx + fly + flz + &
-               mg%boxes(id)%cc(2*i, 2*j-1, 2*k-1, iv_to)
-          mg%boxes(id)%cc(2*i-1, 2*j, iv_to)          = &
-               0 + flx + fhy + flz + &
-               mg%boxes(id)%cc(2*i-1, 2*j, 2*k-1,iv_to)
-          mg%boxes(id)%cc(2*i, 2*j, 2*k-1,iv_to)      = &
-               f0 + fhx + fhy + flz + &
-               mg%boxes(id)%cc(2*i, 2*j, 2*k-1,iv_to)
+             mg%boxes(id)%cc(2*i-1, 2*j-1, 2*k-1, iv_to) = &
+                  mg%boxes(id)%cc(2*i-1, 2*j-1, 2*k-1, iv_to) + &
+                  f0 + flx + fly + flz
+             mg%boxes(id)%cc(2*i, 2*j-1, 2*k-1, iv_to)   = &
+                  mg%boxes(id)%cc(2*i, 2*j-1, 2*k-1, iv_to) + &
+                  f0 + fhx + fly + flz
+             mg%boxes(id)%cc(2*i-1, 2*j, 2*k-1, iv_to)   = &
+                  mg%boxes(id)%cc(2*i-1, 2*j, 2*k-1, iv_to) + &
+                  f0 + flx + fhy + flz
+             mg%boxes(id)%cc(2*i, 2*j, 2*k-1, iv_to)      = &
+                  mg%boxes(id)%cc(2*i, 2*j, 2*k-1, iv_to) + &
+                  f0 + fhx + fhy + flz
 
-          mg%boxes(id)%cc(2*i-1, 2*j-1, 2*k, iv_to) = &
-               f0 + flx + fly - flz + &
-               mg%boxes(id)%cc(2*i-1, 2*j-1, 2*k, iv_to)
-          mg%boxes(id)%cc(2*i, 2*j-1, 2*k, iv_to)   = &
-               f0 + fhx + fly - flz + &
-               mg%boxes(id)%cc(2*i, 2*j-1, 2*k, iv_to)
-          mg%boxes(id)%cc(2*i-1, 2*j, iv_to)          = &
-               0 + flx + fhy - flz + &
-               mg%boxes(id)%cc(2*i-1, 2*j, 2*k,iv_to)
-          mg%boxes(id)%cc(2*i, 2*j, 2*k,iv_to)      = &
-               f0 + fhx + fhy - flz + &
-               mg%boxes(id)%cc(2*i, 2*j, 2*k,iv_to)
-     end do
+             mg%boxes(id)%cc(2*i-1, 2*j-1, 2*k, iv_to) = &
+                  mg%boxes(id)%cc(2*i-1, 2*j-1, 2*k, iv_to) + &
+                  f0 + flx + fly + fhz
+             mg%boxes(id)%cc(2*i, 2*j-1, 2*k, iv_to)   = &
+                  mg%boxes(id)%cc(2*i, 2*j-1, 2*k, iv_to) + &
+                  f0 + fhx + fly + fhz
+             mg%boxes(id)%cc(2*i-1, 2*j, 2*k, iv_to)   = &
+                  mg%boxes(id)%cc(2*i-1, 2*j, 2*k, iv_to) + &
+                  f0 + flx + fhy + fhz
+             mg%boxes(id)%cc(2*i, 2*j, 2*k, iv_to)      = &
+                  mg%boxes(id)%cc(2*i, 2*j, 2*k, iv_to) + &
+                  f0 + fhx + fhy + fhz
+          end do
+       end do
     end do
 #endif
   end subroutine prolong_onto

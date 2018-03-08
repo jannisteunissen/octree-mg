@@ -1,3 +1,4 @@
+#include "cpp_macros.h"
 module m_ghost_cells
   use m_data_structures
 
@@ -24,7 +25,7 @@ contains
     allocate(mg%comm_ghostcell%n_send(0:mg%n_cpu-1, mg%highest_lvl))
     allocate(mg%comm_ghostcell%n_recv(0:mg%n_cpu-1, mg%highest_lvl))
 
-    dsize = mg%box_size
+    dsize = mg%box_size**(NDIM-1)
 
     do lvl = 1, mg%highest_lvl
        mg%buf(:)%i_send = 0
@@ -62,16 +63,17 @@ contains
 
   subroutine fill_ghost_cells_lvl(mg, lvl)
     use m_communication
-    type(mg_t)        :: mg
-    integer, intent(in)  :: lvl
-    integer              :: i, id
+    type(mg_t)          :: mg
+    integer, intent(in) :: lvl
+    integer             :: i, id, dsize
 
     if (lvl < 1) error stop "fill_ghost_cells_lvl: lvl < 1"
     if (lvl > mg%highest_lvl) error stop "fill_ghost_cells_lvl: lvl > highest_lvl"
 
+    dsize            = mg%box_size**(NDIM-1)
     mg%buf(:)%i_send = 0
     mg%buf(:)%i_recv = 0
-    mg%buf(:)%i_ix = 0
+    mg%buf(:)%i_ix   = 0
 
     do i = 1, size(mg%lvls(lvl)%my_ids)
        id = mg%lvls(lvl)%my_ids(i)
@@ -86,8 +88,8 @@ contains
     end if
 
     ! Transfer data between processes
-    mg%buf(:)%i_recv = mg%comm_ghostcell%n_recv(:, lvl) * mg%box_size
-    call sort_and_transfer_buffers(mg, mg%box_size)
+    mg%buf(:)%i_recv = mg%comm_ghostcell%n_recv(:, lvl) * dsize
+    call sort_and_transfer_buffers(mg, dsize)
 
     ! Set ghost cells to received data
     mg%buf(:)%i_recv = 0
@@ -120,9 +122,10 @@ contains
 
   subroutine buffer_refinement_boundaries(mg, id, dry_run)
     type(mg_t), intent(inout) :: mg
-    integer, intent(in)          :: id
-    logical, intent(in)          :: dry_run
-    integer                      :: nb, nb_id, c_ids(2), n, c_id, c_rank
+    integer, intent(in)       :: id
+    logical, intent(in)       :: dry_run
+    integer                   :: nb, nb_id, c_ids(2**(NDIM-1))
+    integer                   :: n, c_id, c_rank
 
     do nb = 1, num_neighbors
        nb_id = mg%boxes(id)%neighbors(nb)
@@ -185,7 +188,7 @@ contains
     integer                      :: p_id, p_nb_id
     integer                      :: i, dsize, p_nb_rank
 
-    dsize     = mg%box_size
+    dsize     = mg%box_size**(NDIM-1)
     p_id      = mg%boxes(id)%parent
     p_nb_id   = mg%boxes(p_id)%neighbors(nb)
     p_nb_rank = mg%boxes(p_nb_id)%rank
@@ -210,8 +213,12 @@ contains
     type(mg_t), intent(inout)  :: mg
     type(box_t), intent(inout) :: box
     type(box_t), intent(in)    :: box_nb
-    integer, intent(in)           :: nb
-    real(dp)                      :: gc(mg%box_size)
+    integer, intent(in)        :: nb
+#if NDIM == 2
+    real(dp)                   :: gc(mg%box_size)
+#elif NDIM == 3
+    real(dp)                   :: gc(mg%box_size, mg%box_size)
+#endif
 
     call box_gc_for_neighbor(box_nb, neighb_rev(nb), mg%box_size, gc)
     call box_set_gc(box, nb, mg%box_size, gc)
@@ -221,16 +228,23 @@ contains
     use mpi
     type(mg_t), intent(inout)  :: mg
     type(box_t), intent(inout) :: box
-    integer, intent(in)           :: nb_id
-    integer, intent(in)           :: nb_rank
-    integer, intent(in)           :: nb
-    logical, intent(in)           :: dry_run
-    integer                       :: i
+    integer, intent(in)        :: nb_id
+    integer, intent(in)        :: nb_rank
+    integer, intent(in)        :: nb
+    logical, intent(in)        :: dry_run
+    integer                    :: i, dsize
+#if NDIM == 2
+    real(dp)                   :: gc(mg%box_size)
+#elif NDIM == 3
+    real(dp)                   :: gc(mg%box_size, mg%box_size)
+#endif
 
-    i = mg%buf(nb_rank)%i_send
+    i     = mg%buf(nb_rank)%i_send
+    dsize = mg%box_size**(NDIM-1)
+
     if (.not. dry_run) then
-       call box_gc_for_neighbor(box, nb, mg%box_size, &
-            mg%buf(nb_rank)%send(i+1:i+mg%box_size))
+       call box_gc_for_neighbor(box, nb, mg%box_size, gc)
+       mg%buf(nb_rank)%send(i+1:i+dsize) = pack(gc, .true.)
     end if
 
     ! Later the buffer is sorted, using the fact that loops go from low to high
@@ -240,7 +254,7 @@ contains
        mg%buf(nb_rank)%ix(i+1) = num_neighbors * nb_id + neighb_rev(nb)
     end if
 
-    mg%buf(nb_rank)%i_send = mg%buf(nb_rank)%i_send + mg%box_size
+    mg%buf(nb_rank)%i_send = mg%buf(nb_rank)%i_send + dsize
     mg%buf(nb_rank)%i_ix   = mg%buf(nb_rank)%i_ix + 1
   end subroutine buffer_for_nb
 
@@ -248,26 +262,38 @@ contains
     use mpi
     type(mg_t), intent(inout)  :: mg
     type(box_t), intent(inout) :: box
-    integer, intent(in)           :: nb_rank
-    integer, intent(in)           :: nb
-    logical, intent(in)           :: dry_run
-    integer                       :: i
+    integer, intent(in)        :: nb_rank
+    integer, intent(in)        :: nb
+    logical, intent(in)        :: dry_run
+    integer                    :: i, dsize
+#if NDIM == 2
+    real(dp)                   :: gc(mg%box_size)
+#elif NDIM == 3
+    real(dp)                   :: gc(mg%box_size, mg%box_size)
+#endif
 
-    i = mg%buf(nb_rank)%i_recv
+    i     = mg%buf(nb_rank)%i_recv
+    dsize = mg%box_size**(NDIM-1)
+
     if (.not. dry_run) then
-       call box_set_gc(box, nb, mg%box_size, &
-            mg%buf(nb_rank)%recv(i+1:i+mg%box_size))
+       gc = reshape(mg%buf(nb_rank)%recv(i+1:i+dsize), shape(gc))
+       call box_set_gc(box, nb, mg%box_size, gc)
     end if
-    mg%buf(nb_rank)%i_recv = mg%buf(nb_rank)%i_recv + mg%box_size
+    mg%buf(nb_rank)%i_recv = mg%buf(nb_rank)%i_recv + dsize
 
   end subroutine fill_buffered_nb
 
   subroutine box_gc_for_neighbor(box, nb, nc, gc)
     type(box_t), intent(in) :: box
     integer, intent(in)        :: nb, nc
-    real(dp), intent(out)      :: gc(nc)
+#if NDIM == 2
+    real(dp), intent(out)          :: gc(nc)
+#elif NDIM == 3
+    real(dp), intent(out)          :: gc(nc, nc)
+#endif
 
     select case (nb)
+#if NDIM == 2
     case (neighb_lowx)
        gc = box%cc(1, 1:nc, i_phi)
     case (neighb_highx)
@@ -276,23 +302,56 @@ contains
        gc = box%cc(1:nc, 1, i_phi)
     case (neighb_highy)
        gc = box%cc(1:nc, nc, i_phi)
+#elif NDIM == 3
+    case (neighb_lowx)
+       gc = box%cc(1, 1:nc, 1:nc, i_phi)
+    case (neighb_highx)
+       gc = box%cc(nc, 1:nc, 1:nc, i_phi)
+    case (neighb_lowy)
+       gc = box%cc(1:nc, 1, 1:nc, i_phi)
+    case (neighb_highy)
+       gc = box%cc(1:nc, nc, 1:nc, i_phi)
+    case (neighb_lowz)
+       gc = box%cc(1:nc, 1:nc, 1, i_phi)
+    case (neighb_highz)
+       gc = box%cc(1:nc, 1:nc, nc, i_phi)
+#endif
     end select
   end subroutine box_gc_for_neighbor
 
   subroutine box_set_gc(box, nb, nc, gc)
     type(box_t), intent(inout) :: box
-    integer, intent(in)           :: nb, nc
-    real(dp), intent(in)          :: gc(nc)
+    integer, intent(in)        :: nb, nc
+#if NDIM == 2
+    real(dp), intent(in)       :: gc(nc)
+#elif NDIM == 3
+    real(dp), intent(in)       :: gc(nc, nc)
+#endif
 
     select case (nb)
+#if NDIM == 2
     case (neighb_lowx)
-       box%cc(0, 1:nc, i_phi) = gc
+       box%cc(0, 1:nc, i_phi)    = gc
     case (neighb_highx)
        box%cc(nc+1, 1:nc, i_phi) = gc
     case (neighb_lowy)
-       box%cc(1:nc, 0, i_phi) = gc
+       box%cc(1:nc, 0, i_phi)    = gc
     case (neighb_highy)
        box%cc(1:nc, nc+1, i_phi) = gc
+#elif NDIM == 3
+    case (neighb_lowx)
+       box%cc(0, 1:nc, 1:nc, i_phi)    = gc
+    case (neighb_highx)
+       box%cc(nc+1, 1:nc, 1:nc, i_phi) = gc
+    case (neighb_lowy)
+       box%cc(1:nc, 0, 1:nc, i_phi)    = gc
+    case (neighb_highy)
+       box%cc(1:nc, nc+1, 1:nc, i_phi) = gc
+    case (neighb_lowz)
+       box%cc(1:nc, 1:nc, 0, i_phi)    = gc
+    case (neighb_highz)
+       box%cc(1:nc, 1:nc, nc+1, i_phi) = gc
+#endif
     end select
   end subroutine box_set_gc
 
@@ -332,6 +391,7 @@ contains
     end select
 
     select case (nb)
+#if NDIM == 2
     case (neighb_lowx)
        mg%boxes(id)%cc(0, 1:nc, i_phi) = &
             c0 * mg%boxes(id)%cc(0, 1:nc, i_phi) + &
@@ -352,33 +412,73 @@ contains
             c0 * mg%boxes(id)%cc(1:nc, nc+1, i_phi) + &
             c1 * mg%boxes(id)%cc(1:nc, nc, i_phi) + &
             c2 * mg%boxes(id)%cc(1:nc, nc-1, i_phi)
+#elif NDIM == 3
+    case (neighb_lowx)
+       mg%boxes(id)%cc(0, 1:nc, 1:nc, i_phi) = &
+            c0 * mg%boxes(id)%cc(0, 1:nc, 1:nc, i_phi) + &
+            c1 * mg%boxes(id)%cc(1, 1:nc, 1:nc, i_phi) + &
+            c2 * mg%boxes(id)%cc(2, 1:nc, 1:nc, i_phi)
+    case (neighb_highx)
+       mg%boxes(id)%cc(nc+1, 1:nc, 1:nc, i_phi) = &
+            c0 * mg%boxes(id)%cc(nc+1, 1:nc, 1:nc, i_phi) + &
+            c1 * mg%boxes(id)%cc(nc, 1:nc, 1:nc, i_phi) + &
+            c2 * mg%boxes(id)%cc(nc-1, 1:nc, 1:nc, i_phi)
+    case (neighb_lowy)
+       mg%boxes(id)%cc(1:nc, 0, 1:nc, i_phi) = &
+            c0 * mg%boxes(id)%cc(1:nc, 0, 1:nc, i_phi) + &
+            c1 * mg%boxes(id)%cc(1:nc, 1, 1:nc, i_phi) + &
+            c2 * mg%boxes(id)%cc(1:nc, 2, 1:nc, i_phi)
+    case (neighb_highy)
+       mg%boxes(id)%cc(1:nc, nc+1, 1:nc, i_phi) = &
+            c0 * mg%boxes(id)%cc(1:nc, nc+1, 1:nc, i_phi) + &
+            c1 * mg%boxes(id)%cc(1:nc, nc, 1:nc, i_phi) + &
+            c2 * mg%boxes(id)%cc(1:nc, nc-1, 1:nc, i_phi)
+    case (neighb_lowz)
+       mg%boxes(id)%cc(1:nc, 1:nc, 0, i_phi) = &
+            c0 * mg%boxes(id)%cc(1:nc, 1:nc, 0, i_phi) + &
+            c1 * mg%boxes(id)%cc(1:nc, 1:nc, 1, i_phi) + &
+            c2 * mg%boxes(id)%cc(1:nc, 1:nc, 2, i_phi)
+    case (neighb_highz)
+       mg%boxes(id)%cc(1:nc, 1:nc, nc+1, i_phi) = &
+            c0 * mg%boxes(id)%cc(1:nc, 1:nc, nc+1, i_phi) + &
+            c1 * mg%boxes(id)%cc(1:nc, 1:nc, nc, i_phi) + &
+            c2 * mg%boxes(id)%cc(1:nc, 1:nc, nc-1, i_phi)
+#endif
     end select
   end subroutine bc_to_gc
 
     ! This fills ghost cells near physical boundaries using Neumann zero
   subroutine set_bc_neumann_zero(mg, id, nb, bc_type)
     type(mg_t), intent(inout) :: mg
-    integer, intent(in)          :: id
-    integer, intent(in)          :: nb
-    integer, intent(out)         :: bc_type
-    integer                      :: i
+    integer, intent(in)       :: id
+    integer, intent(in)       :: nb
+    integer, intent(out)      :: bc_type
+#if NDIM == 2
+    real(dp)                  :: tmp(mg%box_size)
+#elif NDIM == 3
+    real(dp)                  :: tmp(mg%box_size, mg%box_size)
+#endif
 
     bc_type = bc_neumann
-    call box_set_gc(mg%boxes(id), nb, mg%box_size, &
-         [(0.0_dp, i=1, mg%box_size)])
+    tmp     = 0.0_dp
+    call box_set_gc(mg%boxes(id), nb, mg%box_size, tmp)
   end subroutine set_bc_neumann_zero
 
   ! This fills ghost cells near physical boundaries using Neumann zero
   subroutine set_bc_dirichlet_zero(mg, id, nb, bc_type)
     type(mg_t), intent(inout) :: mg
-    integer, intent(in)          :: id
-    integer, intent(in)          :: nb
-    integer, intent(out)         :: bc_type
-    integer                      :: i
+    integer, intent(in)       :: id
+    integer, intent(in)       :: nb
+    integer, intent(out)      :: bc_type
+#if NDIM == 2
+    real(dp)                  :: tmp(mg%box_size)
+#elif NDIM == 3
+    real(dp)                  :: tmp(mg%box_size, mg%box_size)
+#endif
 
     bc_type = bc_dirichlet
-    call box_set_gc(mg%boxes(id), nb, mg%box_size, &
-         [(0.0_dp, i=1, mg%box_size)])
+    tmp     = 0.0_dp
+    call box_set_gc(mg%boxes(id), nb, mg%box_size, tmp)
   end subroutine set_bc_dirichlet_zero
 
   ! This fills ghost cells near physical boundaries using the same slope
@@ -387,12 +487,16 @@ contains
     integer, intent(in)          :: id
     integer, intent(in)          :: nb
     integer, intent(out)         :: bc_type
-    integer                      :: i
+#if NDIM == 2
+    real(dp)                  :: tmp(mg%box_size)
+#elif NDIM == 3
+    real(dp)                  :: tmp(mg%box_size, mg%box_size)
+#endif
 
     bc_type = bc_continuous
-    ! Set values to zero (to prevent problems with NaN)
-    call box_set_gc(mg%boxes(id), nb, mg%box_size, &
-         [(0.0_dp, i=1, mg%box_size)])
+    tmp     = 0.0_dp ! Set values to zero (to prevent problems with NaN)
+    call box_set_gc(mg%boxes(id), nb, mg%box_size, tmp)
+    bc_type = bc_continuous
   end subroutine set_bc_continuous
 
   !> Fill ghost cells near refinement boundaries which preserves diffusive fluxes.
@@ -402,12 +506,19 @@ contains
   !> ghost cells for the fine cells.
   subroutine sides_rb(mg, id, nb, cgc)
     type(mg_t), intent(inout) :: mg
-    integer, intent(in)          :: id !< Id of box
-    integer, intent(in)          :: nb !< Ghost cell direction
+    integer, intent(in)       :: id !< Id of box
+    integer, intent(in)       :: nb !< Ghost cell direction
     !> Unmodified coarse grid ghost cells (including data for neighbors)
-    real(dp), intent(in)         :: cgc(mg%box_size)
-    integer                      :: nc, ix, dix, i, di, j, dj
-    integer                      :: ix_off(2)
+#if NDIM == 2
+    real(dp), intent(in)      :: cgc(mg%box_size)
+#elif NDIM == 3
+    real(dp), intent(in)      :: cgc(mg%box_size, mg%box_size)
+#endif
+    integer                   :: IJK, nc, ix, dix, di, dj
+    integer                   :: ix_off(NDIM)
+#if NDIM == 3
+    integer                   :: dk
+#endif
 
     nc     = mg%box_size
     ix_off = get_child_offset(mg, id)
@@ -421,6 +532,7 @@ contains
     end if
 
     select case (neighb_dim(nb))
+#if NDIM == 2
     case (1)
        i = ix
        di = dix
@@ -451,6 +563,84 @@ contains
           !      0.75_dp * mg%boxes(id)%cc(i, j, i_phi) - 0.25_dp * &
           !      mg%boxes(id)%cc(i+di, j+dj, i_phi)
        end do
+#elif NDIM == 3
+    case (1)
+       i = ix
+       di = dix
+       do k = 1, nc
+          dk = -1 + 2 * iand(k, 1)
+          do j = 1, nc
+             dj = -1 + 2 * iand(j, 1)
+             ! Trilinear extrapolation (using 8 points)
+             ! boxes(id)%cc(i-di, j, k, i_phi) = &
+             !      0.5_dp * boxes(id)%cc(i-di, j, k, i_phi) + 0.0625_dp * (&
+             !      27 * boxes(id)%cc(i, j, k, i_phi) &
+             !      - 9 * boxes(id)%cc(i+di, j, k, i_phi) &
+             !      - 9 * boxes(id)%cc(i, j+dj, k, i_phi) &
+             !      - 9 * boxes(id)%cc(i, j, k+dk, i_phi) &
+             !      + 3 * boxes(id)%cc(i+di, j+dj, k, i_phi) &
+             !      + 3 * boxes(id)%cc(i+di, j, k+dk, i_phi) &
+             !      + 3 * boxes(id)%cc(i, j+dj, k+dk, i_phi) &
+             !      - 1 * boxes(id)%cc(i+di, j+dj, k+dk, i_phi))
+
+             ! Extrapolation using 2 points
+             mg%boxes(id)%cc(i-di, j, k, i_phi) = &
+                  0.5_dp * cgc(ix_off(2)+(j+1)/2, ix_off(3)+(k+1)/2) + &
+                  0.75_dp * mg%boxes(id)%cc(i, j, k, i_phi) - &
+                  0.25_dp * mg%boxes(id)%cc(i+di, j+dj, k+dk, i_phi)
+          end do
+       end do
+    case (2)
+       j = ix
+       dj = dix
+       do k = 1, nc
+          dk = -1 + 2 * iand(k, 1)
+          do i = 1, nc
+             di = -1 + 2 * iand(i, 1)
+
+             ! boxes(id)%cc(i, j-dj, k, i_phi) = &
+             !      0.5_dp * boxes(id)%cc(i, j-dj, k, i_phi) + 0.0625_dp * (&
+             !      27 * boxes(id)%cc(i, j, k, i_phi) &
+             !      - 9 * boxes(id)%cc(i+di, j, k, i_phi) &
+             !      - 9 * boxes(id)%cc(i, j+dj, k, i_phi) &
+             !      - 9 * boxes(id)%cc(i, j, k+dk, i_phi) &
+             !      + 3 * boxes(id)%cc(i+di, j+dj, k, i_phi) &
+             !      + 3 * boxes(id)%cc(i+di, j, k+dk, i_phi) &
+             !      + 3 * boxes(id)%cc(i, j+dj, k+dk, i_phi) &
+             !      - 1 * boxes(id)%cc(i+di, j+dj, k+dk, i_phi))
+
+             mg%boxes(id)%cc(i, j-dj, k, i_phi) = &
+                  0.5_dp * cgc(ix_off(1)+(i+1)/2, ix_off(3)+(k+1)/2) + &
+                  0.75_dp * mg%boxes(id)%cc(i, j, k, i_phi) - &
+                  0.25_dp * mg%boxes(id)%cc(i+di, j+dj, k+dk, i_phi)
+          end do
+       end do
+    case (3)
+       k = ix
+       dk = dix
+       do j = 1, nc
+          dj = -1 + 2 * iand(j, 1)
+          do i = 1, nc
+             di = -1 + 2 * iand(i, 1)
+
+             ! boxes(id)%cc(i, j, k-dk, i_phi) = &
+             !      0.5_dp * boxes(id)%cc(i, j, k-dk, i_phi) + 0.0625_dp * (&
+             !      27 * boxes(id)%cc(i, j, k, i_phi) &
+             !      - 9 * boxes(id)%cc(i+di, j, k, i_phi) &
+             !      - 9 * boxes(id)%cc(i, j+dj, k, i_phi) &
+             !      - 9 * boxes(id)%cc(i, j, k+dk, i_phi) &
+             !      + 3 * boxes(id)%cc(i+di, j+dj, k, i_phi) &
+             !      + 3 * boxes(id)%cc(i+di, j, k+dk, i_phi) &
+             !      + 3 * boxes(id)%cc(i, j+dj, k+dk, i_phi) &
+             !      - 1 * boxes(id)%cc(i+di, j+dj, k+dk, i_phi))
+
+             mg%boxes(id)%cc(i, j, k-dk, i_phi) = &
+                  0.5_dp * cgc(ix_off(1)+(i+1)/2, ix_off(2)+(j+1)/2) + &
+                  0.75_dp * mg%boxes(id)%cc(i, j, k, i_phi) - &
+                  0.25_dp * mg%boxes(id)%cc(i+di, j+dj, k+dk, i_phi)
+          end do
+       end do
+#endif
     end select
 
   end subroutine sides_rb

@@ -1,3 +1,4 @@
+#include "cpp_macros.h"
 module m_build_tree
   use m_data_structures
 
@@ -11,13 +12,12 @@ contains
 
   subroutine build_uniform_tree(mg, block_size, domain_size, dr_coarse)
     type(mg_t), intent(inout) :: mg
-    integer, intent(in) :: block_size
-    integer, intent(in) :: domain_size
-    real(dp), intent(in) :: dr_coarse
+    integer, intent(in)       :: block_size
+    integer, intent(in)       :: domain_size
+    real(dp), intent(in)      :: dr_coarse
 
     integer              :: i, id, lvl, n
     integer              :: max_lvl, n_boxes
-    logical, allocatable :: has_children(:)
 
     max_lvl = 1 + nint(log(real(domain_size, dp)/block_size) / log(2.0_dp))
 
@@ -26,12 +26,12 @@ contains
     if (block_size * 2**(max_lvl-1) /= domain_size) &
          error stop "Invalid domain_size should be 2^N * block_size"
 
-    mg%box_size = block_size
+    mg%box_size    = block_size
     mg%highest_lvl = max_lvl
 
     n_boxes = 0
     do lvl = 1, max_lvl
-       n_boxes = n_boxes + 2**((lvl-1) * 2)
+       n_boxes = n_boxes + 2**((lvl-1) * NDIM)
     end do
     allocate(mg%boxes(n_boxes))
 
@@ -41,18 +41,12 @@ contains
     mg%boxes(1)%rank         = 0
     mg%boxes(1)%id           = 1
     mg%boxes(1)%lvl          = 1
-    mg%boxes(1)%ix           = [1, 1]
-    mg%boxes(1)%r_min        = [0.0_dp, 0.0_dp]
+    mg%boxes(1)%ix(:)        = 1
+    mg%boxes(1)%r_min(:)     = 0.0_dp
     mg%boxes(1)%parent       = no_box
     ! TODO
     mg%boxes(1)%neighbors(:) = physical_boundary
     mg%boxes(1)%children(:)  = no_box
-
-    ! Boxes on finest level
-    n = 2**((max_lvl-1) * 2)
-    allocate(has_children(n_boxes))
-    has_children(1:n_boxes-n) = .true.
-    has_children(n_boxes-n+1:n_boxes) = .false.
 
     allocate(mg%lvls(max_lvl))
     allocate(mg%lvls(1)%ids(1))
@@ -67,12 +61,13 @@ contains
        call set_leaves_parents(mg%boxes, mg%lvls(lvl))
 
        ! Set next level ids to children of this level
-       n = 4 * size(mg%lvls(lvl)%parents)
+       n = num_children * size(mg%lvls(lvl)%parents)
        allocate(mg%lvls(lvl+1)%ids(n))
 
+       n = num_children
        do i = 1, size(mg%lvls(lvl)%parents)
           id = mg%lvls(lvl)%parents(i)
-          mg%lvls(lvl+1)%ids(4*i-3:4*i) = mg%boxes(id)%children
+          mg%lvls(lvl+1)%ids(n*(i-1)+1:n*i) = mg%boxes(id)%children
        end do
     end do
 
@@ -82,7 +77,7 @@ contains
     do lvl = 2, max_lvl
        do i = 1, size(mg%lvls(lvl)%ids)
           id = mg%lvls(lvl)%ids(i)
-          call set_neighbs_2d(mg%boxes, id)
+          call set_neighbs(mg%boxes, id)
        end do
     end do
 
@@ -94,24 +89,24 @@ contains
   end subroutine build_uniform_tree
 
   ! Set the neighbors of id (using their parent)
-  subroutine set_neighbs_2d(boxes, id)
+  subroutine set_neighbs(boxes, id)
     type(box_t), intent(inout) :: boxes(:)
     integer, intent(in)         :: id
     integer                     :: nb, nb_id
 
     do nb = 1, num_neighbors
        if (boxes(id)%neighbors(nb) == no_box) then
-          nb_id = find_neighb_2d(boxes, id, nb)
+          nb_id = find_neighb(boxes, id, nb)
           if (nb_id > no_box) then
              boxes(id)%neighbors(nb) = nb_id
              boxes(nb_id)%neighbors(neighb_rev(nb)) = id
           end if
        end if
     end do
-  end subroutine set_neighbs_2d
+  end subroutine set_neighbs
 
   !> Get the id of neighbor nb of boxes(id), through its parent
-  function find_neighb_2d(boxes, id, nb) result(nb_id)
+  function find_neighb(boxes, id, nb) result(nb_id)
     type(box_t), intent(in) :: boxes(:) !< List with all the boxes
     integer, intent(in)      :: id       !< Box whose neighbor we are looking for
     integer, intent(in)      :: nb       !< Neighbor index
@@ -124,12 +119,13 @@ contains
 
     ! Check if neighbor is in same direction as ix is (low/high). If so,
     ! use neighbor of parent
-    if (child_low(c_ix, d) .eqv. neighb_low(nb)) &
-         p_id = boxes(p_id)%neighbors(nb)
+    if (child_low(d, c_ix) .eqv. neighb_low(nb)) then
+       p_id = boxes(p_id)%neighbors(nb)
+    end if
 
     ! The child ix of the neighbor is reversed in direction d
     nb_id = boxes(p_id)%children(child_rev(c_ix, d))
-  end function find_neighb_2d
+  end function find_neighb
 
   !> Create a list of leaves and a list of parents for a level
   subroutine set_leaves_parents(boxes, level)
@@ -205,16 +201,16 @@ contains
   subroutine add_children(mg, id)
     type(mg_t), intent(inout) :: mg
     integer, intent(in)          :: id      !< Id of box that gets children
-    integer                      :: lvl, i, nb, child_nb(2**(2-1))
-    integer                      :: c_ids(4), c_id, c_ix_base(2)
+    integer                      :: lvl, i, nb, child_nb(2**(NDIM-1))
+    integer                      :: c_ids(num_children), c_id, c_ix_base(NDIM)
 
-    c_ids                 = [(mg%n_boxes+i, i=1,4)]
-    mg%n_boxes            = mg%n_boxes + 4
+    c_ids                 = [(mg%n_boxes+i, i=1,num_children)]
+    mg%n_boxes            = mg%n_boxes + num_children
     mg%boxes(id)%children = c_ids
     c_ix_base             = 2 * mg%boxes(id)%ix - 1
     lvl                   = mg%boxes(id)%lvl+1
 
-    do i = 1, 4
+    do i = 1, num_children
        c_id                     = c_ids(i)
        mg%boxes(c_id)%rank      = mg%boxes(id)%rank
        mg%boxes(c_id)%ix        = c_ix_base + child_dix(:, i)
@@ -227,7 +223,7 @@ contains
     end do
 
     ! Set boundary conditions at children
-    do nb = 1, 4
+    do nb = 1, num_neighbors
        if (mg%boxes(id)%neighbors(nb) < no_box) then
           child_nb = c_ids(child_adj_nb(:, nb)) ! Neighboring children
           mg%boxes(child_nb)%neighbors(nb) = mg%boxes(id)%neighbors(nb)
@@ -433,13 +429,5 @@ contains
   !   end do
 
   ! end function most_popular
-
-  ! !> Compute the 'child index' for a box with spatial index ix. With 'child
-  ! !> index' we mean the index in the children(:) array of its parent.
-  ! pure integer function ix2_to_ichild(ix)
-  !   integer, intent(in) :: ix(2) !< Spatial index of the box
-  !   ! The index can range from 1 (all ix odd) and 2**$D (all ix even)
-  !   ix2_to_ichild = 4 - 2 * iand(ix(2), 1) - iand(ix(1), 1)
-  ! end function ix2_to_ichild
 
 end module m_build_tree

@@ -116,7 +116,7 @@ contains
        do k = 1, hnc
           do j = 1, hnc
              do i = 1, hnc
-                tmp(i, j, k) = 0.25_dp * sum(mg%boxes(id)%cc(2*i-1:2*i, &
+                tmp(i, j, k) = 0.125_dp * sum(mg%boxes(id)%cc(2*i-1:2*i, &
                      2*j-1:2*j, 2*k-1:2*k, iv))
              end do
           end do
@@ -153,24 +153,16 @@ contains
        dix    = get_child_offset(mg, c_id)
 
        if (c_rank == mg%my_rank) then
+          do KJI_DO(1, hnc)
 #if NDIM == 2
-          do j = 1, hnc
-             do i = 1, hnc
-                mg%boxes(id)%cc(dix(1)+i, dix(2)+j, iv) = 0.25_dp * &
-                     sum(mg%boxes(c_id)%cc(2*i-1:2*i, 2*j-1:2*j, iv))
-             end do
-          end do
+             mg%boxes(id)%cc(dix(1)+i, dix(2)+j, iv) = 0.25_dp * &
+                  sum(mg%boxes(c_id)%cc(2*i-1:2*i, 2*j-1:2*j, iv))
 #elif NDIM == 3
-          do k = 1, hnc
-             do j = 1, hnc
-                do i = 1, hnc
-                   mg%boxes(id)%cc(dix(1)+i, dix(2)+j, dix(3)+k, iv) = &
-                        0.25_dp * sum(mg%boxes(c_id)%cc(2*i-1:2*i, &
-                        2*j-1:2*j, 2*k-1:2*k, iv))
-                end do
-             end do
-          end do
+             mg%boxes(id)%cc(dix(1)+i, dix(2)+j, dix(3)+k, iv) = &
+                  0.125_dp * sum(mg%boxes(c_id)%cc(2*i-1:2*i, &
+                  2*j-1:2*j, 2*k-1:2*k, iv))
 #endif
+          end do; CLOSE_DO
        else
           i = mg%buf(c_rank)%i_recv
 #if NDIM == 2
@@ -180,7 +172,7 @@ contains
 #elif NDIM == 3
           mg%boxes(id)%cc(dix(1)+1:dix(1)+hnc, &
                dix(2)+1:dix(2)+hnc, dix(3)+1:dix(3)+hnc, iv) = &
-               reshape(mg%buf(c_rank)%recv(i+1:i+dsize), [DTIMES(hnc)])
+               reshape(mg%buf(c_rank)%recv(i+1:i+dsize), [hnc, hnc, hnc])
 #endif
           mg%buf(c_rank)%i_recv = mg%buf(c_rank)%i_recv + dsize
        end if

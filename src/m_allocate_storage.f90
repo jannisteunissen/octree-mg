@@ -1,3 +1,4 @@
+#include "cpp_macros.h"
 module m_allocate_storage
   use m_data_structures
 
@@ -24,9 +25,9 @@ contains
     do lvl = 1, mg%highest_lvl
        do i = 1, size(mg%lvls(lvl)%my_ids)
           id = mg%lvls(lvl)%my_ids(i)
-          allocate(mg%boxes(id)%cc(0:nc+1, 0:nc+1, n_var))
+          allocate(mg%boxes(id)%cc(DTIMES(0:nc+1), n_var))
 
-          mg%boxes(id)%cc(:, :, :) = 0.0_dp
+          mg%boxes(id)%cc(DTIMES(:), :) = 0.0_dp
        end do
     end do
 
