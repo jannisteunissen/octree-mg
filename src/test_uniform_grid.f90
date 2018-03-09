@@ -13,8 +13,8 @@ program test_one_level
 
   implicit none
 
-  integer, parameter  :: block_size  = 38
-  integer, parameter  :: domain_size = 16 * 38
+  integer, parameter  :: block_size  = 16
+  integer, parameter  :: domain_size = 128
   real(dp), parameter :: dr          = 1.0_dp / block_size
   real(dp), parameter :: pi          = acos(-1.0_dp)
 
@@ -25,6 +25,9 @@ program test_one_level
   mg%boundary_cond => my_bc
   mg%n_cycle_up    =  2
   mg%n_cycle_down  =  2
+  mg%smoother_type = smoother_gsrb
+  mg%residual_coarse_abs = 1e-10_dp
+  mg%residual_coarse_rel = 1e-10_dp
 
   call comm_init(mg)
   call build_uniform_tree(mg, block_size, domain_size, dr)
@@ -141,4 +144,4 @@ contains
     call set_bc_dirichlet_zero(mg, id, nc, nb, bc_type)
   end subroutine my_bc
 
-end program
+end program test_one_level

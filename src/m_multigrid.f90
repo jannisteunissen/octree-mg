@@ -8,11 +8,6 @@ module m_multigrid
   implicit none
   private
 
-  integer, parameter :: smoother_type   = 3
-  integer, parameter :: smoother_gsrb   = 1
-  integer, parameter :: smoother_jacobi = 2
-  integer, parameter :: smoother_gs     = 3
-
   integer :: timer_total         = -1
   integer :: timer_smoother      = -1
   integer :: timer_smoother_gc   = -1
@@ -44,12 +39,10 @@ contains
     type(mg_t), intent(inout) :: mg
     logical, intent(in)       :: set_residual !< If true, store residual in i_tmp
     logical, intent(in)       :: have_guess   !< If false, start from phi = 0
-    integer                   :: lvl, min_lvl, i, id
-
-    min_lvl = 1
+    integer                   :: lvl, i, id
 
     if (.not. have_guess) then
-       do lvl = mg%highest_lvl, 1
+       do lvl = mg%highest_lvl, mg%lowest_lvl, -1
           do i = 1, size(mg%lvls(lvl)%my_ids)
              id = mg%lvls(lvl)%my_ids(i)
              mg%boxes(id)%cc(DTIMES(:), i_phi) = 0.0_dp
@@ -57,12 +50,12 @@ contains
        end do
     end if
 
-    do lvl = mg%highest_lvl,  min_lvl+1, -1
+    do lvl = mg%highest_lvl,  mg%lowest_lvl+1, -1
        ! Set rhs on coarse grid and restrict phi
        call update_coarse(mg, lvl)
     end do
 
-    do lvl = min_lvl, mg%highest_lvl
+    do lvl = mg%lowest_lvl, mg%highest_lvl
        ! Store phi_old
        do i = 1, size(mg%lvls(lvl)%my_ids)
           id = mg%lvls(lvl)%my_ids(i)
@@ -70,7 +63,7 @@ contains
             mg%boxes(id)%cc(DTIMES(:), i_phi)
        end do
 
-       if (lvl > min_lvl) then
+       if (lvl > mg%lowest_lvl) then
           ! Correct solution at this lvl using lvl-1 data
           ! phi = phi + prolong(phi_coarse - phi_old_coarse)
           call correct_children(mg, lvl-1)
@@ -117,18 +110,18 @@ contains
     end do
 
     call timer_start(mg%timers(timer_coarse))
-
-    ! Coarse grid is on the root
-    if (mg%my_rank == 0) then
-       init_res = max_residual(mg, 1)
-       do i = 1, mg%max_coarse_cycles
-          call smooth_boxes(mg, min_lvl, mg%n_cycle_up+mg%n_cycle_down)
-          res = max_residual(mg, min_lvl)
-
-          if (res < mg%residual_coarse_rel * init_res .or. &
-               res < mg%residual_coarse_abs) exit
-       end do
+    if (.not. all(mg%boxes(mg%lvls(min_lvl)%ids)%rank == &
+         mg%boxes(mg%lvls(min_lvl)%ids(1))%rank)) then
+       error stop "Multiple CPUs for coarse grid (not implemented yet)"
     end if
+
+    init_res = max_residual(mg, 1)
+    do i = 1, mg%max_coarse_cycles
+       call smooth_boxes(mg, min_lvl, mg%n_cycle_up+mg%n_cycle_down)
+       res = max_residual(mg, min_lvl)
+       if (res < mg%residual_coarse_rel * init_res .or. &
+            res < mg%residual_coarse_abs) exit
+    end do
     call timer_end(mg%timers(timer_coarse))
 
     ! Do the upwards part of the v-cycle in the tree
@@ -176,36 +169,37 @@ contains
     end do
   end function max_residual
 
-  subroutine solve_coarse_grid(mg)
-    type(mg_t), intent(inout) :: mg
+!   subroutine solve_coarse_grid(mg)
+!     use m_fishpack
+!     type(mg_t), intent(inout) :: mg
 
-    real(dp) :: rhs(DTIMES(mg%box_size))
-    real(dp) :: rmin(NDIM), rmax(NDIM)
-    integer  :: nc, nx(NDIM), my_boxes, total_boxes
+!     real(dp) :: rhs(DTIMES(mg%box_size))
+!     real(dp) :: rmin(NDIM), rmax(NDIM)
+!     integer  :: nc, nx(NDIM), my_boxes, total_boxes
 
-    my_boxes    = size(mg%lvls(1)%my_ids)
-    total_boxes = size(mg%lvls(1)%ids)
-    nc          = mg%box_size
+!     my_boxes    = size(mg%lvls(1)%my_ids)
+!     total_boxes = size(mg%lvls(1)%ids)
+!     nc          = mg%box_size
 
-    if (my_boxes == total_boxes) then
-       nx(:) = nc
-       rmin  = [DTIMES(0.0_dp)]
-       rmax  = mg%dr(1) * [DTIMES(nc)]
-       rhs   = mg%boxes(1)%cc(DTIMES(1:nc), i_rhs)
+!     if (my_boxes == total_boxes) then
+!        nx(:) = nc
+!        rmin  = [DTIMES(0.0_dp)]
+!        rmax  = mg%dr(1) * [DTIMES(nc)]
+!        rhs   = mg%boxes(1)%cc(DTIMES(1:nc), i_rhs)
 
-#if NDIM == 2
-       call fishpack_2d(nx, rhs, mg%bc, rmin, rmax)
-#elif NDIM == 3
-       call fishpack_3d(nx, rhs, mg%bc, rmin, rmax)
-#endif
+! #if NDIM == 2
+!        call fishpack_2d(nx, rhs, mg%bc, rmin, rmax)
+! #elif NDIM == 3
+!        call fishpack_3d(nx, rhs, mg%bc, rmin, rmax)
+! #endif
 
-       mg%boxes(1)%cc(DTIMES(1:nc), i_phi) = rhs
-    else if (my_boxes > 0) then
-       error stop "Boxes at level 1 at different processors"
-    end if
+!        mg%boxes(1)%cc(DTIMES(1:nc), i_phi) = rhs
+!     else if (my_boxes > 0) then
+!        error stop "Boxes at level 1 at different processors"
+!     end if
 
-    call fill_ghost_cells_lvl(mg, 1)
-  end subroutine solve_coarse_grid
+!     call fill_ghost_cells_lvl(mg, 1)
+!   end subroutine solve_coarse_grid
 
   !> Perform Gauss-Seidel relaxation on box for a Laplacian operator
   subroutine box_gsrb_lpl(mg, id, nc, redblack_cntr)
@@ -432,13 +426,13 @@ contains
 
     nc = mg%box_size_lvl(lvl)
 
-    select case (smoother_type)
+    select case (mg%smoother_type)
     case (smoother_jacobi, smoother_gs)
        do n = 1, n_cycle
           call timer_start(mg%timers(timer_smoother))
           do i = 1, size(mg%lvls(lvl)%my_ids)
              id = mg%lvls(lvl)%my_ids(i)
-             if (smoother_type == smoother_jacobi) then
+             if (mg%smoother_type == smoother_jacobi) then
                 call box_jacobi_lpl(mg, id, nc)
              else
                 call box_gs_lpl(mg, id, nc)

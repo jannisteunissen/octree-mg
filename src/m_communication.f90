@@ -22,23 +22,32 @@ contains
 
   subroutine sort_and_transfer_buffers(mg, dsize)
     use mpi
-    type(mg_t), intent(inout) :: mg
-    integer, intent(in)       :: dsize
-    integer                   :: i
-    integer                   :: send_req(0:mg%n_cpu-1)
-    integer                   :: recv_req(0:mg%n_cpu-1)
-    integer                   :: ierr
+    type(mg_t), intent(inout)    :: mg
+    integer, intent(in)          :: dsize
+    integer                      :: i, n_send, n_recv
+    integer                      :: send_req(mg%n_cpu)
+    integer                      :: recv_req(mg%n_cpu)
+    integer                      :: ierr
+
+    n_send = 0
+    n_recv = 0
 
     do i = 0, mg%n_cpu - 1
-       call sort_sendbuf(mg%buf(i), dsize)
-       call mpi_isend(mg%buf(i)%send, mg%buf(i)%i_send, MPI_DOUBLE, &
-            i, 0, MPI_COMM_WORLD, send_req(i), ierr)
-       call mpi_irecv(mg%buf(i)%recv, mg%buf(i)%i_recv, MPI_DOUBLE, &
-            i, 0, MPI_COMM_WORLD, recv_req(i), ierr)
+       if (mg%buf(i)%i_send > 0) then
+          n_send = n_send + 1
+          call sort_sendbuf(mg%buf(i), dsize)
+          call mpi_isend(mg%buf(i)%send, mg%buf(i)%i_send, MPI_DOUBLE, &
+               i, 0, MPI_COMM_WORLD, send_req(n_send), ierr)
+       end if
+       if (mg%buf(i)%i_recv > 0) then
+          n_recv = n_recv + 1
+          call mpi_irecv(mg%buf(i)%recv, mg%buf(i)%i_recv, MPI_DOUBLE, &
+               i, 0, MPI_COMM_WORLD, recv_req(n_recv), ierr)
+       end if
     end do
 
-    call mpi_waitall(mg%n_cpu, recv_req, MPI_STATUSES_IGNORE, ierr)
-    call mpi_waitall(mg%n_cpu, send_req, MPI_STATUSES_IGNORE, ierr)
+    call mpi_waitall(n_recv, recv_req(1:n_recv), MPI_STATUSES_IGNORE, ierr)
+    call mpi_waitall(n_send, send_req(1:n_send), MPI_STATUSES_IGNORE, ierr)
 
   end subroutine sort_and_transfer_buffers
 

@@ -19,6 +19,11 @@ module m_data_structures
   !> Value to indicate a continuous boundary condition
   integer, parameter :: bc_continuous = -12
 
+  !> Smoother types
+  integer, parameter :: smoother_gsrb   = 1
+  integer, parameter :: smoother_jacobi = 2
+  integer, parameter :: smoother_gs     = 3
+
 
   integer, parameter :: n_var = 4
   integer, parameter :: i_phi = 1
@@ -204,6 +209,7 @@ module m_data_structures
      procedure(subr_bc), pointer, nopass :: boundary_cond  => null()
      procedure(subr_rb), pointer, nopass :: refinement_bnd => null()
 
+     integer  :: smoother_type       = smoother_jacobi
      integer  :: n_cycle_down        = 2
      integer  :: n_cycle_up          = 2
      integer  :: max_coarse_cycles   = 1000
