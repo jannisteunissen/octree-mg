@@ -1,20 +1,12 @@
 #include "cpp_macros.h"
 program test_one_level
   use mpi
-  use m_data_structures
-  use m_build_tree
-  use m_load_balance
-  use m_ghost_cells
-  use m_allocate_storage
-  use m_restrict
-  use m_communication
-  use m_prolong
-  use m_multigrid
+  use m_octree_mg
 
   implicit none
 
-  integer, parameter  :: block_size  = 16
-  integer, parameter  :: domain_size = 128
+  integer, parameter  :: block_size  = 20
+  integer, parameter  :: domain_size = 160
   real(dp), parameter :: dr          = 1.0_dp / block_size
   real(dp), parameter :: pi          = acos(-1.0_dp)
 
