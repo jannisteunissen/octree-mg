@@ -14,8 +14,12 @@ contains
     use mpi
     type(mg_t), intent(inout) :: mg
     integer                   :: ierr
+    logical                   :: initialized
 
-    call mpi_init(ierr)
+    call mpi_initialized(initialized, ierr)
+    if (.not. initialized) then
+       call mpi_init(ierr)
+    end if
     call mpi_comm_rank(MPI_COMM_WORLD, mg%my_rank, ierr)
     call mpi_comm_size(MPI_COMM_WORLD, mg%n_cpu, ierr)
   end subroutine comm_init
