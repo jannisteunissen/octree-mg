@@ -75,7 +75,6 @@ contains
        id = mg%lvls(lvl+1)%my_ids(i)
        call prolong_onto(mg, id, nc, iv, iv_to, add)
     end do
-
   end subroutine prolong
 
   subroutine prolong_set_buffer(mg, id, iv)

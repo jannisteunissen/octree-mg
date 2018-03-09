@@ -13,8 +13,8 @@ program test_one_level
 
   implicit none
 
-  integer, parameter  :: block_size  = 32
-  integer, parameter  :: domain_size = 512
+  integer, parameter  :: block_size  = 38
+  integer, parameter  :: domain_size = 16 * 38
   real(dp), parameter :: dr          = 1.0_dp / block_size
   real(dp), parameter :: pi          = acos(-1.0_dp)
 
@@ -23,16 +23,15 @@ program test_one_level
   type(mg_t) :: mg
 
   mg%boundary_cond => my_bc
-  mg%n_cycle_up = 2
-  mg%n_cycle_down = 2
-  mg%n_cycle_base = 4
+  mg%n_cycle_up    =  2
+  mg%n_cycle_down  =  2
 
   call comm_init(mg)
   call build_uniform_tree(mg, block_size, domain_size, dr)
 
   if (mg%my_rank == 0) then
-     do lvl = 1, mg%highest_lvl
-        print *, lvl, ":", size(mg%lvls(lvl)%ids)
+     do lvl = mg%lowest_lvl, mg%highest_lvl
+        print *, lvl, ":", size(mg%lvls(lvl)%ids), mg%box_size_lvl(lvl)
      end do
   end if
 

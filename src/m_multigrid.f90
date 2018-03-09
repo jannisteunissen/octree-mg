@@ -93,6 +93,7 @@ contains
     logical, intent(in)           :: set_residual !< If true, store residual in i_res
     integer, intent(in), optional :: highest_lvl  !< Maximum level for V-cycle
     integer                       :: lvl, min_lvl, i, id, max_lvl, nc
+    real(dp)                      :: res, init_res
 
     if (timer_smoother == -1) then
        call mg_add_timers(mg)
@@ -116,11 +117,18 @@ contains
     end do
 
     call timer_start(mg%timers(timer_coarse))
-    ! #if NDIM == 2
-    !     ! Use direct method
-    !     call solve_coarse_grid(mg)
-    ! #elif NDIM == 3
-    call smooth_boxes(mg, 1, mg%n_cycle_base)
+
+    ! Coarse grid is on the root
+    if (mg%my_rank == 0) then
+       init_res = max_residual(mg, 1)
+       do i = 1, mg%max_coarse_cycles
+          call smooth_boxes(mg, min_lvl, mg%n_cycle_up+mg%n_cycle_down)
+          res = max_residual(mg, min_lvl)
+
+          if (res < mg%residual_coarse_rel * init_res .or. &
+               res < mg%residual_coarse_abs) exit
+       end do
+    end if
     call timer_end(mg%timers(timer_coarse))
 
     ! Do the upwards part of the v-cycle in the tree
@@ -150,6 +158,23 @@ contains
 
     call timer_end(mg%timers(timer_total))
   end subroutine mg_fas_vcycle
+
+  real(dp) function max_residual(mg, lvl)
+    type(mg_t), intent(inout) :: mg
+    integer, intent(in)       :: lvl
+    integer                   :: i, id, nc
+    real(dp)                  :: res
+
+    nc           = mg%box_size_lvl(lvl)
+    max_residual = 0.0_dp
+
+    do i = 1, size(mg%lvls(lvl)%my_ids)
+       id = mg%lvls(lvl)%my_ids(i)
+       call residual_box(mg, id, nc)
+       res = maxval(abs(mg%boxes(id)%cc(DTIMES(1:nc), i_res)))
+       max_residual = max(max_residual, res)
+    end do
+  end function max_residual
 
   subroutine solve_coarse_grid(mg)
     type(mg_t), intent(inout) :: mg

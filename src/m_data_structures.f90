@@ -204,11 +204,14 @@ module m_data_structures
      procedure(subr_bc), pointer, nopass :: boundary_cond  => null()
      procedure(subr_rb), pointer, nopass :: refinement_bnd => null()
 
-     integer                                 :: n_cycle_down =  2
-     integer                                 :: n_cycle_up   =  2
-     integer                                 :: n_cycle_base =  4
-     procedure(mg_box_op), pointer, nopass   :: box_op       => null()
-     procedure(mg_box_gsrb), pointer, nopass :: box_gsrb     => null()
+     integer  :: n_cycle_down        = 2
+     integer  :: n_cycle_up          = 2
+     integer  :: max_coarse_cycles   = 1000
+     real(dp) :: residual_coarse_abs = 1e-8_dp
+     real(dp) :: residual_coarse_rel = 1e-8_dp
+
+     procedure(mg_box_op), pointer, nopass   :: box_op              => null()
+     procedure(mg_box_gsrb), pointer, nopass :: box_gsrb            => null()
 
      integer       :: n_timers = 0
      type(timer_t) :: timers(max_timers)

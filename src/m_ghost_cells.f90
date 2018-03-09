@@ -64,6 +64,7 @@ contains
 
   subroutine fill_ghost_cells_lvl(mg, lvl)
     use m_communication
+    use mpi
     type(mg_t)          :: mg
     integer, intent(in) :: lvl
     integer             :: i, id, dsize, nc
@@ -105,7 +106,6 @@ contains
        id = mg%lvls(lvl)%my_ids(i)
        call set_ghost_cells(mg, id, nc, .false.)
     end do
-
   end subroutine fill_ghost_cells_lvl
 
   subroutine buffer_ghost_cells(mg, id, nc, dry_run)
