@@ -49,7 +49,6 @@ contains
     mg%dr(:) = [(dr_coarse * 0.5**(n-1), n = min_lvl, max_lvl)]
     mg%box_size_lvl(min_lvl:0) = [(box_size / 2**(1-n), n = min_lvl, 0)]
     mg%box_size_lvl(1:max_lvl) = box_size
-    print *, mg%box_size_lvl
     mg%n_boxes = 0
 
     do lvl = min_lvl, 1
@@ -107,6 +106,10 @@ contains
     end do
 
     ! Store boxes with refinement boundaries (from the coarse side)
+    do lvl = min_lvl, 0
+       ! No refinement boundaries on coarsened grid
+       allocate(mg%lvls(lvl)%ref_bnds(0))
+    end do
     do lvl = 1, max_lvl
        call set_refinement_boundaries(mg%boxes, mg%lvls(lvl))
     end do

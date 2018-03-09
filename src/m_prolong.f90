@@ -50,27 +50,30 @@ contains
     integer, intent(in)       :: iv
     integer, intent(in)       :: iv_to
     logical, intent(in)       :: add
-    integer                   :: i, id, dsize
+    integer                   :: i, id, dsize, nc
 
     if (lvl == mg%highest_lvl) error stop "cannot prolong highest level"
     if (lvl < mg%lowest_lvl) error stop "cannot prolong below lowest level"
 
-    dsize            = (mg%box_size/2 + 2)**NDIM
-    mg%buf(:)%i_send = 0
-    mg%buf(:)%i_ix   = 0
+    if (lvl >= 1) then
+       dsize            = (mg%box_size/2 + 2)**NDIM
+       mg%buf(:)%i_send = 0
+       mg%buf(:)%i_ix   = 0
 
-    do i = 1, size(mg%lvls(lvl)%my_ids)
-       id = mg%lvls(lvl)%my_ids(i)
-       call prolong_set_buffer(mg, id, iv)
-    end do
+       do i = 1, size(mg%lvls(lvl)%my_ids)
+          id = mg%lvls(lvl)%my_ids(i)
+          call prolong_set_buffer(mg, id, iv)
+       end do
 
-    mg%buf(:)%i_recv = mg%comm_prolong%n_recv(:, lvl) * dsize
-    call sort_and_transfer_buffers(mg, dsize)
-    mg%buf(:)%i_recv = 0
+       mg%buf(:)%i_recv = mg%comm_prolong%n_recv(:, lvl) * dsize
+       call sort_and_transfer_buffers(mg, dsize)
+       mg%buf(:)%i_recv = 0
+    end if
 
+    nc = mg%box_size_lvl(lvl+1)
     do i = 1, size(mg%lvls(lvl+1)%my_ids)
        id = mg%lvls(lvl+1)%my_ids(i)
-       call prolong_onto(mg, id, iv, iv_to, add)
+       call prolong_onto(mg, id, nc, iv, iv_to, add)
     end do
 
   end subroutine prolong
@@ -112,22 +115,22 @@ contains
     end do
   end subroutine prolong_set_buffer
 
-  subroutine prolong_onto(mg, id, iv, iv_to, add)
+  subroutine prolong_onto(mg, id, nc, iv, iv_to, add)
     type(mg_t), intent(inout) :: mg
     integer, intent(in)       :: id
+    integer, intent(in)       :: nc
     integer, intent(in)       :: iv
     integer, intent(in)       :: iv_to
     logical, intent(in)       :: add
-    integer                   :: IJK, nc, hnc, p_id, p_rank, dix(NDIM), dsize
+    integer                   :: IJK, hnc, p_id, p_rank, dix(NDIM), dsize
 #if NDIM == 2
     real(dp)                  :: f0, flx, fhx, fly, fhy
 #elif NDIM == 3
     real(dp)                  :: f0, flx, fhx, fly, fhy, flz, fhz
 #endif
-    real(dp) :: tmp(DTIMES(0:mg%box_size/2+1))
+    real(dp)                  :: tmp(DTIMES(0:nc/2+1))
 
-    nc     = mg%box_size
-    hnc    = mg%box_size/2
+    hnc    = nc/2
     dsize  = (hnc+2)**NDIM
     p_id   = mg%boxes(id)%parent
     p_rank = mg%boxes(p_id)%rank

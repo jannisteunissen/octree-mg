@@ -13,8 +13,8 @@ program test_one_level
 
   implicit none
 
-  integer, parameter  :: block_size  = 16
-  integer, parameter  :: domain_size = 128
+  integer, parameter  :: block_size  = 32
+  integer, parameter  :: domain_size = 512
   real(dp), parameter :: dr          = 1.0_dp / block_size
   real(dp), parameter :: pi          = acos(-1.0_dp)
 
@@ -46,7 +46,7 @@ program test_one_level
      mg%bc(n)%bc_type = bc_dirichlet
   end do
 
-  do lvl = 1, mg%highest_lvl
+  do lvl = mg%lowest_lvl, mg%highest_lvl
      call fill_ghost_cells_lvl(mg, lvl)
   end do
 
@@ -132,13 +132,14 @@ contains
     if (mg%my_rank == 0) print *, "max err", max_err
   end subroutine print_error
 
-  subroutine my_bc(mg, id, nb, bc_type)
+  subroutine my_bc(mg, id, nc, nb, bc_type)
     type(mg_t), intent(inout) :: mg
-    integer, intent(in)          :: id
-    integer, intent(in)          :: nb      !< Direction
-    integer, intent(out)         :: bc_type !< Type of b.c.
+    integer, intent(in)       :: id
+    integer, intent(in)       :: nc
+    integer, intent(in)       :: nb      !< Direction
+    integer, intent(out)      :: bc_type !< Type of b.c.
 
-    call set_bc_dirichlet_zero(mg, id, nb, bc_type)
+    call set_bc_dirichlet_zero(mg, id, nc, nb, bc_type)
   end subroutine my_bc
 
 end program

@@ -345,9 +345,10 @@ contains
   subroutine update_coarse(mg, lvl)
     type(mg_t), intent(inout) :: mg     !< Tree containing full grid
     integer, intent(in)       :: lvl !< Update coarse values at lvl-1
-    integer                   :: i, id, nc
+    integer                   :: i, id, nc, nc_c
 
-    nc = mg%box_size_lvl(lvl)
+    nc   = mg%box_size_lvl(lvl)
+    nc_c = mg%box_size_lvl(lvl-1)
 
     ! Compute residual
     do i = 1, size(mg%lvls(lvl)%my_ids)
@@ -367,12 +368,12 @@ contains
        id = mg%lvls(lvl-1)%my_parents(i)
 
        ! Set rhs = L phi
-       call box_lpl(mg, id, nc, i_rhs)
+       call box_lpl(mg, id, nc_c, i_rhs)
 
        ! Add the fine grid residual to rhs
-       mg%boxes(id)%cc(DTIMES(1:nc), i_rhs) = &
-            mg%boxes(id)%cc(DTIMES(1:nc), i_rhs) + &
-            mg%boxes(id)%cc(DTIMES(1:nc), i_res)
+       mg%boxes(id)%cc(DTIMES(:), i_rhs) = &
+            mg%boxes(id)%cc(DTIMES(:), i_rhs) + &
+            mg%boxes(id)%cc(DTIMES(:), i_res)
 
        ! Story a copy of phi
        mg%boxes(id)%cc(DTIMES(:), i_old) = &

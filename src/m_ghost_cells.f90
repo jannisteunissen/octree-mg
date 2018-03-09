@@ -17,10 +17,10 @@ contains
   !> Specify minimum buffer size (per process) for communication
   subroutine ghost_cell_buffer_size(mg, n_send, n_recv, dsize)
     type(mg_t), intent(inout) :: mg
-    integer, intent(out)         :: n_send(0:mg%n_cpu-1)
-    integer, intent(out)         :: n_recv(0:mg%n_cpu-1)
-    integer, intent(out)         :: dsize
-    integer                      :: i, id, lvl
+    integer, intent(out)      :: n_send(0:mg%n_cpu-1)
+    integer, intent(out)      :: n_recv(0:mg%n_cpu-1)
+    integer, intent(out)      :: dsize
+    integer                   :: i, id, lvl, nc
 
     allocate(mg%comm_ghostcell%n_send(0:mg%n_cpu-1, mg%highest_lvl))
     allocate(mg%comm_ghostcell%n_recv(0:mg%n_cpu-1, mg%highest_lvl))
@@ -28,19 +28,20 @@ contains
     dsize = mg%box_size**(NDIM-1)
 
     do lvl = 1, mg%highest_lvl
+       nc               = mg%box_size_lvl(lvl)
        mg%buf(:)%i_send = 0
        mg%buf(:)%i_recv = 0
-       mg%buf(:)%i_ix = 0
+       mg%buf(:)%i_ix   = 0
 
        do i = 1, size(mg%lvls(lvl)%my_ids)
           id = mg%lvls(lvl)%my_ids(i)
-          call buffer_ghost_cells(mg, id, dry_run=.true.)
+          call buffer_ghost_cells(mg, id, nc, dry_run=.true.)
        end do
 
        if (lvl > 1) then
           do i = 1, size(mg%lvls(lvl-1)%my_ref_bnds)
              id = mg%lvls(lvl-1)%my_ref_bnds(i)
-             call buffer_refinement_boundaries(mg, id, dry_run=.true.)
+             call buffer_refinement_boundaries(mg, id, nc, dry_run=.true.)
           end do
        end if
 
@@ -48,7 +49,7 @@ contains
        mg%buf(:)%i_recv = 0
        do i = 1, size(mg%lvls(lvl)%my_ids)
           id = mg%lvls(lvl)%my_ids(i)
-          call set_ghost_cells(mg, id, dry_run=.true.)
+          call set_ghost_cells(mg, id, nc, dry_run=.true.)
        end do
 
        mg%comm_ghostcell%n_send(:, lvl) = mg%buf(:)%i_send/dsize
@@ -65,46 +66,54 @@ contains
     use m_communication
     type(mg_t)          :: mg
     integer, intent(in) :: lvl
-    integer             :: i, id, dsize
+    integer             :: i, id, dsize, nc
 
-    if (lvl < 1) error stop "fill_ghost_cells_lvl: lvl < 1"
-    if (lvl > mg%highest_lvl) error stop "fill_ghost_cells_lvl: lvl > highest_lvl"
+    if (lvl < mg%lowest_lvl) &
+         error stop "fill_ghost_cells_lvl: lvl < lowest_lvl"
+    if (lvl > mg%highest_lvl) &
+         error stop "fill_ghost_cells_lvl: lvl > highest_lvl"
 
-    dsize            = mg%box_size**(NDIM-1)
-    mg%buf(:)%i_send = 0
-    mg%buf(:)%i_recv = 0
-    mg%buf(:)%i_ix   = 0
+    nc               = mg%box_size_lvl(lvl)
 
-    do i = 1, size(mg%lvls(lvl)%my_ids)
-       id = mg%lvls(lvl)%my_ids(i)
-       call buffer_ghost_cells(mg, id, .false.)
-    end do
+    if (lvl >= 1) then
+       dsize            = nc**(NDIM-1)
+       mg%buf(:)%i_send = 0
+       mg%buf(:)%i_recv = 0
+       mg%buf(:)%i_ix   = 0
 
-    if (lvl > 1) then
-       do i = 1, size(mg%lvls(lvl-1)%my_ref_bnds)
-          id = mg%lvls(lvl-1)%my_ref_bnds(i)
-          call buffer_refinement_boundaries(mg, id, .false.)
+       do i = 1, size(mg%lvls(lvl)%my_ids)
+          id = mg%lvls(lvl)%my_ids(i)
+          call buffer_ghost_cells(mg, id, nc, .false.)
        end do
+
+       if (lvl > 1) then
+          do i = 1, size(mg%lvls(lvl-1)%my_ref_bnds)
+             id = mg%lvls(lvl-1)%my_ref_bnds(i)
+             call buffer_refinement_boundaries(mg, id, nc, .false.)
+          end do
+       end if
+
+       ! Transfer data between processes
+       mg%buf(:)%i_recv = mg%comm_ghostcell%n_recv(:, lvl) * dsize
+       call sort_and_transfer_buffers(mg, dsize)
+
+       ! Set ghost cells to received data
+       mg%buf(:)%i_recv = 0
     end if
 
-    ! Transfer data between processes
-    mg%buf(:)%i_recv = mg%comm_ghostcell%n_recv(:, lvl) * dsize
-    call sort_and_transfer_buffers(mg, dsize)
-
-    ! Set ghost cells to received data
-    mg%buf(:)%i_recv = 0
     do i = 1, size(mg%lvls(lvl)%my_ids)
        id = mg%lvls(lvl)%my_ids(i)
-       call set_ghost_cells(mg, id, .false.)
+       call set_ghost_cells(mg, id, nc, .false.)
     end do
 
   end subroutine fill_ghost_cells_lvl
 
-  subroutine buffer_ghost_cells(mg, id, dry_run)
+  subroutine buffer_ghost_cells(mg, id, nc, dry_run)
     type(mg_t), intent(inout) :: mg
-    integer, intent(in)          :: id
-    logical, intent(in)          :: dry_run
-    integer                      :: nb, nb_id, nb_rank
+    integer, intent(in)       :: id
+    integer, intent(in)       :: nc
+    logical, intent(in)       :: dry_run
+    integer                   :: nb, nb_id, nb_rank
 
     do nb = 1, num_neighbors
        nb_id = mg%boxes(id)%neighbors(nb)
@@ -114,15 +123,17 @@ contains
           nb_rank    = mg%boxes(nb_id)%rank
 
           if (nb_rank /= mg%my_rank) then
-             call buffer_for_nb(mg, mg%boxes(id), nb_id, nb_rank, nb, dry_run)
+             call buffer_for_nb(mg, mg%boxes(id), nc, nb_id, nb_rank, &
+                  nb, dry_run)
           end if
        end if
     end do
   end subroutine buffer_ghost_cells
 
-  subroutine buffer_refinement_boundaries(mg, id, dry_run)
+  subroutine buffer_refinement_boundaries(mg, id, nc, dry_run)
     type(mg_t), intent(inout) :: mg
     integer, intent(in)       :: id
+    integer, intent(in)       :: nc
     logical, intent(in)       :: dry_run
     integer                   :: nb, nb_id, c_ids(2**(NDIM-1))
     integer                   :: n, c_id, c_rank
@@ -139,7 +150,8 @@ contains
 
                 if (c_rank /= mg%my_rank) then
                    ! Send all coarse ghost cells
-                   call buffer_for_nb(mg, mg%boxes(id), c_id, c_rank, nb, dry_run)
+                   call buffer_for_nb(mg, mg%boxes(id), nc, c_id, &
+                        c_rank, nb, dry_run)
                 end if
              end do
           end if
@@ -147,11 +159,12 @@ contains
     end do
   end subroutine buffer_refinement_boundaries
 
-  subroutine set_ghost_cells(mg, id, dry_run)
+  subroutine set_ghost_cells(mg, id, nc, dry_run)
     type(mg_t), intent(inout) :: mg
-    integer, intent(in)          :: id
-    logical, intent(in)          :: dry_run
-    integer                      :: nb, nb_id, nb_rank, bc_type
+    integer, intent(in)       :: id
+    integer, intent(in)       :: nc
+    logical, intent(in)       :: dry_run
+    integer                   :: nb, nb_id, nb_rank, bc_type
 
     do nb = 1, num_neighbors
        nb_id = mg%boxes(id)%neighbors(nb)
@@ -161,34 +174,37 @@ contains
           nb_rank    = mg%boxes(nb_id)%rank
 
           if (nb_rank /= mg%my_rank) then
-             call fill_buffered_nb(mg, mg%boxes(id), nb_rank, nb, dry_run)
+             call fill_buffered_nb(mg, mg%boxes(id), nb_rank, &
+                  nb, nc, dry_run)
           else if (.not. dry_run) then
-             call copy_from_nb(mg, mg%boxes(id), mg%boxes(nb_id), nb)
+             call copy_from_nb(mg%boxes(id), mg%boxes(nb_id), &
+                  nb, nc)
           end if
        else if (nb_id == no_box) then
           ! Refinement boundary
-          call fill_refinement_bnd(mg, id, nb, dry_run)
+          call fill_refinement_bnd(mg, id, nb, nc, dry_run)
        else if (.not. dry_run) then
           ! Physical boundary
           if (.not. associated(mg%boundary_cond)) then
              error stop "Physical boundary but mg%boundary_cond not set"
           end if
-          call mg%boundary_cond(mg, id, nb, bc_type)
-          call bc_to_gc(mg, id, nb, bc_type)
+          call mg%boundary_cond(mg, id, nc, nb, bc_type)
+          call bc_to_gc(mg, id, nc, nb, bc_type)
        end if
     end do
   end subroutine set_ghost_cells
 
-  subroutine fill_refinement_bnd(mg, id, nb, dry_run)
+  subroutine fill_refinement_bnd(mg, id, nc, nb, dry_run)
     type(mg_t), intent(inout) :: mg
-    integer, intent(in)          :: id
-    integer, intent(in)          :: nb
-    logical, intent(in)          :: dry_run
-    real(dp)                     :: cgc(mg%box_size)
-    integer                      :: p_id, p_nb_id
-    integer                      :: i, dsize, p_nb_rank
+    integer, intent(in)       :: id
+    integer, intent(in)       :: nc
+    integer, intent(in)       :: nb
+    logical, intent(in)       :: dry_run
+    real(dp)                  :: cgc(nc)
+    integer                   :: p_id, p_nb_id
+    integer                   :: i, dsize, p_nb_rank
 
-    dsize     = mg%box_size**(NDIM-1)
+    dsize     = nc**(NDIM-1)
     p_id      = mg%boxes(id)%parent
     p_nb_id   = mg%boxes(p_id)%neighbors(nb)
     p_nb_rank = mg%boxes(p_nb_id)%rank
@@ -201,49 +217,50 @@ contains
        mg%buf(p_nb_rank)%i_recv = mg%buf(p_nb_rank)%i_recv + dsize
     else if (.not. dry_run) then
        call box_gc_for_neighbor(mg%boxes(p_nb_id), neighb_rev(nb), &
-            mg%box_size, cgc)
+            nc, cgc)
     end if
 
     if (.not. dry_run) then
-       call sides_rb(mg, id, nb, cgc)
+       call sides_rb(mg, id, nc, nb, cgc)
     end if
   end subroutine fill_refinement_bnd
 
-  subroutine copy_from_nb(mg, box, box_nb, nb)
-    type(mg_t), intent(inout)  :: mg
+  subroutine copy_from_nb(box, box_nb, nb, nc)
     type(box_t), intent(inout) :: box
     type(box_t), intent(in)    :: box_nb
     integer, intent(in)        :: nb
+    integer, intent(in)        :: nc
 #if NDIM == 2
-    real(dp)                   :: gc(mg%box_size)
+    real(dp)                   :: gc(nc)
 #elif NDIM == 3
-    real(dp)                   :: gc(mg%box_size, mg%box_size)
+    real(dp)                   :: gc(nc, nc)
 #endif
 
-    call box_gc_for_neighbor(box_nb, neighb_rev(nb), mg%box_size, gc)
-    call box_set_gc(box, nb, mg%box_size, gc)
+    call box_gc_for_neighbor(box_nb, neighb_rev(nb), nc, gc)
+    call box_set_gc(box, nb, nc, gc)
   end subroutine copy_from_nb
 
-  subroutine buffer_for_nb(mg, box, nb_id, nb_rank, nb, dry_run)
+  subroutine buffer_for_nb(mg, box, nc, nb_id, nb_rank, nb, dry_run)
     use mpi
     type(mg_t), intent(inout)  :: mg
     type(box_t), intent(inout) :: box
+    integer, intent(in)        :: nc
     integer, intent(in)        :: nb_id
     integer, intent(in)        :: nb_rank
     integer, intent(in)        :: nb
     logical, intent(in)        :: dry_run
     integer                    :: i, dsize
 #if NDIM == 2
-    real(dp)                   :: gc(mg%box_size)
+    real(dp)                   :: gc(nc)
 #elif NDIM == 3
-    real(dp)                   :: gc(mg%box_size, mg%box_size)
+    real(dp)                   :: gc(nc, nc)
 #endif
 
     i     = mg%buf(nb_rank)%i_send
-    dsize = mg%box_size**(NDIM-1)
+    dsize = nc**(NDIM-1)
 
     if (.not. dry_run) then
-       call box_gc_for_neighbor(box, nb, mg%box_size, gc)
+       call box_gc_for_neighbor(box, nb, nc, gc)
        mg%buf(nb_rank)%send(i+1:i+dsize) = pack(gc, .true.)
     end if
 
@@ -258,26 +275,27 @@ contains
     mg%buf(nb_rank)%i_ix   = mg%buf(nb_rank)%i_ix + 1
   end subroutine buffer_for_nb
 
-  subroutine fill_buffered_nb(mg, box, nb_rank, nb, dry_run)
+  subroutine fill_buffered_nb(mg, box, nb_rank, nb, nc, dry_run)
     use mpi
     type(mg_t), intent(inout)  :: mg
     type(box_t), intent(inout) :: box
     integer, intent(in)        :: nb_rank
     integer, intent(in)        :: nb
+    integer, intent(in)        :: nc
     logical, intent(in)        :: dry_run
     integer                    :: i, dsize
 #if NDIM == 2
-    real(dp)                   :: gc(mg%box_size)
+    real(dp)                   :: gc(nc)
 #elif NDIM == 3
-    real(dp)                   :: gc(mg%box_size, mg%box_size)
+    real(dp)                   :: gc(nc, nc)
 #endif
 
     i     = mg%buf(nb_rank)%i_recv
-    dsize = mg%box_size**(NDIM-1)
+    dsize = nc**(NDIM-1)
 
     if (.not. dry_run) then
        gc = reshape(mg%buf(nb_rank)%recv(i+1:i+dsize), shape(gc))
-       call box_set_gc(box, nb, mg%box_size, gc)
+       call box_set_gc(box, nb, nc, gc)
     end if
     mg%buf(nb_rank)%i_recv = mg%buf(nb_rank)%i_recv + dsize
 
@@ -355,15 +373,13 @@ contains
     end select
   end subroutine box_set_gc
 
-  subroutine bc_to_gc(mg, id, nb, bc_type)
+  subroutine bc_to_gc(mg, id, nc, nb, bc_type)
     type(mg_t), intent(inout) :: mg
     integer, intent(in)       :: id
+    integer, intent(in)       :: nc
     integer, intent(in)       :: nb      !< Neighbor direction
     integer, intent(in)       :: bc_type !< Type of b.c.
     real(dp)                  :: c0, c1, c2
-    integer                   :: nc
-
-    nc = mg%box_size
 
     ! If we call the interior point x1, x2 and the ghost point x0, then a
     ! Dirichlet boundary value b can be imposed as:
@@ -448,54 +464,57 @@ contains
   end subroutine bc_to_gc
 
     ! This fills ghost cells near physical boundaries using Neumann zero
-  subroutine set_bc_neumann_zero(mg, id, nb, bc_type)
+  subroutine set_bc_neumann_zero(mg, id, nc, nb, bc_type)
     type(mg_t), intent(inout) :: mg
     integer, intent(in)       :: id
+    integer, intent(in)       :: nc
     integer, intent(in)       :: nb
     integer, intent(out)      :: bc_type
 #if NDIM == 2
-    real(dp)                  :: tmp(mg%box_size)
+    real(dp)                  :: tmp(nc)
 #elif NDIM == 3
-    real(dp)                  :: tmp(mg%box_size, mg%box_size)
+    real(dp)                  :: tmp(nc, nc)
 #endif
 
     bc_type = bc_neumann
     tmp     = 0.0_dp
-    call box_set_gc(mg%boxes(id), nb, mg%box_size, tmp)
+    call box_set_gc(mg%boxes(id), nb, nc, tmp)
   end subroutine set_bc_neumann_zero
 
   ! This fills ghost cells near physical boundaries using Neumann zero
-  subroutine set_bc_dirichlet_zero(mg, id, nb, bc_type)
+  subroutine set_bc_dirichlet_zero(mg, id, nc, nb, bc_type)
     type(mg_t), intent(inout) :: mg
     integer, intent(in)       :: id
+    integer, intent(in)       :: nc
     integer, intent(in)       :: nb
     integer, intent(out)      :: bc_type
 #if NDIM == 2
-    real(dp)                  :: tmp(mg%box_size)
+    real(dp)                  :: tmp(nc)
 #elif NDIM == 3
-    real(dp)                  :: tmp(mg%box_size, mg%box_size)
+    real(dp)                  :: tmp(nc, nc)
 #endif
 
     bc_type = bc_dirichlet
     tmp     = 0.0_dp
-    call box_set_gc(mg%boxes(id), nb, mg%box_size, tmp)
+    call box_set_gc(mg%boxes(id), nb, nc, tmp)
   end subroutine set_bc_dirichlet_zero
 
   ! This fills ghost cells near physical boundaries using the same slope
-  subroutine set_bc_continuous(mg, id, nb, bc_type)
+  subroutine set_bc_continuous(mg, id, nc, nb, bc_type)
     type(mg_t), intent(inout) :: mg
-    integer, intent(in)          :: id
-    integer, intent(in)          :: nb
-    integer, intent(out)         :: bc_type
+    integer, intent(in)       :: id
+    integer, intent(in)       :: nc
+    integer, intent(in)       :: nb
+    integer, intent(out)      :: bc_type
 #if NDIM == 2
-    real(dp)                  :: tmp(mg%box_size)
+    real(dp)                  :: tmp(nc)
 #elif NDIM == 3
-    real(dp)                  :: tmp(mg%box_size, mg%box_size)
+    real(dp)                  :: tmp(nc, nc)
 #endif
 
     bc_type = bc_continuous
     tmp     = 0.0_dp ! Set values to zero (to prevent problems with NaN)
-    call box_set_gc(mg%boxes(id), nb, mg%box_size, tmp)
+    call box_set_gc(mg%boxes(id), nb, nc, tmp)
     bc_type = bc_continuous
   end subroutine set_bc_continuous
 
@@ -504,23 +523,23 @@ contains
   !> Basically, we extrapolate from the fine cells to a corner point, and then
   !> take the average between this corner point and a coarse neighbor to fill
   !> ghost cells for the fine cells.
-  subroutine sides_rb(mg, id, nb, cgc)
+  subroutine sides_rb(mg, id, nc, nb, cgc)
     type(mg_t), intent(inout) :: mg
     integer, intent(in)       :: id !< Id of box
+    integer, intent(in)       :: nc
     integer, intent(in)       :: nb !< Ghost cell direction
     !> Unmodified coarse grid ghost cells (including data for neighbors)
 #if NDIM == 2
-    real(dp), intent(in)      :: cgc(mg%box_size)
+    real(dp), intent(in)      :: cgc(nc)
 #elif NDIM == 3
-    real(dp), intent(in)      :: cgc(mg%box_size, mg%box_size)
+    real(dp), intent(in)      :: cgc(nc, nc)
 #endif
-    integer                   :: IJK, nc, ix, dix, di, dj
+    integer                   :: IJK, ix, dix, di, dj
     integer                   :: ix_off(NDIM)
 #if NDIM == 3
     integer                   :: dk
 #endif
 
-    nc     = mg%box_size
     ix_off = get_child_offset(mg, id)
 
     if (neighb_low(nb)) then

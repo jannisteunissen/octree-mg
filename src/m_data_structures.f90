@@ -216,25 +216,27 @@ module m_data_structures
 
   interface
      !> To fill ghost cells near physical boundaries
-     subroutine subr_bc(mg, id, nb, bc_type)
+     subroutine subr_bc(mg, id, nc, nb, bc_type)
        import
        type(mg_t), intent(inout) :: mg
        integer, intent(in)       :: id
+       integer, intent(in)       :: nc
        integer, intent(in)       :: nb      !< Direction
        integer, intent(out)      :: bc_type !< Type of b.c.
      end subroutine subr_bc
 
      !> To fill ghost cells near refinement boundaries
-     subroutine subr_rb(mg, id, nb, cgc)
+     subroutine subr_rb(mg, id, nc, nb, cgc)
        import
        type(mg_t), intent(inout) :: mg
        integer, intent(in)       :: id
+       integer, intent(in)       :: nc
        integer, intent(in)       :: nb !< Direction
        !> Coarse data
 #if NDIM == 2
-       real(dp), intent(in)      :: cgc(mg%box_size)
+       real(dp), intent(in)      :: cgc(nc)
 #elif NDIM == 3
-       real(dp), intent(in)      :: cgc(mg%box_size, mg%box_size)
+       real(dp), intent(in)      :: cgc(nc, nc)
 #endif
      end subroutine subr_rb
 

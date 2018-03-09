@@ -69,27 +69,31 @@ contains
     type(mg_t), intent(inout) :: mg
     integer, intent(in)       :: iv
     integer, intent(in)       :: lvl
-    integer                   :: i, id, dsize
+    integer                   :: i, id, dsize, nc
 
     if (lvl <= mg%lowest_lvl) error stop "cannot restrict lvl <= lowest_lvl"
 
-    dsize = (mg%box_size/2)**NDIM
+    nc = mg%box_size_lvl(lvl)
 
-    mg%buf(:)%i_send = 0
-    mg%buf(:)%i_ix   = 0
+    if (lvl >= 1) then
+       dsize = (nc/2)**NDIM
 
-    do i = 1, size(mg%lvls(lvl)%my_ids)
-       id = mg%lvls(lvl)%my_ids(i)
-       call restrict_set_buffer(mg, id, iv)
-    end do
+       mg%buf(:)%i_send = 0
+       mg%buf(:)%i_ix   = 0
 
-    mg%buf(:)%i_recv = mg%comm_restrict%n_recv(:, lvl) * dsize
-    call sort_and_transfer_buffers(mg, dsize)
-    mg%buf(:)%i_recv = 0
+       do i = 1, size(mg%lvls(lvl)%my_ids)
+          id = mg%lvls(lvl)%my_ids(i)
+          call restrict_set_buffer(mg, id, iv)
+       end do
+
+       mg%buf(:)%i_recv = mg%comm_restrict%n_recv(:, lvl) * dsize
+       call sort_and_transfer_buffers(mg, dsize)
+       mg%buf(:)%i_recv = 0
+    end if
 
     do i = 1, size(mg%lvls(lvl-1)%my_parents)
        id = mg%lvls(lvl-1)%my_parents(i)
-       call restrict_onto(mg, id, iv)
+       call restrict_onto(mg, id, nc, iv)
     end do
   end subroutine restrict
 
@@ -137,18 +141,20 @@ contains
     end if
   end subroutine restrict_set_buffer
 
-  subroutine restrict_onto(mg, id, iv)
+  subroutine restrict_onto(mg, id, nc, iv)
     type(mg_t), intent(inout) :: mg
     integer, intent(in)       :: id
+    integer, intent(in)       :: nc
     integer, intent(in)       :: iv
     integer                   :: IJK, hnc, dsize, i_c, c_id
     integer                   :: c_rank, dix(NDIM)
 
-    hnc   = mg%box_size/2
+    hnc   = nc/2
     dsize = hnc**NDIM
 
     do i_c = 1, num_children
        c_id   = mg%boxes(id)%children(i_c)
+       if (c_id == no_box) cycle ! For coarsened grid
        c_rank = mg%boxes(c_id)%rank
        dix    = get_child_offset(mg, c_id)
 

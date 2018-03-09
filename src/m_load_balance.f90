@@ -46,7 +46,7 @@ contains
     !    end do
     ! end do
 
-    do lvl = 1, mg%highest_lvl
+    do lvl = mg%lowest_lvl, mg%highest_lvl
        call update_lvl_info(mg, mg%lvls(lvl))
     end do
 

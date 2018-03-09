@@ -14,15 +14,14 @@ contains
     use m_restrict, only: restrict_buffer_size
     use m_prolong, only: prolong_buffer_size
     type(mg_t), intent(inout) :: mg
-    integer                      :: i, id, lvl, nc
-    integer                      :: n_send(0:mg%n_cpu-1, 3)
-    integer                      :: n_recv(0:mg%n_cpu-1, 3)
-    integer                      :: dsize(3)
-    integer                      :: n_in, n_out, n_id
+    integer                   :: i, id, lvl, nc
+    integer                   :: n_send(0:mg%n_cpu-1, 3)
+    integer                   :: n_recv(0:mg%n_cpu-1, 3)
+    integer                   :: dsize(3)
+    integer                   :: n_in, n_out, n_id
 
-    nc = mg%box_size
-
-    do lvl = 1, mg%highest_lvl
+    do lvl = mg%lowest_lvl, mg%highest_lvl
+       nc = mg%box_size_lvl(lvl)
        do i = 1, size(mg%lvls(lvl)%my_ids)
           id = mg%lvls(lvl)%my_ids(i)
           allocate(mg%boxes(id)%cc(DTIMES(0:nc+1), n_var))
