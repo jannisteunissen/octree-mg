@@ -193,6 +193,7 @@ module m_data_structures
 
   type mg_t
      logical                  :: is_allocated     = .false.
+     logical                  :: fully_periodic   = .false.
      integer                  :: n_cpu            = -1
      integer                  :: my_rank          = -1
      integer                  :: box_size         = -1

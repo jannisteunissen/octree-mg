@@ -82,11 +82,13 @@ contains
   !> needs valid ghost cells (for i_phi) on input, and gives back valid ghost
   !> cells on output
   subroutine mg_fas_vcycle(mg, set_residual, highest_lvl)
+    use mpi
     type(mg_t), intent(inout)     :: mg
     logical, intent(in)           :: set_residual !< If true, store residual in i_res
     integer, intent(in), optional :: highest_lvl  !< Maximum level for V-cycle
-    integer                       :: lvl, min_lvl, i, id, max_lvl, nc
-    real(dp)                      :: res, init_res
+    integer                       :: lvl, min_lvl, i, id
+    integer                       :: max_lvl, nc, ierr
+    real(dp)                      :: res, init_res, sum_phi, mean_phi
 
     if (timer_smoother == -1) then
        call mg_add_timers(mg)
@@ -145,6 +147,28 @@ contains
           do i = 1, size(mg%lvls(lvl)%my_ids)
              id = mg%lvls(lvl)%my_ids(i)
              call residual_box(mg, id, nc)
+          end do
+       end do
+    end if
+
+    ! Subtract mean(phi) from phi
+    if (mg%fully_periodic) then
+       do lvl = min_lvl, max_lvl
+          sum_phi = 0.0_dp
+          nc = mg%box_size_lvl(lvl)
+          do i = 1, size(mg%lvls(lvl)%my_ids)
+             id = mg%lvls(lvl)%my_ids(i)
+             sum_phi = sum_phi + sum(mg%boxes(id)%cc(DTIMES(1:nc), i_phi))
+          end do
+
+          call mpi_allreduce(sum_phi, mean_phi, 1, mpi_double, mpi_sum, &
+               mpi_comm_world, ierr)
+          mean_phi = mean_phi / (nc**NDIM * size(mg%lvls(lvl)%ids))
+
+          do i = 1, size(mg%lvls(lvl)%my_ids)
+             id = mg%lvls(lvl)%my_ids(i)
+             mg%boxes(id)%cc(DTIMES(:), i_phi) = &
+                  mg%boxes(id)%cc(DTIMES(:), i_phi) - mean_phi
           end do
        end do
     end if

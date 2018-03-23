@@ -8,7 +8,7 @@ program test_one_level
   integer             :: box_size
   integer             :: domain_size(NDIM)
   real(dp)            :: dr, r_min(NDIM) = 0.0_dp
-  logical             :: periodic(NDIM) = .false.
+  logical             :: periodic(NDIM) = .true.
   integer             :: n_finer = 0
   real(dp), parameter :: pi = acos(-1.0_dp)
   character(len=40)   :: arg_string
@@ -66,9 +66,11 @@ program test_one_level
 
   t0 = mpi_wtime()
   do n = 1, 10
-     call mg_fas_fmg(mg, n==10, n > 1)
-     ! call mg_fas_vcycle(mg, .true.)
+     ! call mg_fas_fmg(mg, n==10, n > 1)
+     call mg_fas_vcycle(mg, .true.)
      call print_error(mg)
+     ! print *, mg%boxes(1)%cc(1:box_size, 1:box_size, i_rhs)
+     ! print *, mg%boxes(1)%cc(0:box_size+1, 2, i_phi)
   end do
   t1 = mpi_wtime()
   if (mg%my_rank == 0) then
@@ -114,8 +116,8 @@ contains
 
   subroutine print_error(mg)
     type(mg_t), intent(inout) :: mg
-    integer                      :: n, nc, id, lvl, IJK, ierr
-    real(dp)                     :: r(NDIM), sol, val, err, max_err
+    integer                   :: n, nc, id, lvl, IJK, ierr
+    real(dp)                  :: r(NDIM), sol, val, err, max_err
 
     err = 0.0_dp
 

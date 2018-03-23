@@ -32,6 +32,12 @@ contains
     if (any(modulo(domain_size, box_size) /= 0)) &
          error stop "box_size does not divide domain_size"
 
+    if (all(periodic)) then
+       mg%fully_periodic = .true.
+    else
+       mg%fully_periodic = .false.
+    end if
+
     nx                  = domain_size
     mg%box_size         = box_size
     mg%box_size_lvl(1)  = box_size
@@ -58,6 +64,11 @@ contains
 
     mg%lowest_lvl = lvl
     mg%highest_lvl = 1
+
+    do lvl = 2, lvl_hi_bnd
+       mg%dr(lvl)           = mg%dr(lvl-1) * 0.5_dp
+       mg%box_size_lvl(lvl) = box_size
+    end do
 
     n = sum(product(boxes_per_dim, dim=1)) + n_finer
     allocate(mg%boxes(n))
@@ -96,19 +107,19 @@ contains
        where ([IJK] == 1 .and. .not. periodic)
           mg%boxes(n)%neighbors(1:num_neighbors:2) = &
                physical_boundary
-       elsewhere ([IJK] == 1 .and. periodic)
+       end where
+       where ([IJK] == 1 .and. periodic)
           mg%boxes(n)%neighbors(1:num_neighbors:2) = &
-               mg%boxes(n)%neighbors(1:num_neighbors:2) + &
-               periodic_offset
+               n + periodic_offset
        end where
 
        where ([IJK] == nx .and. .not. periodic)
           mg%boxes(n)%neighbors(2:num_neighbors:2) = &
                physical_boundary
-       elsewhere ([IJK] == nx .and. periodic)
+       end where
+       where ([IJK] == nx .and. periodic)
           mg%boxes(n)%neighbors(2:num_neighbors:2) = &
-               mg%boxes(n)%neighbors(2:num_neighbors:2) - &
-               periodic_offset
+               n - periodic_offset
        end where
     end do; CLOSE_DO
 
