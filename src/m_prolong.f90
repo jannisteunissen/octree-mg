@@ -17,19 +17,22 @@ contains
     integer, intent(out)      :: n_send(0:mg%n_cpu-1)
     integer, intent(out)      :: n_recv(0:mg%n_cpu-1)
     integer, intent(out)      :: dsize
-    integer                   :: lvl
+    integer                   :: lvl, min_lvl
 
     if (.not. allocated(mg%comm_restrict%n_send)) then
        error stop "Call restrict_buffer_size before prolong_buffer_size"
     end if
 
-    allocate(mg%comm_prolong%n_send(0:mg%n_cpu-1, mg%highest_lvl))
-    allocate(mg%comm_prolong%n_recv(0:mg%n_cpu-1, mg%highest_lvl))
+    min_lvl = max(mg%first_normal_lvl-1, mg%lowest_lvl)
+    allocate(mg%comm_prolong%n_send(0:mg%n_cpu-1, &
+         min_lvl:mg%highest_lvl))
+    allocate(mg%comm_prolong%n_recv(0:mg%n_cpu-1, &
+         min_lvl:mg%highest_lvl))
 
     mg%comm_prolong%n_recv(:, mg%highest_lvl) = 0
     mg%comm_prolong%n_send(:, mg%highest_lvl) = 0
 
-    do lvl = 1, mg%highest_lvl-1
+    do lvl = min_lvl, mg%highest_lvl-1
        mg%comm_prolong%n_recv(:, lvl) = &
             mg%comm_restrict%n_send(:, lvl+1)
        mg%comm_prolong%n_send(:, lvl) = &
@@ -40,22 +43,22 @@ contains
     dsize = (mg%box_size/2 + 2)**NDIM
     n_send = maxval(mg%comm_prolong%n_send, dim=2)
     n_recv = maxval(mg%comm_prolong%n_recv, dim=2)
-
   end subroutine prolong_buffer_size
 
+  !> Prolong variable iv from lvl to variable iv_to at lvl+1
   subroutine prolong(mg, lvl, iv, iv_to, add)
     use m_communication
     type(mg_t), intent(inout) :: mg
-    integer, intent(in)       :: lvl
-    integer, intent(in)       :: iv
-    integer, intent(in)       :: iv_to
-    logical, intent(in)       :: add
+    integer, intent(in)       :: lvl   !< Level to prolong from
+    integer, intent(in)       :: iv    !< Source variable
+    integer, intent(in)       :: iv_to !< Target variable
+    logical, intent(in)       :: add   !< If true, add to current values
     integer                   :: i, id, dsize, nc
 
     if (lvl == mg%highest_lvl) error stop "cannot prolong highest level"
     if (lvl < mg%lowest_lvl) error stop "cannot prolong below lowest level"
 
-    if (lvl >= 1) then
+    if (lvl >= mg%first_normal_lvl-1) then
        dsize            = (mg%box_size/2 + 2)**NDIM
        mg%buf(:)%i_send = 0
        mg%buf(:)%i_ix   = 0
@@ -130,12 +133,11 @@ contains
     real(dp)                  :: tmp(DTIMES(0:nc/2+1))
 
     hnc    = nc/2
-    dsize  = (hnc+2)**NDIM
     p_id   = mg%boxes(id)%parent
     p_rank = mg%boxes(p_id)%rank
-    dix    = get_child_offset(mg, id)
 
     if (p_rank == mg%my_rank) then
+       dix    = get_child_offset(mg, id)
 #if NDIM == 2
        tmp = mg%boxes(p_id)%cc(dix(1):dix(1)+hnc+1, &
             dix(2):dix(2)+hnc+1, iv)
@@ -144,6 +146,7 @@ contains
             dix(2):dix(2)+hnc+1, dix(3):dix(3)+hnc+1, iv)
 #endif
     else
+       dsize  = (hnc+2)**NDIM
        i = mg%buf(p_rank)%i_recv
        tmp = reshape(mg%buf(p_rank)%recv(i+1:i+dsize), [DTIMES(hnc+2)])
        mg%buf(p_rank)%i_recv = mg%buf(p_rank)%i_recv + dsize

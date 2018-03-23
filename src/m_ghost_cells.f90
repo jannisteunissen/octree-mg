@@ -22,12 +22,14 @@ contains
     integer, intent(out)      :: dsize
     integer                   :: i, id, lvl, nc
 
-    allocate(mg%comm_ghostcell%n_send(0:mg%n_cpu-1, mg%highest_lvl))
-    allocate(mg%comm_ghostcell%n_recv(0:mg%n_cpu-1, mg%highest_lvl))
+    allocate(mg%comm_ghostcell%n_send(0:mg%n_cpu-1, &
+         mg%first_normal_lvl:mg%highest_lvl))
+    allocate(mg%comm_ghostcell%n_recv(0:mg%n_cpu-1, &
+         mg%first_normal_lvl:mg%highest_lvl))
 
     dsize = mg%box_size**(NDIM-1)
 
-    do lvl = 1, mg%highest_lvl
+    do lvl = mg%first_normal_lvl, mg%highest_lvl
        nc               = mg%box_size_lvl(lvl)
        mg%buf(:)%i_send = 0
        mg%buf(:)%i_recv = 0
@@ -76,7 +78,7 @@ contains
 
     nc               = mg%box_size_lvl(lvl)
 
-    if (lvl >= 1) then
+    if (lvl >= mg%first_normal_lvl) then
        dsize            = nc**(NDIM-1)
        mg%buf(:)%i_send = 0
        mg%buf(:)%i_recv = 0
@@ -194,7 +196,7 @@ contains
     end do
   end subroutine set_ghost_cells
 
-  subroutine fill_refinement_bnd(mg, id, nc, nb, dry_run)
+  subroutine fill_refinement_bnd(mg, id, nb, nc, dry_run)
     type(mg_t), intent(inout) :: mg
     integer, intent(in)       :: id
     integer, intent(in)       :: nc
@@ -303,11 +305,11 @@ contains
 
   subroutine box_gc_for_neighbor(box, nb, nc, gc)
     type(box_t), intent(in) :: box
-    integer, intent(in)        :: nb, nc
+    integer, intent(in)     :: nb, nc
 #if NDIM == 2
-    real(dp), intent(out)          :: gc(nc)
+    real(dp), intent(out)   :: gc(nc)
 #elif NDIM == 3
-    real(dp), intent(out)          :: gc(nc, nc)
+    real(dp), intent(out)   :: gc(nc, nc)
 #endif
 
     select case (nb)

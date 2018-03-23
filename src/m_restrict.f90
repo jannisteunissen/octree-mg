@@ -17,15 +17,16 @@ contains
     integer, intent(out)      :: n_send(0:mg%n_cpu-1)
     integer, intent(out)      :: n_recv(0:mg%n_cpu-1)
     integer, intent(out)      :: dsize
-    integer                   :: n_out(0:mg%n_cpu-1, mg%highest_lvl)
-    integer                   :: n_in(0:mg%n_cpu-1, mg%highest_lvl)
+    integer :: n_out(0:mg%n_cpu-1, mg%first_normal_lvl:mg%highest_lvl)
+    integer :: n_in(0:mg%n_cpu-1, mg%first_normal_lvl:mg%highest_lvl)
     integer                   :: lvl, i, id, p_id, p_rank
-    integer                   :: i_c, c_id, c_rank
+    integer                   :: i_c, c_id, c_rank, min_lvl
 
     n_out(:, :) = 0
     n_in(:, :)  = 0
+    min_lvl = max(mg%lowest_lvl+1, mg%first_normal_lvl)
 
-    do lvl = 2, mg%highest_lvl
+    do lvl = min_lvl, mg%highest_lvl
        ! Number of messages to receive (at lvl-1)
        do i = 1, size(mg%lvls(lvl-1)%my_parents)
           id = mg%lvls(lvl-1)%my_parents(i)
@@ -54,8 +55,10 @@ contains
        end do
     end do
 
-    allocate(mg%comm_restrict%n_send(0:mg%n_cpu-1, mg%highest_lvl))
-    allocate(mg%comm_restrict%n_recv(0:mg%n_cpu-1, mg%highest_lvl))
+    allocate(mg%comm_restrict%n_send(0:mg%n_cpu-1, &
+         mg%first_normal_lvl:mg%highest_lvl))
+    allocate(mg%comm_restrict%n_recv(0:mg%n_cpu-1, &
+         mg%first_normal_lvl:mg%highest_lvl))
     mg%comm_restrict%n_send = n_out
     mg%comm_restrict%n_recv = n_in
 
@@ -75,7 +78,7 @@ contains
 
     nc = mg%box_size_lvl(lvl)
 
-    if (lvl >= 1) then
+    if (lvl >= mg%first_normal_lvl) then
        dsize = (nc/2)**NDIM
 
        mg%buf(:)%i_send = 0

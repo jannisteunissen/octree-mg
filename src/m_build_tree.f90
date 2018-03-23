@@ -6,85 +6,156 @@ module m_build_tree
   private
 
   ! Public methods
-  public :: build_uniform_tree
+  public :: build_rectangle
+  public :: add_children
+  public :: set_leaves_parents
+  public :: set_next_level_ids
+  public :: set_refinement_boundaries
 
 contains
 
-  subroutine build_uniform_tree(mg, box_size, domain_size, dr_coarse)
+  subroutine build_rectangle(mg, domain_size, box_size, dx, r_min, &
+       periodic, n_finer)
     type(mg_t), intent(inout) :: mg
+    integer, intent(in)       :: domain_size(NDIM)
     integer, intent(in)       :: box_size
-    integer, intent(in)       :: domain_size
-    real(dp), intent(in)      :: dr_coarse
-
-    integer              :: i, id, lvl, n
-    integer              :: min_lvl, max_lvl, n_boxes
-
-    max_lvl = 1 + nint(log(real(domain_size, dp)/box_size) / log(2.0_dp))
+    real(dp), intent(in)      :: dx
+    real(dp), intent(in)      :: r_min(NDIM)
+    logical, intent(in)       :: periodic(NDIM)
+    integer, intent(in)       :: n_finer
+    integer                   :: IJK, lvl, n, id, nx(NDIM)
+    integer                   :: boxes_per_dim(NDIM, lvl_lo_bnd:1)
+    integer                   :: periodic_offset(NDIM)
 
     if (modulo(box_size, 2) /= 0) &
          error stop "box_size should be even"
-    if (box_size * 2**(max_lvl-1) /= domain_size) &
-         error stop "Invalid domain_size should be 2^N * box_size"
+    if (any(modulo(domain_size, box_size) /= 0)) &
+         error stop "box_size does not divide domain_size"
 
-    mg%box_size    = box_size
-    mg%highest_lvl = max_lvl
+    nx                  = domain_size
+    mg%box_size         = box_size
+    mg%box_size_lvl(1)  = box_size
+    mg%first_normal_lvl = 1
+    mg%dr(1)            = dx
+    boxes_per_dim(:, :) = 0
+    boxes_per_dim(:, 1) = domain_size / box_size
 
-    ! Determine minimum level
-    n = box_size
-    do min_lvl = 1, -1000, -1
-       if (modulo(n, 2) == 1 .or. n == 2) exit
-       n = n / 2
-    end do
-    mg%lowest_lvl = min_lvl
+    do lvl = 1, lvl_lo_bnd+1, -1
+       if (any(modulo(nx, 2) == 1 .or. nx == 2)) exit
 
-    n_boxes = -min_lvl + 1
-    do lvl = 1, max_lvl
-       n_boxes = n_boxes + 2**((lvl-1) * NDIM)
-    end do
-    allocate(mg%boxes(n_boxes))
-    allocate(mg%dr(min_lvl:max_lvl))
-    allocate(mg%box_size_lvl(min_lvl:max_lvl))
-    allocate(mg%lvls(min_lvl:max_lvl))
-
-    mg%dr(:) = [(dr_coarse * 0.5**(n-1), n = min_lvl, max_lvl)]
-    mg%box_size_lvl(min_lvl:0) = [(box_size / 2**(1-n), n = min_lvl, 0)]
-    mg%box_size_lvl(1:max_lvl) = box_size
-    mg%n_boxes = 0
-
-    do lvl = min_lvl, 1
-       mg%n_boxes               = mg%n_boxes + 1
-       n                        = mg%n_boxes
-       mg%boxes(n)%rank         = 0
-       mg%boxes(n)%id           = n
-       mg%boxes(n)%lvl          = lvl
-       mg%boxes(n)%ix(:)        = 1
-       mg%boxes(n)%r_min(:)     = 0.0_dp
-       if (lvl > min_lvl) then
-          mg%boxes(n)%parent = n-1
+       if (all(modulo(nx/mg%box_size_lvl(lvl), 2) == 0)) then
+          mg%box_size_lvl(lvl-1) = mg%box_size_lvl(lvl)
+          boxes_per_dim(:, lvl-1) = boxes_per_dim(:, lvl)/2
+          mg%first_normal_lvl = lvl-1
        else
-          mg%boxes(n)%parent = no_box
-       end if
-       ! TODO
-       mg%boxes(n)%neighbors(:) = physical_boundary
-       mg%boxes(n)%children(:)  = no_box
-       if (lvl < 1) then
-          mg%boxes(n)%children(1)  = n + 1
+          mg%box_size_lvl(lvl-1) = mg%box_size_lvl(lvl)/2
+          boxes_per_dim(:, lvl-1) = boxes_per_dim(:, lvl)
        end if
 
-       allocate(mg%lvls(lvl)%ids(1))
-       mg%lvls(lvl)%ids(1) = n
-       call set_leaves_parents(mg%boxes, mg%lvls(lvl))
+       mg%dr(lvl-1) = mg%dr(lvl) * 2
+       nx = nx / 2
     end do
 
-    do lvl = 1, max_lvl-1
-       do i = 1, size(mg%lvls(lvl)%ids)
-          id = mg%lvls(lvl)%ids(i)
-          call add_children(mg, id)
-       end do
+    mg%lowest_lvl = lvl
+    mg%highest_lvl = 1
 
-       call set_leaves_parents(mg%boxes, mg%lvls(lvl))
+    n = sum(product(boxes_per_dim, dim=1)) + n_finer
+    allocate(mg%boxes(n))
 
-       ! Set next level ids to children of this level
+    ! Create lowest level
+    nx = boxes_per_dim(:, mg%lowest_lvl)
+#if NDIM == 2
+    periodic_offset = [nx(1)-1, (nx(2)-1)*nx(1)]
+#elif NDIM == 3
+    periodic_offset = [nx(1)-1, (nx(2)-1)*nx(1), &
+         (nx(3)-1) * nx(2) * nx(1)]
+#endif
+
+    do KJI_DO_VEC(nx)
+       mg%n_boxes = mg%n_boxes + 1
+       n          = mg%n_boxes
+
+       mg%boxes(n)%rank        = 0
+       mg%boxes(n)%id          = n
+       mg%boxes(n)%lvl         = mg%lowest_lvl
+       mg%boxes(n)%ix(:)       = [IJK]
+       mg%boxes(n)%r_min(:)    = r_min + (mg%boxes(n)%ix(:) - 1) * &
+            mg%box_size_lvl(mg%lowest_lvl) * mg%dr(mg%lowest_lvl)
+       mg%boxes(n)%parent      = no_box
+       mg%boxes(n)%children(:) = no_box
+
+       ! Set default neighbors
+#if NDIM == 2
+       mg%boxes(n)%neighbors(:) = [n-1, n+1, n-nx(1), n+nx(1)]
+#elif NDIM == 3
+       mg%boxes(n)%neighbors(:) = [n-1, n+1, n-nx(1), n+nx(1), &
+            n-nx(1)*nx(2), n+nx(1)*nx(2)]
+#endif
+
+       ! Handle boundaries
+       where ([IJK] == 1 .and. .not. periodic)
+          mg%boxes(n)%neighbors(1:num_neighbors:2) = &
+               physical_boundary
+       elsewhere ([IJK] == 1 .and. periodic)
+          mg%boxes(n)%neighbors(1:num_neighbors:2) = &
+               mg%boxes(n)%neighbors(1:num_neighbors:2) + &
+               periodic_offset
+       end where
+
+       where ([IJK] == nx .and. .not. periodic)
+          mg%boxes(n)%neighbors(2:num_neighbors:2) = &
+               physical_boundary
+       elsewhere ([IJK] == nx .and. periodic)
+          mg%boxes(n)%neighbors(2:num_neighbors:2) = &
+               mg%boxes(n)%neighbors(2:num_neighbors:2) - &
+               periodic_offset
+       end where
+    end do; CLOSE_DO
+
+    mg%lvls(mg%lowest_lvl)%ids = [(n, n=1, mg%n_boxes)]
+
+    ! Add higher levels
+    do lvl = mg%lowest_lvl, 0
+       if (mg%box_size_lvl(lvl+1) == mg%box_size_lvl(lvl)) then
+          do i = 1, size(mg%lvls(lvl)%ids)
+             id = mg%lvls(lvl)%ids(i)
+             call add_children(mg, id)
+          end do
+
+          call set_leaves_parents(mg%boxes, mg%lvls(lvl))
+          call set_next_level_ids(mg, lvl)
+
+          do i = 1, size(mg%lvls(lvl+1)%ids)
+             id = mg%lvls(lvl+1)%ids(i)
+             call set_neighbs(mg%boxes, id)
+          end do
+       else
+          do i = 1, size(mg%lvls(lvl)%ids)
+             id = mg%lvls(lvl)%ids(i)
+             call add_single_child(mg, id, size(mg%lvls(lvl)%ids))
+          end do
+
+          call set_leaves_parents(mg%boxes, mg%lvls(lvl))
+          call set_next_level_ids(mg, lvl)
+       end if
+    end do
+
+    call set_leaves_parents(mg%boxes, mg%lvls(1))
+
+    ! No refinement boundaries
+    do lvl = mg%lowest_lvl, 1
+       allocate(mg%lvls(lvl)%ref_bnds(0))
+    end do
+
+  end subroutine build_rectangle
+
+  subroutine set_next_level_ids(mg, lvl)
+    type(mg_t), intent(inout)  :: mg
+    integer, intent(in)        :: lvl
+    integer                    :: n, i, id
+
+    ! Set next level ids to children of this level
+    if (mg%box_size_lvl(lvl+1) == mg%box_size_lvl(lvl)) then
        n = num_children * size(mg%lvls(lvl)%parents)
        allocate(mg%lvls(lvl+1)%ids(n))
 
@@ -93,28 +164,18 @@ contains
           id = mg%lvls(lvl)%parents(i)
           mg%lvls(lvl+1)%ids(n*(i-1)+1:n*i) = mg%boxes(id)%children
        end do
-    end do
+    else
+       n = size(mg%lvls(lvl)%parents)
+       allocate(mg%lvls(lvl+1)%ids(n))
 
-    call set_leaves_parents(mg%boxes, mg%lvls(max_lvl))
-
-    ! Update connectivity of new boxes
-    do lvl = 2, max_lvl
-       do i = 1, size(mg%lvls(lvl)%ids)
-          id = mg%lvls(lvl)%ids(i)
-          call set_neighbs(mg%boxes, id)
+       n = 1
+       do i = 1, size(mg%lvls(lvl)%parents)
+          id = mg%lvls(lvl)%parents(i)
+          mg%lvls(lvl+1)%ids(i) = mg%boxes(id)%children(1)
        end do
-    end do
+    end if
 
-    ! Store boxes with refinement boundaries (from the coarse side)
-    do lvl = min_lvl, 0
-       ! No refinement boundaries on coarsened grid
-       allocate(mg%lvls(lvl)%ref_bnds(0))
-    end do
-    do lvl = 1, max_lvl
-       call set_refinement_boundaries(mg%boxes, mg%lvls(lvl))
-    end do
-
-  end subroutine build_uniform_tree
+  end subroutine set_next_level_ids
 
   ! Set the neighbors of id (using their parent)
   subroutine set_neighbs(boxes, id)
@@ -258,6 +319,31 @@ contains
        end if
     end do
   end subroutine add_children
+
+  subroutine add_single_child(mg, id, n_boxes_lvl)
+    type(mg_t), intent(inout) :: mg
+    integer, intent(in)       :: id !< Id of box that gets children
+    integer, intent(in)       :: n_boxes_lvl
+    integer                   :: lvl, c_id
+
+    c_id                     = mg%n_boxes + 1
+    mg%n_boxes               = mg%n_boxes + 1
+    mg%boxes(id)%children(1) = c_id
+    lvl                      = mg%boxes(id)%lvl+1
+
+    mg%boxes(c_id)%rank      = mg%boxes(id)%rank
+    mg%boxes(c_id)%ix        = 2 * mg%boxes(id)%ix - 1
+    mg%boxes(c_id)%lvl       = lvl
+    mg%boxes(c_id)%parent    = id
+    mg%boxes(c_id)%children  = no_box
+    where (mg%boxes(id)%neighbors == physical_boundary)
+       mg%boxes(c_id)%neighbors = mg%boxes(id)%neighbors
+    elsewhere
+       mg%boxes(c_id)%neighbors = mg%boxes(id)%neighbors + n_boxes_lvl
+    end where
+    mg%boxes(c_id)%r_min = mg%boxes(id)%r_min
+
+  end subroutine add_single_child
 
   ! subroutine build_tree_2d(n_leaves, blvls, branks, bixs, tree)
   !   integer, intent(in) :: n_leaves
@@ -435,27 +521,5 @@ contains
   !   end do
 
   ! end subroutine build_tree_2d
-
-  ! pure logical function first_child(ix)
-  !   integer, intent(in) :: ix(:)
-  !   first_child = all(iand(ix, 1) == 1)
-  ! end function first_child
-
-  ! pure integer function most_popular(list)
-  !   integer, intent(in) :: list(:)
-  !   integer             :: i, best_count, current_count
-
-  !   best_count   = 0
-  !   most_popular = -1
-
-  !   do i = 1, size(list)
-  !      current_count = count(list == list(i))
-
-  !      if (current_count > best_count) then
-  !         most_popular = list(i)
-  !      end if
-  !   end do
-
-  ! end function most_popular
 
 end module m_build_tree

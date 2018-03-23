@@ -6,16 +6,25 @@ module m_load_balance
 
   ! Public methods
   public :: load_balance
+  public :: load_balance_parents
 
 contains
 
   subroutine load_balance(mg)
     type(mg_t), intent(inout) :: mg
-    integer :: i, id, lvl
+    integer :: i, id, lvl, single_cpu_lvl
     integer :: work_left, my_work, i_cpu
     ! integer :: c_ids(4), c_ranks(4)
 
-    do lvl = 1, mg%highest_lvl
+    single_cpu_lvl = max(mg%first_normal_lvl-1, mg%lowest_lvl)
+    do lvl = mg%lowest_lvl, single_cpu_lvl
+       do i = 1, size(mg%lvls(lvl)%ids)
+          id = mg%lvls(lvl)%ids(i)
+          mg%boxes(id)%rank = 0
+       end do
+    end do
+
+    do lvl = single_cpu_lvl+1, mg%highest_lvl
        work_left = size(mg%lvls(lvl)%ids)
        my_work   = 0
        i_cpu     = 0
@@ -51,6 +60,28 @@ contains
     end do
 
   end subroutine load_balance
+
+  subroutine load_balance_parents(mg)
+    type(mg_t), intent(inout) :: mg
+    integer                   :: i, id, lvl
+    integer                   :: c_ids(num_children)
+    integer                   :: c_ranks(num_children)
+
+    do lvl = mg%highest_lvl-1, mg%lowest_lvl, -1
+       do i = 1, size(mg%lvls(lvl)%parents)
+          id = mg%lvls(lvl)%parents(i)
+
+          c_ids = mg%boxes(id)%children
+          c_ranks = mg%boxes(c_ids)%rank
+          mg%boxes(id)%rank = most_popular(c_ranks)
+       end do
+    end do
+
+    do lvl = mg%lowest_lvl, mg%highest_lvl
+       call update_lvl_info(mg, mg%lvls(lvl))
+    end do
+
+  end subroutine load_balance_parents
 
   pure integer function most_popular(list)
     integer, intent(in) :: list(:)

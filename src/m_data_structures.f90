@@ -6,6 +6,8 @@ module m_data_structures
 
   integer, parameter :: dp = kind(0.0d0)
   integer, parameter :: max_timers = 20
+  integer, parameter :: lvl_lo_bnd = -20
+  integer, parameter :: lvl_hi_bnd = 20
 
   !> Value to indicate a periodic boundary condition
   integer, parameter :: bc_periodic = -9
@@ -190,16 +192,18 @@ module m_data_structures
   end type timer_t
 
   type mg_t
-     integer                  :: n_cpu   = -1
-     integer                  :: my_rank = -1
-     integer                  :: box_size
-     integer                  :: highest_lvl
-     integer                  :: lowest_lvl
-     integer                  :: n_boxes
-     integer, allocatable     :: box_size_lvl(:)
-     real(dp), allocatable    :: dr(:)
+     logical                  :: is_allocated     = .false.
+     integer                  :: n_cpu            = -1
+     integer                  :: my_rank          = -1
+     integer                  :: box_size         = -1
+     integer                  :: highest_lvl      = -1
+     integer                  :: lowest_lvl       = -1
+     integer                  :: first_normal_lvl = -1
+     integer                  :: n_boxes          = 0
+     integer                  :: box_size_lvl(lvl_lo_bnd:lvl_hi_bnd)
+     real(dp)                 :: dr(lvl_lo_bnd:lvl_hi_bnd)
+     type(lvl_t)              :: lvls(lvl_lo_bnd:lvl_hi_bnd)
      type(box_t), allocatable :: boxes(:)
-     type(lvl_t), allocatable :: lvls(:)
      type(buf_t), allocatable :: buf(:)
      type(comm_t)             :: comm_restrict
      type(comm_t)             :: comm_prolong

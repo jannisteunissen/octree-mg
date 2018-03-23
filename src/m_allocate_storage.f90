@@ -6,8 +6,30 @@ module m_allocate_storage
   private
 
   public :: allocate_storage
+  public :: deallocate_storage
 
 contains
+
+  subroutine deallocate_storage(mg)
+    type(mg_t), intent(inout) :: mg
+
+    if (.not. mg%is_allocated) &
+         error stop "deallocate_storage: tree is not allocated"
+
+    deallocate(mg%boxes)
+    deallocate(mg%buf)
+
+    deallocate(mg%comm_restrict%n_send)
+    deallocate(mg%comm_restrict%n_recv)
+
+    deallocate(mg%comm_prolong%n_send)
+    deallocate(mg%comm_prolong%n_recv)
+
+    deallocate(mg%comm_ghostcell%n_send)
+    deallocate(mg%comm_ghostcell%n_recv)
+
+    mg%is_allocated = .false.
+  end subroutine deallocate_storage
 
   subroutine allocate_storage(mg)
     use m_ghost_cells, only: ghost_cell_buffer_size
@@ -48,6 +70,7 @@ contains
        allocate(mg%buf(i)%ix(n_id))
     end do
 
+    mg%is_allocated = .true.
   end subroutine allocate_storage
 
 end module m_allocate_storage
