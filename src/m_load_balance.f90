@@ -17,6 +17,7 @@ contains
     ! integer :: c_ids(4), c_ranks(4)
 
     single_cpu_lvl = max(mg%first_normal_lvl-1, mg%lowest_lvl)
+
     do lvl = mg%lowest_lvl, single_cpu_lvl
        do i = 1, size(mg%lvls(lvl)%ids)
           id = mg%lvls(lvl)%ids(i)
@@ -66,14 +67,28 @@ contains
     integer                   :: i, id, lvl
     integer                   :: c_ids(num_children)
     integer                   :: c_ranks(num_children)
+    integer                   :: single_cpu_lvl, coarse_rank
 
-    do lvl = mg%highest_lvl-1, mg%lowest_lvl, -1
+    single_cpu_lvl = max(mg%first_normal_lvl-1, mg%lowest_lvl)
+
+    do lvl = mg%highest_lvl-1, single_cpu_lvl+1, -1
        do i = 1, size(mg%lvls(lvl)%parents)
           id = mg%lvls(lvl)%parents(i)
 
           c_ids = mg%boxes(id)%children
           c_ranks = mg%boxes(c_ids)%rank
           mg%boxes(id)%rank = most_popular(c_ranks)
+       end do
+    end do
+
+    ! Determine most popular CPU for coarse grids
+    coarse_rank = most_popular(mg%boxes(&
+         mg%lvls(single_cpu_lvl+1)%ids)%rank)
+
+    do lvl = mg%lowest_lvl, single_cpu_lvl
+       do i = 1, size(mg%lvls(lvl)%ids)
+          id = mg%lvls(lvl)%ids(i)
+          mg%boxes(id)%rank = coarse_rank
        end do
     end do
 

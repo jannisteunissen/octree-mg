@@ -11,6 +11,7 @@ module m_build_tree
   public :: set_leaves_parents
   public :: set_next_level_ids
   public :: set_refinement_boundaries
+  public :: set_neighbors_lvl
 
 contains
 
@@ -33,9 +34,7 @@ contains
          error stop "box_size does not divide domain_size"
 
     if (all(periodic)) then
-       mg%fully_periodic = .true.
-    else
-       mg%fully_periodic = .false.
+       mg%subtract_mean = .true.
     end if
 
     nx                  = domain_size
@@ -135,11 +134,7 @@ contains
 
           call set_leaves_parents(mg%boxes, mg%lvls(lvl))
           call set_next_level_ids(mg, lvl)
-
-          do i = 1, size(mg%lvls(lvl+1)%ids)
-             id = mg%lvls(lvl+1)%ids(i)
-             call set_neighbs(mg%boxes, id)
-          end do
+          call set_neighbors_lvl(mg, lvl+1)
        else
           do i = 1, size(mg%lvls(lvl)%ids)
              id = mg%lvls(lvl)%ids(i)
@@ -155,15 +150,31 @@ contains
 
     ! No refinement boundaries
     do lvl = mg%lowest_lvl, 1
+       if (allocated(mg%lvls(lvl)%ref_bnds)) &
+            deallocate(mg%lvls(lvl)%ref_bnds)
        allocate(mg%lvls(lvl)%ref_bnds(0))
     end do
 
   end subroutine build_rectangle
 
+  subroutine set_neighbors_lvl(mg, lvl)
+    type(mg_t), intent(inout) :: mg
+    integer, intent(in)       :: lvl
+    integer                   :: i, id
+
+    do i = 1, size(mg%lvls(lvl)%ids)
+       id = mg%lvls(lvl)%ids(i)
+       call set_neighbs(mg%boxes, id)
+    end do
+  end subroutine set_neighbors_lvl
+
   subroutine set_next_level_ids(mg, lvl)
     type(mg_t), intent(inout)  :: mg
     integer, intent(in)        :: lvl
     integer                    :: n, i, id
+
+    if (allocated(mg%lvls(lvl+1)%ids)) &
+         deallocate(mg%lvls(lvl+1)%ids)
 
     ! Set next level ids to children of this level
     if (mg%box_size_lvl(lvl+1) == mg%box_size_lvl(lvl)) then
@@ -267,10 +278,12 @@ contains
 
   !> Create a list of refinement boundaries (from the coarse side)
   subroutine set_refinement_boundaries(boxes, level)
-    type(box_t), intent(in) :: boxes(:)
+    type(box_t), intent(in)    :: boxes(:)
     type(lvl_t), intent(inout) :: level
     integer, allocatable       :: tmp(:)
     integer                    :: i, id, nb, nb_id, ix
+
+    if (allocated(level%ref_bnds)) deallocate(level%ref_bnds)
 
     if (size(level%parents) == 0) then
        ! There are no refinement boundaries

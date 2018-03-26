@@ -8,9 +8,6 @@ module m_ghost_cells
   ! Public methods
   public :: ghost_cell_buffer_size
   public :: fill_ghost_cells_lvl
-  public :: set_bc_continuous
-  public :: set_bc_dirichlet_zero
-  public :: set_bc_neumann_zero
 
 contains
 
@@ -187,10 +184,13 @@ contains
           call fill_refinement_bnd(mg, id, nb, nc, dry_run)
        else if (.not. dry_run) then
           ! Physical boundary
-          if (.not. associated(mg%boundary_cond)) then
-             error stop "Physical boundary but mg%boundary_cond not set"
+          if (associated(mg%boundary_cond)) then
+             call mg%boundary_cond(mg, id, nc, nb, bc_type)
+          else
+             bc_type = mg%bc(nb)%bc_type
+             call box_set_gc_scalar(mg%boxes(id), nb, nc, &
+                     mg%bc(nb)%bc_value)
           end if
-          call mg%boundary_cond(mg, id, nc, nb, bc_type)
           call bc_to_gc(mg, id, nc, nb, bc_type)
        end if
     end do
@@ -375,6 +375,38 @@ contains
     end select
   end subroutine box_set_gc
 
+  subroutine box_set_gc_scalar(box, nb, nc, gc)
+    type(box_t), intent(inout) :: box
+    integer, intent(in)        :: nb, nc
+    real(dp), intent(in)       :: gc
+
+    select case (nb)
+#if NDIM == 2
+    case (neighb_lowx)
+       box%cc(0, 1:nc, i_phi)    = gc
+    case (neighb_highx)
+       box%cc(nc+1, 1:nc, i_phi) = gc
+    case (neighb_lowy)
+       box%cc(1:nc, 0, i_phi)    = gc
+    case (neighb_highy)
+       box%cc(1:nc, nc+1, i_phi) = gc
+#elif NDIM == 3
+    case (neighb_lowx)
+       box%cc(0, 1:nc, 1:nc, i_phi)    = gc
+    case (neighb_highx)
+       box%cc(nc+1, 1:nc, 1:nc, i_phi) = gc
+    case (neighb_lowy)
+       box%cc(1:nc, 0, 1:nc, i_phi)    = gc
+    case (neighb_highy)
+       box%cc(1:nc, nc+1, 1:nc, i_phi) = gc
+    case (neighb_lowz)
+       box%cc(1:nc, 1:nc, 0, i_phi)    = gc
+    case (neighb_highz)
+       box%cc(1:nc, 1:nc, nc+1, i_phi) = gc
+#endif
+    end select
+  end subroutine box_set_gc_scalar
+
   subroutine bc_to_gc(mg, id, nc, nb, bc_type)
     type(mg_t), intent(inout) :: mg
     integer, intent(in)       :: id
@@ -464,61 +496,6 @@ contains
 #endif
     end select
   end subroutine bc_to_gc
-
-    ! This fills ghost cells near physical boundaries using Neumann zero
-  subroutine set_bc_neumann_zero(mg, id, nc, nb, bc_type)
-    type(mg_t), intent(inout) :: mg
-    integer, intent(in)       :: id
-    integer, intent(in)       :: nc
-    integer, intent(in)       :: nb
-    integer, intent(out)      :: bc_type
-#if NDIM == 2
-    real(dp)                  :: tmp(nc)
-#elif NDIM == 3
-    real(dp)                  :: tmp(nc, nc)
-#endif
-
-    bc_type = bc_neumann
-    tmp     = 0.0_dp
-    call box_set_gc(mg%boxes(id), nb, nc, tmp)
-  end subroutine set_bc_neumann_zero
-
-  ! This fills ghost cells near physical boundaries using Neumann zero
-  subroutine set_bc_dirichlet_zero(mg, id, nc, nb, bc_type)
-    type(mg_t), intent(inout) :: mg
-    integer, intent(in)       :: id
-    integer, intent(in)       :: nc
-    integer, intent(in)       :: nb
-    integer, intent(out)      :: bc_type
-#if NDIM == 2
-    real(dp)                  :: tmp(nc)
-#elif NDIM == 3
-    real(dp)                  :: tmp(nc, nc)
-#endif
-
-    bc_type = bc_dirichlet
-    tmp     = 0.0_dp
-    call box_set_gc(mg%boxes(id), nb, nc, tmp)
-  end subroutine set_bc_dirichlet_zero
-
-  ! This fills ghost cells near physical boundaries using the same slope
-  subroutine set_bc_continuous(mg, id, nc, nb, bc_type)
-    type(mg_t), intent(inout) :: mg
-    integer, intent(in)       :: id
-    integer, intent(in)       :: nc
-    integer, intent(in)       :: nb
-    integer, intent(out)      :: bc_type
-#if NDIM == 2
-    real(dp)                  :: tmp(nc)
-#elif NDIM == 3
-    real(dp)                  :: tmp(nc, nc)
-#endif
-
-    bc_type = bc_continuous
-    tmp     = 0.0_dp ! Set values to zero (to prevent problems with NaN)
-    call box_set_gc(mg%boxes(id), nb, nc, tmp)
-    bc_type = bc_continuous
-  end subroutine set_bc_continuous
 
   !> Fill ghost cells near refinement boundaries which preserves diffusive fluxes.
   !>

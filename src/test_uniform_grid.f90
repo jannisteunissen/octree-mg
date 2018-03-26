@@ -8,7 +8,7 @@ program test_one_level
   integer             :: box_size
   integer             :: domain_size(NDIM)
   real(dp)            :: dr, r_min(NDIM) = 0.0_dp
-  logical             :: periodic(NDIM) = .true.
+  logical             :: periodic(NDIM) = .false.
   integer             :: n_finer = 0
   real(dp), parameter :: pi = acos(-1.0_dp)
   character(len=40)   :: arg_string
@@ -30,7 +30,6 @@ program test_one_level
   end do
 
   dr                     =  1.0_dp / minval(domain_size)
-  mg%boundary_cond       => my_bc
   mg%n_cycle_up          =  2
   mg%n_cycle_down        =  2
   mg%smoother_type       =  smoother_gsrb
@@ -53,9 +52,8 @@ program test_one_level
   call set_initial_conditions(mg)
 
   do n = 1, num_neighbors
-     allocate(mg%bc(n)%d(mg%box_size))
-     mg%bc(n)%d = 0.0_dp
      mg%bc(n)%bc_type = bc_dirichlet
+     mg%bc(n)%bc_value = 0.0_dp
   end do
 
   call print_error(mg)
@@ -146,15 +144,5 @@ contains
          mpi_comm_world, ierr)
     if (mg%my_rank == 0) print *, "max err", max_err
   end subroutine print_error
-
-  subroutine my_bc(mg, id, nc, nb, bc_type)
-    type(mg_t), intent(inout) :: mg
-    integer, intent(in)       :: id
-    integer, intent(in)       :: nc
-    integer, intent(in)       :: nb      !< Direction
-    integer, intent(out)      :: bc_type !< Type of b.c.
-
-    call set_bc_dirichlet_zero(mg, id, nc, nb, bc_type)
-  end subroutine my_bc
 
 end program test_one_level

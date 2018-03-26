@@ -88,7 +88,9 @@ contains
     integer, intent(in), optional :: highest_lvl  !< Maximum level for V-cycle
     integer                       :: lvl, min_lvl, i, id
     integer                       :: max_lvl, nc, ierr
-    real(dp)                      :: res, init_res, sum_phi, mean_phi
+    real(dp)                      :: res, init_res
+    real(dp)                      :: sum_phi(lvl_lo_bnd:lvl_hi_bnd)
+    real(dp)                      :: mean_phi(lvl_lo_bnd:lvl_hi_bnd)
 
     if (timer_smoother == -1) then
        call mg_add_timers(mg)
@@ -152,29 +154,46 @@ contains
     end if
 
     ! Subtract mean(phi) from phi
-    if (mg%fully_periodic) then
+    if (mg%subtract_mean) then
        do lvl = min_lvl, max_lvl
-          sum_phi = 0.0_dp
-          nc = mg%box_size_lvl(lvl)
-          do i = 1, size(mg%lvls(lvl)%my_ids)
-             id = mg%lvls(lvl)%my_ids(i)
-             sum_phi = sum_phi + sum(mg%boxes(id)%cc(DTIMES(1:nc), i_phi))
-          end do
+          sum_phi(lvl) = get_sum_lvl(mg, lvl, i_phi)
+       end do
 
-          call mpi_allreduce(sum_phi, mean_phi, 1, mpi_double, mpi_sum, &
-               mpi_comm_world, ierr)
-          mean_phi = mean_phi / (nc**NDIM * size(mg%lvls(lvl)%ids))
+       call mpi_allreduce(sum_phi(min_lvl:max_lvl), &
+            mean_phi(min_lvl:max_lvl), max_lvl-min_lvl+1, &
+            mpi_double, mpi_sum, mpi_comm_world, ierr)
+
+       do lvl = min_lvl, max_lvl
+          nc = mg%box_size_lvl(lvl)
+          mean_phi(lvl) = mean_phi(lvl) / (nc**NDIM * &
+               size(mg%lvls(lvl)%ids))
 
           do i = 1, size(mg%lvls(lvl)%my_ids)
              id = mg%lvls(lvl)%my_ids(i)
              mg%boxes(id)%cc(DTIMES(:), i_phi) = &
-                  mg%boxes(id)%cc(DTIMES(:), i_phi) - mean_phi
+                  mg%boxes(id)%cc(DTIMES(:), i_phi) - mean_phi(lvl)
           end do
        end do
     end if
 
     call timer_end(mg%timers(timer_total))
   end subroutine mg_fas_vcycle
+
+  real(dp) function get_sum_lvl(mg, lvl, iv)
+    type(mg_t), intent(in) :: mg
+    integer, intent(in)    :: lvl
+    integer, intent(in)    :: iv
+    integer                :: i, id, nc
+
+    get_sum_lvl = 0.0_dp
+    nc          = mg%box_size_lvl(lvl)
+
+    do i = 1, size(mg%lvls(lvl)%my_ids)
+       id = mg%lvls(lvl)%my_ids(i)
+       get_sum_lvl = get_sum_lvl + &
+            sum(mg%boxes(id)%cc(DTIMES(1:nc), iv))
+    end do
+  end function get_sum_lvl
 
   real(dp) function max_residual(mg, lvl)
     type(mg_t), intent(inout) :: mg
@@ -193,37 +212,37 @@ contains
     end do
   end function max_residual
 
-!   subroutine solve_coarse_grid(mg)
-!     use m_fishpack
-!     type(mg_t), intent(inout) :: mg
+  !   subroutine solve_coarse_grid(mg)
+  !     use m_fishpack
+  !     type(mg_t), intent(inout) :: mg
 
-!     real(dp) :: rhs(DTIMES(mg%box_size))
-!     real(dp) :: rmin(NDIM), rmax(NDIM)
-!     integer  :: nc, nx(NDIM), my_boxes, total_boxes
+  !     real(dp) :: rhs(DTIMES(mg%box_size))
+  !     real(dp) :: rmin(NDIM), rmax(NDIM)
+  !     integer  :: nc, nx(NDIM), my_boxes, total_boxes
 
-!     my_boxes    = size(mg%lvls(1)%my_ids)
-!     total_boxes = size(mg%lvls(1)%ids)
-!     nc          = mg%box_size
+  !     my_boxes    = size(mg%lvls(1)%my_ids)
+  !     total_boxes = size(mg%lvls(1)%ids)
+  !     nc          = mg%box_size
 
-!     if (my_boxes == total_boxes) then
-!        nx(:) = nc
-!        rmin  = [DTIMES(0.0_dp)]
-!        rmax  = mg%dr(1) * [DTIMES(nc)]
-!        rhs   = mg%boxes(1)%cc(DTIMES(1:nc), i_rhs)
+  !     if (my_boxes == total_boxes) then
+  !        nx(:) = nc
+  !        rmin  = [DTIMES(0.0_dp)]
+  !        rmax  = mg%dr(1) * [DTIMES(nc)]
+  !        rhs   = mg%boxes(1)%cc(DTIMES(1:nc), i_rhs)
 
-! #if NDIM == 2
-!        call fishpack_2d(nx, rhs, mg%bc, rmin, rmax)
-! #elif NDIM == 3
-!        call fishpack_3d(nx, rhs, mg%bc, rmin, rmax)
-! #endif
+  ! #if NDIM == 2
+  !        call fishpack_2d(nx, rhs, mg%bc, rmin, rmax)
+  ! #elif NDIM == 3
+  !        call fishpack_3d(nx, rhs, mg%bc, rmin, rmax)
+  ! #endif
 
-!        mg%boxes(1)%cc(DTIMES(1:nc), i_phi) = rhs
-!     else if (my_boxes > 0) then
-!        error stop "Boxes at level 1 at different processors"
-!     end if
+  !        mg%boxes(1)%cc(DTIMES(1:nc), i_phi) = rhs
+  !     else if (my_boxes > 0) then
+  !        error stop "Boxes at level 1 at different processors"
+  !     end if
 
-!     call fill_ghost_cells_lvl(mg, 1)
-!   end subroutine solve_coarse_grid
+  !     call fill_ghost_cells_lvl(mg, 1)
+  !   end subroutine solve_coarse_grid
 
   !> Perform Gauss-Seidel relaxation on box for a Laplacian operator
   subroutine box_gsrb_lpl(mg, id, nc, redblack_cntr)

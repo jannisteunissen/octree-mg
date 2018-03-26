@@ -29,6 +29,7 @@ contains
     deallocate(mg%comm_ghostcell%n_recv)
 
     mg%is_allocated = .false.
+    mg%n_boxes      = 0
   end subroutine deallocate_storage
 
   subroutine allocate_storage(mg)

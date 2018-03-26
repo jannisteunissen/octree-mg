@@ -9,9 +9,6 @@ module m_data_structures
   integer, parameter :: lvl_lo_bnd = -20
   integer, parameter :: lvl_hi_bnd = 20
 
-  !> Value to indicate a periodic boundary condition
-  integer, parameter :: bc_periodic = -9
-
   !> Value to indicate a Dirichlet boundary condition
   integer, parameter :: bc_dirichlet = -10
 
@@ -161,8 +158,6 @@ module m_data_structures
      integer  :: children(2**NDIM)
      integer  :: neighbors(2*NDIM)
      real(dp) :: r_min(NDIM)
-
-     ! integer(int64)        :: morton
      real(dp), allocatable :: cc(DTIMES(:), :)
   end type box_t
 
@@ -181,8 +176,8 @@ module m_data_structures
   end type comm_t
 
   type bc_t
-     integer               :: bc_type ! Type of boundary condition
-     real(dp), allocatable :: d(:)    ! Data for boundary condition
+     integer  :: bc_type  = bc_dirichlet !< Type of boundary condition
+     real(dp) :: bc_value = 0.0_dp       !< Value (for e.g. Dirichlet or Neumann)
   end type bc_t
 
   type timer_t
@@ -193,7 +188,7 @@ module m_data_structures
 
   type mg_t
      logical                  :: is_allocated     = .false.
-     logical                  :: fully_periodic   = .false.
+     logical                  :: subtract_mean    = .false.
      integer                  :: n_cpu            = -1
      integer                  :: my_rank          = -1
      integer                  :: box_size         = -1
@@ -210,11 +205,13 @@ module m_data_structures
      type(comm_t)             :: comm_prolong
      type(comm_t)             :: comm_ghostcell
 
+     !> To store pre-defined boundary conditions
      type(bc_t)                          :: bc(num_neighbors)
+     !> To set custom (user-defined) boundary conditions
      procedure(subr_bc), pointer, nopass :: boundary_cond  => null()
      procedure(subr_rb), pointer, nopass :: refinement_bnd => null()
 
-     integer  :: smoother_type       = smoother_jacobi
+     integer  :: smoother_type       = smoother_gs
      integer  :: n_cycle_down        = 2
      integer  :: n_cycle_up          = 2
      integer  :: max_coarse_cycles   = 1000
