@@ -1,3 +1,0 @@
-[submodule "src/morton_fortran"]
-	path = src/morton_fortran
-	url = https://github.com/jannisteunissen/morton_fortran.git
