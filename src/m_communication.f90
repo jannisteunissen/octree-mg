@@ -5,24 +5,34 @@ module m_communication
   private
 
   ! Public methods
-  public :: comm_init
+  public :: mg_comm_init
   public :: sort_and_transfer_buffers
 
 contains
 
-  subroutine comm_init(mg)
+  !> Initialize MPI if needed, and store MPI information
+  subroutine mg_comm_init(mg, comm)
     use mpi
-    type(mg_t), intent(inout) :: mg
-    integer                   :: ierr
-    logical                   :: initialized
+    type(mg_t), intent(inout)     :: mg
+    !> MPI communicator (default: MPI_COMM_WORLD)
+    integer, intent(in), optional :: comm
+    integer                       :: ierr
+    logical                       :: initialized
 
     call mpi_initialized(initialized, ierr)
     if (.not. initialized) then
        call mpi_init(ierr)
     end if
-    call mpi_comm_rank(MPI_COMM_WORLD, mg%my_rank, ierr)
-    call mpi_comm_size(MPI_COMM_WORLD, mg%n_cpu, ierr)
-  end subroutine comm_init
+
+    if (present(comm)) then
+       mg%comm = comm
+    else
+       mg%comm = MPI_COMM_WORLD
+    end if
+
+    call mpi_comm_rank(mg%comm, mg%my_rank, ierr)
+    call mpi_comm_size(mg%comm, mg%n_cpu, ierr)
+  end subroutine mg_comm_init
 
   subroutine sort_and_transfer_buffers(mg, dsize)
     use mpi
@@ -41,12 +51,12 @@ contains
           n_send = n_send + 1
           call sort_sendbuf(mg%buf(i), dsize)
           call mpi_isend(mg%buf(i)%send, mg%buf(i)%i_send, MPI_DOUBLE, &
-               i, 0, MPI_COMM_WORLD, send_req(n_send), ierr)
+               i, 0, mg%comm, send_req(n_send), ierr)
        end if
        if (mg%buf(i)%i_recv > 0) then
           n_recv = n_recv + 1
           call mpi_irecv(mg%buf(i)%recv, mg%buf(i)%i_recv, MPI_DOUBLE, &
-               i, 0, MPI_COMM_WORLD, recv_req(n_recv), ierr)
+               i, 0, mg%comm, recv_req(n_recv), ierr)
        end if
     end do
 

@@ -6,16 +6,16 @@ module m_build_tree
   private
 
   ! Public methods
-  public :: build_rectangle
-  public :: add_children
-  public :: set_leaves_parents
-  public :: set_next_level_ids
-  public :: set_refinement_boundaries
-  public :: set_neighbors_lvl
+  public :: mg_build_rectangle
+  public :: mg_add_children
+  public :: mg_set_leaves_parents
+  public :: mg_set_next_level_ids
+  public :: mg_set_refinement_boundaries
+  public :: mg_set_neighbors_lvl
 
 contains
 
-  subroutine build_rectangle(mg, domain_size, box_size, dx, r_min, &
+  subroutine mg_build_rectangle(mg, domain_size, box_size, dx, r_min, &
        periodic, n_finer)
     type(mg_t), intent(inout) :: mg
     integer, intent(in)       :: domain_size(NDIM)
@@ -129,24 +129,24 @@ contains
        if (mg%box_size_lvl(lvl+1) == mg%box_size_lvl(lvl)) then
           do i = 1, size(mg%lvls(lvl)%ids)
              id = mg%lvls(lvl)%ids(i)
-             call add_children(mg, id)
+             call mg_add_children(mg, id)
           end do
 
-          call set_leaves_parents(mg%boxes, mg%lvls(lvl))
-          call set_next_level_ids(mg, lvl)
-          call set_neighbors_lvl(mg, lvl+1)
+          call mg_set_leaves_parents(mg%boxes, mg%lvls(lvl))
+          call mg_set_next_level_ids(mg, lvl)
+          call mg_set_neighbors_lvl(mg, lvl+1)
        else
           do i = 1, size(mg%lvls(lvl)%ids)
              id = mg%lvls(lvl)%ids(i)
              call add_single_child(mg, id, size(mg%lvls(lvl)%ids))
           end do
 
-          call set_leaves_parents(mg%boxes, mg%lvls(lvl))
-          call set_next_level_ids(mg, lvl)
+          call mg_set_leaves_parents(mg%boxes, mg%lvls(lvl))
+          call mg_set_next_level_ids(mg, lvl)
        end if
     end do
 
-    call set_leaves_parents(mg%boxes, mg%lvls(1))
+    call mg_set_leaves_parents(mg%boxes, mg%lvls(1))
 
     ! No refinement boundaries
     do lvl = mg%lowest_lvl, 1
@@ -155,9 +155,10 @@ contains
        allocate(mg%lvls(lvl)%ref_bnds(0))
     end do
 
-  end subroutine build_rectangle
+    mg%tree_created = .true.
+  end subroutine mg_build_rectangle
 
-  subroutine set_neighbors_lvl(mg, lvl)
+  subroutine mg_set_neighbors_lvl(mg, lvl)
     type(mg_t), intent(inout) :: mg
     integer, intent(in)       :: lvl
     integer                   :: i, id
@@ -166,9 +167,9 @@ contains
        id = mg%lvls(lvl)%ids(i)
        call set_neighbs(mg%boxes, id)
     end do
-  end subroutine set_neighbors_lvl
+  end subroutine mg_set_neighbors_lvl
 
-  subroutine set_next_level_ids(mg, lvl)
+  subroutine mg_set_next_level_ids(mg, lvl)
     type(mg_t), intent(inout)  :: mg
     integer, intent(in)        :: lvl
     integer                    :: n, i, id
@@ -197,7 +198,7 @@ contains
        end do
     end if
 
-  end subroutine set_next_level_ids
+  end subroutine mg_set_next_level_ids
 
   ! Set the neighbors of id (using their parent)
   subroutine set_neighbs(boxes, id)
@@ -239,7 +240,7 @@ contains
   end function find_neighb
 
   !> Create a list of leaves and a list of parents for a level
-  subroutine set_leaves_parents(boxes, level)
+  subroutine mg_set_leaves_parents(boxes, level)
     type(box_t), intent(in)   :: boxes(:) !< List of boxes
     type(lvl_t), intent(inout) :: level !< Level type which contains the indices of boxes
     integer                    :: i, id, i_leaf, i_parent
@@ -274,10 +275,10 @@ contains
           level%leaves(i_leaf) = id
        end if
     end do
-  end subroutine set_leaves_parents
+  end subroutine mg_set_leaves_parents
 
   !> Create a list of refinement boundaries (from the coarse side)
-  subroutine set_refinement_boundaries(boxes, level)
+  subroutine mg_set_refinement_boundaries(boxes, level)
     type(box_t), intent(in)    :: boxes(:)
     type(lvl_t), intent(inout) :: level
     integer, allocatable       :: tmp(:)
@@ -309,9 +310,9 @@ contains
        allocate(level%ref_bnds(ix))
        level%ref_bnds(:) = tmp(1:ix)
     end if
-  end subroutine set_refinement_boundaries
+  end subroutine mg_set_refinement_boundaries
 
-  subroutine add_children(mg, id)
+  subroutine mg_add_children(mg, id)
     type(mg_t), intent(inout) :: mg
     integer, intent(in)          :: id      !< Id of box that gets children
     integer                      :: lvl, i, nb, child_nb(2**(NDIM-1))
@@ -342,7 +343,7 @@ contains
           mg%boxes(child_nb)%neighbors(nb) = mg%boxes(id)%neighbors(nb)
        end if
     end do
-  end subroutine add_children
+  end subroutine mg_add_children
 
   subroutine add_single_child(mg, id, n_boxes_lvl)
     type(mg_t), intent(inout) :: mg

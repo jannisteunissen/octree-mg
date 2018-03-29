@@ -4,9 +4,26 @@ module m_data_structures
   implicit none
   public
 
+  !> Type of reals
   integer, parameter :: dp = kind(0.0d0)
-  integer, parameter :: max_timers = 20
+
+  !> Problem dimension
+  integer, parameter :: mg_ndim = NDIM
+
+  !> Number of predefined multigrid variables
+  integer, parameter :: mg_num_var = 4
+  !> Index of solution
+  integer, parameter :: mg_iphi = 1
+  !> Index of right-hand side
+  integer, parameter :: mg_irhs = 2
+  !> Index of previous solution (used for correction)
+  integer, parameter :: mg_iold = 3
+  !> Index of residual
+  integer, parameter :: mg_ires = 4
+
+  !> Minimum allowed grid level
   integer, parameter :: lvl_lo_bnd = -20
+  !> Maximum allowed grid level
   integer, parameter :: lvl_hi_bnd = 20
 
   !> Value to indicate a Dirichlet boundary condition
@@ -23,15 +40,13 @@ module m_data_structures
   integer, parameter :: smoother_jacobi = 2
   integer, parameter :: smoother_gs     = 3
 
-
-  integer, parameter :: n_var = 4
-  integer, parameter :: i_phi = 1
-  integer, parameter :: i_rhs = 2
-  integer, parameter :: i_old = 3
-  integer, parameter :: i_res = 4
-
+  !> Special value that indicates there is no box
   integer, parameter :: no_box = 0
+  !> Special value that indicates there is a physical boundary
   integer, parameter :: physical_boundary = -1
+
+  !> Maximum number of timers to use
+  integer, parameter :: max_timers = 20
 
 #if NDIM == 2
   ! Numbering of children (same location as **corners**)
@@ -150,22 +165,24 @@ module m_data_structures
 
   !> Box data structure
   type box_t
-     integer  :: rank
-     integer  :: id
-     integer  :: lvl
-     integer  :: ix(NDIM)
-     integer  :: parent
-     integer  :: children(2**NDIM)
-     integer  :: neighbors(2*NDIM)
-     real(dp) :: r_min(NDIM)
+     integer  :: rank              !< Which process owns this box
+     integer  :: id                !< Box id (index in boxes(:) array)
+     integer  :: lvl               !< Refinement level
+     integer  :: ix(NDIM)          !< Spatial index
+     integer  :: parent            !< Id of parent
+     integer  :: children(2**NDIM) !< Ids of children
+     integer  :: neighbors(2*NDIM) !< Ids of neighbors
+     real(dp) :: r_min(NDIM)       !< Minimum coordinate
+     !> Cell-centered data
      real(dp), allocatable :: cc(DTIMES(:), :)
   end type box_t
 
+  !> Buffer type (one is used for each pair of communicating processes)
   type buf_t
-     integer               :: i_send
+     integer               :: i_send !< Index in send array
      integer               :: i_recv
      integer               :: i_ix
-     integer, allocatable  :: ix(:)
+     integer, allocatable  :: ix(:) !< Will be used to sort the data
      real(dp), allocatable :: send(:)
      real(dp), allocatable :: recv(:)
   end type buf_t
@@ -187,41 +204,79 @@ module m_data_structures
   end type timer_t
 
   type mg_t
+     !> Whether the multigrid tree structure has been created
+     logical                  :: tree_created     = .false.
+     !> Whether storage has been allocated for boxes
      logical                  :: is_allocated     = .false.
-     logical                  :: subtract_mean    = .false.
+     !> Number of extra cell-centered variable (e.g., for coefficients)
+     integer                  :: n_user_vars      = 0
+     !> MPI communicator
+     integer                  :: comm             = -1
+     !> Number of MPI tasks
      integer                  :: n_cpu            = -1
+     !> MPI rank of this task
      integer                  :: my_rank          = -1
+     !> Size of boxes in cells, be equal for all dimensions
      integer                  :: box_size         = -1
+     !> Highest grid level in the tree
      integer                  :: highest_lvl      = -1
+     !> Lowest grid level in the tree
      integer                  :: lowest_lvl       = -1
+     !> First normal level of the quadtree/octree, at coarser levels parents
+     !> have only one child
      integer                  :: first_normal_lvl = -1
+     !> Total number of boxes in the tree (among all processes)
      integer                  :: n_boxes          = 0
+     !> Size of boxes per level (differs for coarsest levels)
      integer                  :: box_size_lvl(lvl_lo_bnd:lvl_hi_bnd)
+     !> Grid spacing per level
      real(dp)                 :: dr(lvl_lo_bnd:lvl_hi_bnd)
+     !> List of all levels
      type(lvl_t)              :: lvls(lvl_lo_bnd:lvl_hi_bnd)
+     !> Array with all boxes in the tree. Only boxes owned by this task are
+     !> actually allocated
      type(box_t), allocatable :: boxes(:)
+     !> Buffer for communication with each other task
      type(buf_t), allocatable :: buf(:)
+
+     !> Communication info for restriction
      type(comm_t)             :: comm_restrict
+     !> Communication info for prolongation
      type(comm_t)             :: comm_prolong
+     !> Communication info for ghost cell filling
      type(comm_t)             :: comm_ghostcell
 
      !> To store pre-defined boundary conditions
      type(bc_t)                          :: bc(num_neighbors)
-     !> To set custom (user-defined) boundary conditions
+     !> To set user-defined boundary conditions
      procedure(subr_bc), pointer, nopass :: boundary_cond  => null()
+     !> To set a user-defined refinement boundary method
      procedure(subr_rb), pointer, nopass :: refinement_bnd => null()
 
+     !> Whether the mean has to be subtracted from the multigrid solution
+     logical                  :: subtract_mean    = .false.
+     !> Type of multigrid smoother
      integer  :: smoother_type       = smoother_gs
+     !> Number of cycles when doing downwards relaxation
      integer  :: n_cycle_down        = 2
+     !> Number of cycles when doing upwards relaxation
      integer  :: n_cycle_up          = 2
+     !> Maximum number of cycles on the coarse grid
      integer  :: max_coarse_cycles   = 1000
+     !> Stop coarse grid when max. residual is smaller than this
      real(dp) :: residual_coarse_abs = 1e-8_dp
+     !> Stop coarse grid when residual has been reduced by this factor
      real(dp) :: residual_coarse_rel = 1e-8_dp
 
-     procedure(mg_box_op), pointer, nopass   :: box_op              => null()
-     procedure(mg_box_gsrb), pointer, nopass :: box_gsrb            => null()
+     !> Multigrid operator (e.g., Laplacian)
+     procedure(mg_box_op), pointer, nopass   :: box_op => null()
 
+     !> Multigrid smoother
+     procedure(mg_box_gsrb), pointer, nopass :: box_smoother => null()
+
+     !> Number of timers
      integer       :: n_timers = 0
+     !> Values for the timers
      type(timer_t) :: timers(max_timers)
   end type mg_t
 
@@ -331,9 +386,9 @@ contains
     real(dp)               :: tmax(mg%n_timers)
 
     call mpi_reduce(mg%timers(1:mg%n_timers)%t, tmin, mg%n_timers, &
-         mpi_double, mpi_min, 0, mpi_comm_world, ierr)
+         mpi_double, mpi_min, 0, mg%comm, ierr)
     call mpi_reduce(mg%timers(1:mg%n_timers)%t, tmax, mg%n_timers, &
-         mpi_double, mpi_max, 0, mpi_comm_world, ierr)
+         mpi_double, mpi_max, 0, mg%comm, ierr)
 
     if (mg%my_rank == 0) then
        write(*, "(A20,2A16)") "name                ", "min(s)", "max(s)"

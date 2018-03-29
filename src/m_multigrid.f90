@@ -33,7 +33,7 @@ contains
   end subroutine mg_add_timers
 
   !> Perform FAS-FMG cycle (full approximation scheme, full multigrid). Note
-  !> that this routine needs valid ghost cells (for i_phi) on input, and gives
+  !> that this routine needs valid ghost cells (for mg_iphi) on input, and gives
   !> back valid ghost cells on output
   subroutine mg_fas_fmg(mg, set_residual, have_guess)
     type(mg_t), intent(inout) :: mg
@@ -45,7 +45,7 @@ contains
        do lvl = mg%highest_lvl, mg%lowest_lvl, -1
           do i = 1, size(mg%lvls(lvl)%my_ids)
              id = mg%lvls(lvl)%my_ids(i)
-             mg%boxes(id)%cc(DTIMES(:), i_phi) = 0.0_dp
+             mg%boxes(id)%cc(DTIMES(:), mg_iphi) = 0.0_dp
           end do
        end do
     end if
@@ -56,16 +56,16 @@ contains
     end do
 
     do lvl = mg%lowest_lvl, mg%highest_lvl
-       ! Store phi_old
+       ! Store phmg_iold
        do i = 1, size(mg%lvls(lvl)%my_ids)
           id = mg%lvls(lvl)%my_ids(i)
-          mg%boxes(id)%cc(DTIMES(:), i_old) = &
-            mg%boxes(id)%cc(DTIMES(:), i_phi)
+          mg%boxes(id)%cc(DTIMES(:), mg_iold) = &
+            mg%boxes(id)%cc(DTIMES(:), mg_iphi)
        end do
 
        if (lvl > mg%lowest_lvl) then
           ! Correct solution at this lvl using lvl-1 data
-          ! phi = phi + prolong(phi_coarse - phi_old_coarse)
+          ! phi = phi + prolong(phi_coarse - phmg_iold_coarse)
           call correct_children(mg, lvl-1)
 
           ! Update ghost cells
@@ -79,12 +79,12 @@ contains
   end subroutine mg_fas_fmg
 
   !> Perform FAS V-cycle (full approximation scheme). Note that this routine
-  !> needs valid ghost cells (for i_phi) on input, and gives back valid ghost
+  !> needs valid ghost cells (for mg_iphi) on input, and gives back valid ghost
   !> cells on output
   subroutine mg_fas_vcycle(mg, set_residual, highest_lvl)
     use mpi
     type(mg_t), intent(inout)     :: mg
-    logical, intent(in)           :: set_residual !< If true, store residual in i_res
+    logical, intent(in)           :: set_residual !< If true, store residual in mg_ires
     integer, intent(in), optional :: highest_lvl  !< Maximum level for V-cycle
     integer                       :: lvl, min_lvl, i, id
     integer                       :: max_lvl, nc, ierr
@@ -106,7 +106,7 @@ contains
        ! Downwards relaxation
        call smooth_boxes(mg, lvl, mg%n_cycle_down)
 
-       ! Set rhs on coarse grid, restrict phi, and copy i_phi to i_old for the
+       ! Set rhs on coarse grid, restrict phi, and copy mg_iphi to mg_iold for the
        ! correction later
        call timer_start(mg%timers(timer_update_coarse))
        call update_coarse(mg, lvl)
@@ -131,7 +131,7 @@ contains
     ! Do the upwards part of the v-cycle in the tree
     do lvl = min_lvl+1, max_lvl
        ! Correct solution at this lvl using lvl-1 data
-       ! phi = phi + prolong(phi_coarse - phi_old_coarse)
+       ! phi = phi + prolong(phi_coarse - phmg_iold_coarse)
        call timer_start(mg%timers(timer_correct))
        call correct_children(mg, lvl-1)
 
@@ -156,12 +156,12 @@ contains
     ! Subtract mean(phi) from phi
     if (mg%subtract_mean) then
        do lvl = min_lvl, max_lvl
-          sum_phi(lvl) = get_sum_lvl(mg, lvl, i_phi)
+          sum_phi(lvl) = get_sum_lvl(mg, lvl, mg_iphi)
        end do
 
        call mpi_allreduce(sum_phi(min_lvl:max_lvl), &
             mean_phi(min_lvl:max_lvl), max_lvl-min_lvl+1, &
-            mpi_double, mpi_sum, mpi_comm_world, ierr)
+            mpi_double, mpi_sum, mg%comm, ierr)
 
        do lvl = min_lvl, max_lvl
           nc = mg%box_size_lvl(lvl)
@@ -170,8 +170,8 @@ contains
 
           do i = 1, size(mg%lvls(lvl)%my_ids)
              id = mg%lvls(lvl)%my_ids(i)
-             mg%boxes(id)%cc(DTIMES(:), i_phi) = &
-                  mg%boxes(id)%cc(DTIMES(:), i_phi) - mean_phi(lvl)
+             mg%boxes(id)%cc(DTIMES(:), mg_iphi) = &
+                  mg%boxes(id)%cc(DTIMES(:), mg_iphi) - mean_phi(lvl)
           end do
        end do
     end if
@@ -207,7 +207,7 @@ contains
     do i = 1, size(mg%lvls(lvl)%my_ids)
        id = mg%lvls(lvl)%my_ids(i)
        call residual_box(mg, id, nc)
-       res = maxval(abs(mg%boxes(id)%cc(DTIMES(1:nc), i_res)))
+       res = maxval(abs(mg%boxes(id)%cc(DTIMES(1:nc), mg_ires)))
        max_residual = max(max_residual, res)
     end do
   end function max_residual
@@ -228,7 +228,7 @@ contains
   !        nx(:) = nc
   !        rmin  = [DTIMES(0.0_dp)]
   !        rmax  = mg%dr(1) * [DTIMES(nc)]
-  !        rhs   = mg%boxes(1)%cc(DTIMES(1:nc), i_rhs)
+  !        rhs   = mg%boxes(1)%cc(DTIMES(1:nc), mg_irhs)
 
   ! #if NDIM == 2
   !        call fishpack_2d(nx, rhs, mg%bc, rmin, rmax)
@@ -236,7 +236,7 @@ contains
   !        call fishpack_3d(nx, rhs, mg%bc, rmin, rmax)
   ! #endif
 
-  !        mg%boxes(1)%cc(DTIMES(1:nc), i_phi) = rhs
+  !        mg%boxes(1)%cc(DTIMES(1:nc), mg_iphi) = rhs
   !     else if (my_boxes > 0) then
   !        error stop "Boxes at level 1 at different processors"
   !     end if
@@ -265,10 +265,10 @@ contains
       do j = 1, nc
          i0 = 2 - iand(ieor(redblack_cntr, j), 1)
          do i = i0, nc, 2
-            box%cc(i, j, i_phi) = 0.25_dp * ( &
-                 box%cc(i+1, j, i_phi) + box%cc(i-1, j, i_phi) + &
-                 box%cc(i, j+1, i_phi) + box%cc(i, j-1, i_phi) - &
-                 dx2 * box%cc(i, j, i_rhs))
+            box%cc(i, j, mg_iphi) = 0.25_dp * ( &
+                 box%cc(i+1, j, mg_iphi) + box%cc(i-1, j, mg_iphi) + &
+                 box%cc(i, j+1, mg_iphi) + box%cc(i, j-1, mg_iphi) - &
+                 dx2 * box%cc(i, j, mg_irhs))
          end do
       end do
 #elif NDIM == 3
@@ -276,11 +276,11 @@ contains
          do j = 1, nc
             i0 = 2 - iand(ieor(redblack_cntr, k+j), 1)
             do i = i0, nc, 2
-               box%cc(i, j, k, i_phi) = sixth * ( &
-                    box%cc(i+1, j, k, i_phi) + box%cc(i-1, j, k, i_phi) + &
-                    box%cc(i, j+1, k, i_phi) + box%cc(i, j-1, k, i_phi) + &
-                    box%cc(i, j, k+1, i_phi) + box%cc(i, j, k-1, i_phi) - &
-                    dx2 * box%cc(i, j, k, i_rhs))
+               box%cc(i, j, k, mg_iphi) = sixth * ( &
+                    box%cc(i+1, j, k, mg_iphi) + box%cc(i-1, j, k, mg_iphi) + &
+                    box%cc(i, j+1, k, mg_iphi) + box%cc(i, j-1, k, mg_iphi) + &
+                    box%cc(i, j, k+1, mg_iphi) + box%cc(i, j, k-1, mg_iphi) - &
+                    dx2 * box%cc(i, j, k, mg_irhs))
             end do
          end do
       end do
@@ -307,21 +307,21 @@ contains
 #if NDIM == 2
       do j = 1, nc
          do i = 1, nc
-            box%cc(i, j, i_phi) = 0.25_dp * ( &
-                 box%cc(i+1, j, i_phi) + box%cc(i-1, j, i_phi) + &
-                 box%cc(i, j+1, i_phi) + box%cc(i, j-1, i_phi) - &
-                 dx2 * box%cc(i, j, i_rhs))
+            box%cc(i, j, mg_iphi) = 0.25_dp * ( &
+                 box%cc(i+1, j, mg_iphi) + box%cc(i-1, j, mg_iphi) + &
+                 box%cc(i, j+1, mg_iphi) + box%cc(i, j-1, mg_iphi) - &
+                 dx2 * box%cc(i, j, mg_irhs))
          end do
       end do
 #elif NDIM == 3
       do k = 1, nc
          do j = 1, nc
             do i = 1, nc
-               box%cc(i, j, k, i_phi) = sixth * ( &
-                    box%cc(i+1, j, k, i_phi) + box%cc(i-1, j, k, i_phi) + &
-                    box%cc(i, j+1, k, i_phi) + box%cc(i, j-1, k, i_phi) + &
-                    box%cc(i, j, k+1, i_phi) + box%cc(i, j, k-1, i_phi) - &
-                    dx2 * box%cc(i, j, k, i_rhs))
+               box%cc(i, j, k, mg_iphi) = sixth * ( &
+                    box%cc(i+1, j, k, mg_iphi) + box%cc(i-1, j, k, mg_iphi) + &
+                    box%cc(i, j+1, k, mg_iphi) + box%cc(i, j-1, k, mg_iphi) + &
+                    box%cc(i, j, k+1, mg_iphi) + box%cc(i, j, k-1, mg_iphi) - &
+                    dx2 * box%cc(i, j, k, mg_irhs))
             end do
          end do
       end do
@@ -345,22 +345,22 @@ contains
     dx2   = mg%dr(mg%boxes(id)%lvl)**2
 
     associate (box => mg%boxes(id))
-      tmp = box%cc(DTIMES(:), i_phi)
+      tmp = box%cc(DTIMES(:), mg_iphi)
       do KJI_DO(1, nc)
 #if NDIM == 2
-         box%cc(i, j, i_phi) = (1-w) * box%cc(i, j, i_phi) + &
+         box%cc(i, j, mg_iphi) = (1-w) * box%cc(i, j, mg_iphi) + &
               0.25_dp * w * ( &
               tmp(i+1, j) + tmp(i-1, j) + &
               tmp(i, j+1) + tmp(i, j-1) - &
-              dx2 * box%cc(i, j, i_rhs))
+              dx2 * box%cc(i, j, mg_irhs))
 #elif NDIM == 3
-         box%cc(i, j, k, i_phi) = (1-w) * &
-              box%cc(i, j, k, i_phi) + &
+         box%cc(i, j, k, mg_iphi) = (1-w) * &
+              box%cc(i, j, k, mg_iphi) + &
               sixth * w * ( &
               tmp(i+1, j, k) + tmp(i-1, j, k) + &
               tmp(i, j+1, k) + tmp(i, j-1, k) + &
               tmp(i, j, k+1) + tmp(i, j, k-1) - &
-              dx2 * box%cc(i, j, k, i_rhs))
+              dx2 * box%cc(i, j, k, mg_irhs))
 #endif
       end do; CLOSE_DO
     end associate
@@ -381,9 +381,9 @@ contains
 #if NDIM == 2
       do j = 1, nc
          do i = 1, nc
-            box%cc(i, j, i_out) = inv_dr_sq * (box%cc(i-1, j, i_phi) + &
-                 box%cc(i+1, j, i_phi) + box%cc(i, j-1, i_phi) + &
-                 box%cc(i, j+1, i_phi) - 4 * box%cc(i, j, i_phi))
+            box%cc(i, j, i_out) = inv_dr_sq * (box%cc(i-1, j, mg_iphi) + &
+                 box%cc(i+1, j, mg_iphi) + box%cc(i, j-1, mg_iphi) + &
+                 box%cc(i, j+1, mg_iphi) - 4 * box%cc(i, j, mg_iphi))
          end do
       end do
 #elif NDIM == 3
@@ -391,10 +391,10 @@ contains
          do j = 1, nc
             do i = 1, nc
                box%cc(i, j, k, i_out) = inv_dr_sq * &
-                    (box%cc(i-1, j, k, i_phi) + &
-                    box%cc(i+1, j, k, i_phi) + box%cc(i, j-1, k, i_phi) + &
-                    box%cc(i, j+1, k, i_phi) + box%cc(i, j, k-1, i_phi) + &
-                    box%cc(i, j, k+1, i_phi) - 6 * box%cc(i, j, k, i_phi))
+                    (box%cc(i-1, j, k, mg_iphi) + &
+                    box%cc(i+1, j, k, mg_iphi) + box%cc(i, j-1, k, mg_iphi) + &
+                    box%cc(i, j+1, k, mg_iphi) + box%cc(i, j, k-1, mg_iphi) + &
+                    box%cc(i, j, k+1, mg_iphi) - 6 * box%cc(i, j, k, mg_iphi))
             end do
          end do
       end do
@@ -402,7 +402,7 @@ contains
     end associate
   end subroutine box_lpl
 
-  ! Set rhs on coarse grid, restrict phi, and copy i_phi to i_old for the
+  ! Set rhs on coarse grid, restrict phi, and copy mg_iphi to mg_iold for the
   ! correction later
   subroutine update_coarse(mg, lvl)
     type(mg_t), intent(inout) :: mg     !< Tree containing full grid
@@ -419,8 +419,8 @@ contains
     end do
 
     ! Restrict phi and the residual
-    call restrict(mg, i_phi, lvl)
-    call restrict(mg, i_res, lvl)
+    call restrict(mg, mg_iphi, lvl)
+    call restrict(mg, mg_ires, lvl)
 
     call fill_ghost_cells_lvl(mg, lvl-1)
 
@@ -430,20 +430,20 @@ contains
        id = mg%lvls(lvl-1)%my_parents(i)
 
        ! Set rhs = L phi
-       call box_lpl(mg, id, nc_c, i_rhs)
+       call box_lpl(mg, id, nc_c, mg_irhs)
 
        ! Add the fine grid residual to rhs
-       mg%boxes(id)%cc(DTIMES(:), i_rhs) = &
-            mg%boxes(id)%cc(DTIMES(:), i_rhs) + &
-            mg%boxes(id)%cc(DTIMES(:), i_res)
+       mg%boxes(id)%cc(DTIMES(:), mg_irhs) = &
+            mg%boxes(id)%cc(DTIMES(:), mg_irhs) + &
+            mg%boxes(id)%cc(DTIMES(:), mg_ires)
 
        ! Story a copy of phi
-       mg%boxes(id)%cc(DTIMES(:), i_old) = &
-            mg%boxes(id)%cc(DTIMES(:), i_phi)
+       mg%boxes(id)%cc(DTIMES(:), mg_iold) = &
+            mg%boxes(id)%cc(DTIMES(:), mg_iphi)
     end do
   end subroutine update_coarse
 
-  ! Sets phi = phi + prolong(phi_coarse - phi_old_coarse)
+  ! Sets phi = phi + prolong(phi_coarse - phmg_iold_coarse)
   subroutine correct_children(mg, lvl)
     type(mg_t), intent(inout) :: mg
     integer, intent(in)       :: lvl
@@ -452,13 +452,13 @@ contains
     do i = 1, size(mg%lvls(lvl)%my_parents)
        id = mg%lvls(lvl)%my_parents(i)
 
-       ! Store the correction in i_res
-       mg%boxes(id)%cc(DTIMES(:), i_res) = &
-            mg%boxes(id)%cc(DTIMES(:), i_phi) - &
-            mg%boxes(id)%cc(DTIMES(:), i_old)
+       ! Store the correction in mg_ires
+       mg%boxes(id)%cc(DTIMES(:), mg_ires) = &
+            mg%boxes(id)%cc(DTIMES(:), mg_iphi) - &
+            mg%boxes(id)%cc(DTIMES(:), mg_iold)
     end do
 
-    call prolong(mg, lvl, i_res, i_phi, add=.true.)
+    call prolong(mg, lvl, mg_ires, mg_iphi, add=.true.)
   end subroutine correct_children
 
   subroutine smooth_boxes(mg, lvl, n_cycle)
@@ -507,11 +507,11 @@ contains
     integer, intent(in)       :: id
     integer, intent(in)       :: nc
 
-    call box_lpl(mg, id, nc, i_res)
+    call box_lpl(mg, id, nc, mg_ires)
 
-    mg%boxes(id)%cc(DTIMES(1:nc), i_res) = &
-         mg%boxes(id)%cc(DTIMES(1:nc), i_rhs) &
-         - mg%boxes(id)%cc(DTIMES(1:nc), i_res)
+    mg%boxes(id)%cc(DTIMES(1:nc), mg_ires) = &
+         mg%boxes(id)%cc(DTIMES(1:nc), mg_irhs) &
+         - mg%boxes(id)%cc(DTIMES(1:nc), mg_ires)
   end subroutine residual_box
 
 end module m_multigrid

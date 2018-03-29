@@ -5,13 +5,15 @@ module m_allocate_storage
   implicit none
   private
 
-  public :: allocate_storage
-  public :: deallocate_storage
+  public :: mg_allocate_storage
+  public :: mg_deallocate_storage
 
 contains
 
-  subroutine deallocate_storage(mg)
+  !> Deallocate all allocatable arrays
+  subroutine mg_deallocate_storage(mg)
     type(mg_t), intent(inout) :: mg
+    integer                   :: lvl
 
     if (.not. mg%is_allocated) &
          error stop "deallocate_storage: tree is not allocated"
@@ -28,11 +30,24 @@ contains
     deallocate(mg%comm_ghostcell%n_send)
     deallocate(mg%comm_ghostcell%n_recv)
 
+    do lvl = mg%lowest_lvl, mg%highest_lvl
+       deallocate(mg%lvls(lvl)%ids)
+       deallocate(mg%lvls(lvl)%leaves)
+       deallocate(mg%lvls(lvl)%parents)
+       deallocate(mg%lvls(lvl)%ref_bnds)
+       deallocate(mg%lvls(lvl)%my_ids)
+       deallocate(mg%lvls(lvl)%my_leaves)
+       deallocate(mg%lvls(lvl)%my_parents)
+       deallocate(mg%lvls(lvl)%my_ref_bnds)
+    end do
+
     mg%is_allocated = .false.
     mg%n_boxes      = 0
-  end subroutine deallocate_storage
+  end subroutine mg_deallocate_storage
 
-  subroutine allocate_storage(mg)
+  !> Allocate communication buffers and local boxes for a tree that has already
+  !> been created
+  subroutine mg_allocate_storage(mg)
     use m_ghost_cells, only: ghost_cell_buffer_size
     use m_restrict, only: restrict_buffer_size
     use m_prolong, only: prolong_buffer_size
@@ -43,12 +58,20 @@ contains
     integer                   :: dsize(3)
     integer                   :: n_in, n_out, n_id
 
+    if (.not. mg%tree_created) &
+         error stop "allocate_storage: tree is not yet created"
+
+    if (mg%is_allocated) &
+         error stop "allocate_storage: tree is already allocated"
+
     do lvl = mg%lowest_lvl, mg%highest_lvl
        nc = mg%box_size_lvl(lvl)
        do i = 1, size(mg%lvls(lvl)%my_ids)
           id = mg%lvls(lvl)%my_ids(i)
-          allocate(mg%boxes(id)%cc(DTIMES(0:nc+1), n_var))
+          allocate(mg%boxes(id)%cc(DTIMES(0:nc+1), &
+               mg_num_var + mg%n_user_vars))
 
+          ! Set all initial values to zero
           mg%boxes(id)%cc(DTIMES(:), :) = 0.0_dp
        end do
     end do
@@ -72,6 +95,6 @@ contains
     end do
 
     mg%is_allocated = .true.
-  end subroutine allocate_storage
+  end subroutine mg_allocate_storage
 
 end module m_allocate_storage

@@ -1,4 +1,4 @@
-#include "cpp_macros.h"
+#include "../src/cpp_macros.h"
 program test_one_level
   use mpi
   use m_octree_mg
@@ -36,10 +36,10 @@ program test_one_level
   mg%residual_coarse_abs =  1e-10_dp
   mg%residual_coarse_rel =  1e-10_dp
 
-  call comm_init(mg)
-  call build_rectangle(mg, domain_size, box_size, dr, r_min, &
+  call mg_comm_init(mg)
+  call mg_build_rectangle(mg, domain_size, box_size, dr, r_min, &
        periodic, n_finer)
-  call load_balance(mg)
+  call mg_load_balance(mg)
 
   if (mg%my_rank == 0) then
      print *, "First normal level", mg%first_normal_lvl
@@ -48,7 +48,7 @@ program test_one_level
      end do
   end if
 
-  call allocate_storage(mg)
+  call mg_allocate_storage(mg)
   call set_initial_conditions(mg)
 
   do n = 1, num_neighbors
@@ -64,13 +64,12 @@ program test_one_level
 
   t0 = mpi_wtime()
   do n = 1, 10
-     ! call mg_fas_fmg(mg, n==10, n > 1)
-     call mg_fas_vcycle(mg, .true.)
+     call mg_fas_fmg(mg, .true., n > 1)
+     ! call mg_fas_vcycle(mg, .true.)
      call print_error(mg)
-     ! print *, mg%boxes(1)%cc(1:box_size, 1:box_size, i_rhs)
-     ! print *, mg%boxes(1)%cc(0:box_size+1, 2, i_phi)
   end do
   t1 = mpi_wtime()
+
   if (mg%my_rank == 0) then
      print *, "time, time per iteration:", t1-t0, (t1-t0) / 10
      print *, "unknowns/microsec", 1e-6_dp * 10 * product(domain_size) / (t1-t0)
@@ -96,18 +95,18 @@ contains
              r = mg%boxes(id)%r_min + &
                   [i-0.5_dp, j-0.5_dp] * mg%dr(lvl)
              sol = product(sin(2 * pi * r))
-             mg%boxes(id)%cc(i, j, i_phi) = sol
+             mg%boxes(id)%cc(i, j, mg_iphi) = sol
 #elif NDIM == 3
 
              r = mg%boxes(id)%r_min + &
                   [i-0.5_dp, j-0.5_dp, k-0.5_dp] * mg%dr(lvl)
              sol = product(sin(2 * pi * r))
-             mg%boxes(id)%cc(i, j, k, i_phi) = sol
+             mg%boxes(id)%cc(i, j, k, mg_iphi) = sol
 #endif
           end do; CLOSE_DO
 
-          call box_lpl(mg, id, nc, i_rhs)
-          mg%boxes(id)%cc(DTIMES(:), i_phi) = 0
+          call box_lpl(mg, id, nc, mg_irhs)
+          mg%boxes(id)%cc(DTIMES(:), mg_iphi) = 0
        end do
     end do
   end subroutine set_initial_conditions
@@ -132,7 +131,7 @@ contains
                   [i-0.5_dp, j-0.5_dp, k-0.5_dp] * mg%dr(lvl)
 #endif
              sol = product(sin(2 * pi * r))
-             val = mg%boxes(id)%cc(IJK, i_phi)
+             val = mg%boxes(id)%cc(IJK, mg_iphi)
              err = max(err, abs(val-sol))
              ! err = max(err, abs(mg%boxes(id)%cc(IJK, i_res)))
              ! print *, lvl, id, i, j, r, sol, val, abs(sol-val)

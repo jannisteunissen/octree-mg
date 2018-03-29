@@ -315,26 +315,26 @@ contains
     select case (nb)
 #if NDIM == 2
     case (neighb_lowx)
-       gc = box%cc(1, 1:nc, i_phi)
+       gc = box%cc(1, 1:nc, mg_iphi)
     case (neighb_highx)
-       gc = box%cc(nc, 1:nc, i_phi)
+       gc = box%cc(nc, 1:nc, mg_iphi)
     case (neighb_lowy)
-       gc = box%cc(1:nc, 1, i_phi)
+       gc = box%cc(1:nc, 1, mg_iphi)
     case (neighb_highy)
-       gc = box%cc(1:nc, nc, i_phi)
+       gc = box%cc(1:nc, nc, mg_iphi)
 #elif NDIM == 3
     case (neighb_lowx)
-       gc = box%cc(1, 1:nc, 1:nc, i_phi)
+       gc = box%cc(1, 1:nc, 1:nc, mg_iphi)
     case (neighb_highx)
-       gc = box%cc(nc, 1:nc, 1:nc, i_phi)
+       gc = box%cc(nc, 1:nc, 1:nc, mg_iphi)
     case (neighb_lowy)
-       gc = box%cc(1:nc, 1, 1:nc, i_phi)
+       gc = box%cc(1:nc, 1, 1:nc, mg_iphi)
     case (neighb_highy)
-       gc = box%cc(1:nc, nc, 1:nc, i_phi)
+       gc = box%cc(1:nc, nc, 1:nc, mg_iphi)
     case (neighb_lowz)
-       gc = box%cc(1:nc, 1:nc, 1, i_phi)
+       gc = box%cc(1:nc, 1:nc, 1, mg_iphi)
     case (neighb_highz)
-       gc = box%cc(1:nc, 1:nc, nc, i_phi)
+       gc = box%cc(1:nc, 1:nc, nc, mg_iphi)
 #endif
     end select
   end subroutine box_gc_for_neighbor
@@ -351,26 +351,26 @@ contains
     select case (nb)
 #if NDIM == 2
     case (neighb_lowx)
-       box%cc(0, 1:nc, i_phi)    = gc
+       box%cc(0, 1:nc, mg_iphi)    = gc
     case (neighb_highx)
-       box%cc(nc+1, 1:nc, i_phi) = gc
+       box%cc(nc+1, 1:nc, mg_iphi) = gc
     case (neighb_lowy)
-       box%cc(1:nc, 0, i_phi)    = gc
+       box%cc(1:nc, 0, mg_iphi)    = gc
     case (neighb_highy)
-       box%cc(1:nc, nc+1, i_phi) = gc
+       box%cc(1:nc, nc+1, mg_iphi) = gc
 #elif NDIM == 3
     case (neighb_lowx)
-       box%cc(0, 1:nc, 1:nc, i_phi)    = gc
+       box%cc(0, 1:nc, 1:nc, mg_iphi)    = gc
     case (neighb_highx)
-       box%cc(nc+1, 1:nc, 1:nc, i_phi) = gc
+       box%cc(nc+1, 1:nc, 1:nc, mg_iphi) = gc
     case (neighb_lowy)
-       box%cc(1:nc, 0, 1:nc, i_phi)    = gc
+       box%cc(1:nc, 0, 1:nc, mg_iphi)    = gc
     case (neighb_highy)
-       box%cc(1:nc, nc+1, 1:nc, i_phi) = gc
+       box%cc(1:nc, nc+1, 1:nc, mg_iphi) = gc
     case (neighb_lowz)
-       box%cc(1:nc, 1:nc, 0, i_phi)    = gc
+       box%cc(1:nc, 1:nc, 0, mg_iphi)    = gc
     case (neighb_highz)
-       box%cc(1:nc, 1:nc, nc+1, i_phi) = gc
+       box%cc(1:nc, 1:nc, nc+1, mg_iphi) = gc
 #endif
     end select
   end subroutine box_set_gc
@@ -383,26 +383,26 @@ contains
     select case (nb)
 #if NDIM == 2
     case (neighb_lowx)
-       box%cc(0, 1:nc, i_phi)    = gc
+       box%cc(0, 1:nc, mg_iphi)    = gc
     case (neighb_highx)
-       box%cc(nc+1, 1:nc, i_phi) = gc
+       box%cc(nc+1, 1:nc, mg_iphi) = gc
     case (neighb_lowy)
-       box%cc(1:nc, 0, i_phi)    = gc
+       box%cc(1:nc, 0, mg_iphi)    = gc
     case (neighb_highy)
-       box%cc(1:nc, nc+1, i_phi) = gc
+       box%cc(1:nc, nc+1, mg_iphi) = gc
 #elif NDIM == 3
     case (neighb_lowx)
-       box%cc(0, 1:nc, 1:nc, i_phi)    = gc
+       box%cc(0, 1:nc, 1:nc, mg_iphi)    = gc
     case (neighb_highx)
-       box%cc(nc+1, 1:nc, 1:nc, i_phi) = gc
+       box%cc(nc+1, 1:nc, 1:nc, mg_iphi) = gc
     case (neighb_lowy)
-       box%cc(1:nc, 0, 1:nc, i_phi)    = gc
+       box%cc(1:nc, 0, 1:nc, mg_iphi)    = gc
     case (neighb_highy)
-       box%cc(1:nc, nc+1, 1:nc, i_phi) = gc
+       box%cc(1:nc, nc+1, 1:nc, mg_iphi) = gc
     case (neighb_lowz)
-       box%cc(1:nc, 1:nc, 0, i_phi)    = gc
+       box%cc(1:nc, 1:nc, 0, mg_iphi)    = gc
     case (neighb_highz)
-       box%cc(1:nc, 1:nc, nc+1, i_phi) = gc
+       box%cc(1:nc, 1:nc, nc+1, mg_iphi) = gc
 #endif
     end select
   end subroutine box_set_gc_scalar
@@ -443,56 +443,56 @@ contains
     select case (nb)
 #if NDIM == 2
     case (neighb_lowx)
-       mg%boxes(id)%cc(0, 1:nc, i_phi) = &
-            c0 * mg%boxes(id)%cc(0, 1:nc, i_phi) + &
-            c1 * mg%boxes(id)%cc(1, 1:nc, i_phi) + &
-            c2 * mg%boxes(id)%cc(2, 1:nc, i_phi)
+       mg%boxes(id)%cc(0, 1:nc, mg_iphi) = &
+            c0 * mg%boxes(id)%cc(0, 1:nc, mg_iphi) + &
+            c1 * mg%boxes(id)%cc(1, 1:nc, mg_iphi) + &
+            c2 * mg%boxes(id)%cc(2, 1:nc, mg_iphi)
     case (neighb_highx)
-       mg%boxes(id)%cc(nc+1, 1:nc, i_phi) = &
-            c0 * mg%boxes(id)%cc(nc+1, 1:nc, i_phi) + &
-            c1 * mg%boxes(id)%cc(nc, 1:nc, i_phi) + &
-            c2 * mg%boxes(id)%cc(nc-1, 1:nc, i_phi)
+       mg%boxes(id)%cc(nc+1, 1:nc, mg_iphi) = &
+            c0 * mg%boxes(id)%cc(nc+1, 1:nc, mg_iphi) + &
+            c1 * mg%boxes(id)%cc(nc, 1:nc, mg_iphi) + &
+            c2 * mg%boxes(id)%cc(nc-1, 1:nc, mg_iphi)
     case (neighb_lowy)
-       mg%boxes(id)%cc(1:nc, 0, i_phi) = &
-            c0 * mg%boxes(id)%cc(1:nc, 0, i_phi) + &
-            c1 * mg%boxes(id)%cc(1:nc, 1, i_phi) + &
-            c2 * mg%boxes(id)%cc(1:nc, 2, i_phi)
+       mg%boxes(id)%cc(1:nc, 0, mg_iphi) = &
+            c0 * mg%boxes(id)%cc(1:nc, 0, mg_iphi) + &
+            c1 * mg%boxes(id)%cc(1:nc, 1, mg_iphi) + &
+            c2 * mg%boxes(id)%cc(1:nc, 2, mg_iphi)
     case (neighb_highy)
-       mg%boxes(id)%cc(1:nc, nc+1, i_phi) = &
-            c0 * mg%boxes(id)%cc(1:nc, nc+1, i_phi) + &
-            c1 * mg%boxes(id)%cc(1:nc, nc, i_phi) + &
-            c2 * mg%boxes(id)%cc(1:nc, nc-1, i_phi)
+       mg%boxes(id)%cc(1:nc, nc+1, mg_iphi) = &
+            c0 * mg%boxes(id)%cc(1:nc, nc+1, mg_iphi) + &
+            c1 * mg%boxes(id)%cc(1:nc, nc, mg_iphi) + &
+            c2 * mg%boxes(id)%cc(1:nc, nc-1, mg_iphi)
 #elif NDIM == 3
     case (neighb_lowx)
-       mg%boxes(id)%cc(0, 1:nc, 1:nc, i_phi) = &
-            c0 * mg%boxes(id)%cc(0, 1:nc, 1:nc, i_phi) + &
-            c1 * mg%boxes(id)%cc(1, 1:nc, 1:nc, i_phi) + &
-            c2 * mg%boxes(id)%cc(2, 1:nc, 1:nc, i_phi)
+       mg%boxes(id)%cc(0, 1:nc, 1:nc, mg_iphi) = &
+            c0 * mg%boxes(id)%cc(0, 1:nc, 1:nc, mg_iphi) + &
+            c1 * mg%boxes(id)%cc(1, 1:nc, 1:nc, mg_iphi) + &
+            c2 * mg%boxes(id)%cc(2, 1:nc, 1:nc, mg_iphi)
     case (neighb_highx)
-       mg%boxes(id)%cc(nc+1, 1:nc, 1:nc, i_phi) = &
-            c0 * mg%boxes(id)%cc(nc+1, 1:nc, 1:nc, i_phi) + &
-            c1 * mg%boxes(id)%cc(nc, 1:nc, 1:nc, i_phi) + &
-            c2 * mg%boxes(id)%cc(nc-1, 1:nc, 1:nc, i_phi)
+       mg%boxes(id)%cc(nc+1, 1:nc, 1:nc, mg_iphi) = &
+            c0 * mg%boxes(id)%cc(nc+1, 1:nc, 1:nc, mg_iphi) + &
+            c1 * mg%boxes(id)%cc(nc, 1:nc, 1:nc, mg_iphi) + &
+            c2 * mg%boxes(id)%cc(nc-1, 1:nc, 1:nc, mg_iphi)
     case (neighb_lowy)
-       mg%boxes(id)%cc(1:nc, 0, 1:nc, i_phi) = &
-            c0 * mg%boxes(id)%cc(1:nc, 0, 1:nc, i_phi) + &
-            c1 * mg%boxes(id)%cc(1:nc, 1, 1:nc, i_phi) + &
-            c2 * mg%boxes(id)%cc(1:nc, 2, 1:nc, i_phi)
+       mg%boxes(id)%cc(1:nc, 0, 1:nc, mg_iphi) = &
+            c0 * mg%boxes(id)%cc(1:nc, 0, 1:nc, mg_iphi) + &
+            c1 * mg%boxes(id)%cc(1:nc, 1, 1:nc, mg_iphi) + &
+            c2 * mg%boxes(id)%cc(1:nc, 2, 1:nc, mg_iphi)
     case (neighb_highy)
-       mg%boxes(id)%cc(1:nc, nc+1, 1:nc, i_phi) = &
-            c0 * mg%boxes(id)%cc(1:nc, nc+1, 1:nc, i_phi) + &
-            c1 * mg%boxes(id)%cc(1:nc, nc, 1:nc, i_phi) + &
-            c2 * mg%boxes(id)%cc(1:nc, nc-1, 1:nc, i_phi)
+       mg%boxes(id)%cc(1:nc, nc+1, 1:nc, mg_iphi) = &
+            c0 * mg%boxes(id)%cc(1:nc, nc+1, 1:nc, mg_iphi) + &
+            c1 * mg%boxes(id)%cc(1:nc, nc, 1:nc, mg_iphi) + &
+            c2 * mg%boxes(id)%cc(1:nc, nc-1, 1:nc, mg_iphi)
     case (neighb_lowz)
-       mg%boxes(id)%cc(1:nc, 1:nc, 0, i_phi) = &
-            c0 * mg%boxes(id)%cc(1:nc, 1:nc, 0, i_phi) + &
-            c1 * mg%boxes(id)%cc(1:nc, 1:nc, 1, i_phi) + &
-            c2 * mg%boxes(id)%cc(1:nc, 1:nc, 2, i_phi)
+       mg%boxes(id)%cc(1:nc, 1:nc, 0, mg_iphi) = &
+            c0 * mg%boxes(id)%cc(1:nc, 1:nc, 0, mg_iphi) + &
+            c1 * mg%boxes(id)%cc(1:nc, 1:nc, 1, mg_iphi) + &
+            c2 * mg%boxes(id)%cc(1:nc, 1:nc, 2, mg_iphi)
     case (neighb_highz)
-       mg%boxes(id)%cc(1:nc, 1:nc, nc+1, i_phi) = &
-            c0 * mg%boxes(id)%cc(1:nc, 1:nc, nc+1, i_phi) + &
-            c1 * mg%boxes(id)%cc(1:nc, 1:nc, nc, i_phi) + &
-            c2 * mg%boxes(id)%cc(1:nc, 1:nc, nc-1, i_phi)
+       mg%boxes(id)%cc(1:nc, 1:nc, nc+1, mg_iphi) = &
+            c0 * mg%boxes(id)%cc(1:nc, 1:nc, nc+1, mg_iphi) + &
+            c1 * mg%boxes(id)%cc(1:nc, 1:nc, nc, mg_iphi) + &
+            c2 * mg%boxes(id)%cc(1:nc, 1:nc, nc-1, mg_iphi)
 #endif
     end select
   end subroutine bc_to_gc
@@ -537,14 +537,14 @@ contains
        do j = 1, nc
           dj = -1 + 2 * iand(j, 1)
           ! Extrapolation using 3 points
-          mg%boxes(id)%cc(i-di, j, i_phi) = 0.5_dp * cgc(ix_off(2)+(j+1)/2) + &
-               mg%boxes(id)%cc(i, j, i_phi) - 0.25_dp * &
-               (mg%boxes(id)%cc(i+di, j, i_phi) + mg%boxes(id)%cc(i, j+dj, i_phi))
+          mg%boxes(id)%cc(i-di, j, mg_iphi) = 0.5_dp * cgc(ix_off(2)+(j+1)/2) + &
+               mg%boxes(id)%cc(i, j, mg_iphi) - 0.25_dp * &
+               (mg%boxes(id)%cc(i+di, j, mg_iphi) + mg%boxes(id)%cc(i, j+dj, mg_iphi))
 
           ! Extrapolation using 2 points
-          ! mg%boxes(id)%cc(i-di, j, i_phi) = 0.5_dp * mg%boxes(id)%cc(i-di, j, i_phi) + &
-          !      0.75_dp * mg%boxes(id)%cc(i, j, i_phi) - 0.25_dp * &
-          !      mg%boxes(id)%cc(i+di, j+dj, i_phi)
+          ! mg%boxes(id)%cc(i-di, j, mg_iphi) = 0.5_dp * mg%boxes(id)%cc(i-di, j, mg_iphi) + &
+          !      0.75_dp * mg%boxes(id)%cc(i, j, mg_iphi) - 0.25_dp * &
+          !      mg%boxes(id)%cc(i+di, j+dj, mg_iphi)
        end do
     case (2)
        j = ix
@@ -552,14 +552,14 @@ contains
        do i = 1, nc
           di = -1 + 2 * iand(i, 1)
           ! Extrapolation using 3 points
-          mg%boxes(id)%cc(i, j-dj, i_phi) = 0.5_dp * cgc(ix_off(1)+(i+1)/2) + &
-               mg%boxes(id)%cc(i, j, i_phi) - 0.25_dp * &
-               (mg%boxes(id)%cc(i, j+dj, i_phi) + mg%boxes(id)%cc(i+di, j, i_phi))
+          mg%boxes(id)%cc(i, j-dj, mg_iphi) = 0.5_dp * cgc(ix_off(1)+(i+1)/2) + &
+               mg%boxes(id)%cc(i, j, mg_iphi) - 0.25_dp * &
+               (mg%boxes(id)%cc(i, j+dj, mg_iphi) + mg%boxes(id)%cc(i+di, j, mg_iphi))
 
           ! Extrapolation using 2 points
-          ! mg%boxes(id)%cc(i, j-dj, i_phi) = 0.5_dp * mg%boxes(id)%cc(i, j-dj, i_phi) + &
-          !      0.75_dp * mg%boxes(id)%cc(i, j, i_phi) - 0.25_dp * &
-          !      mg%boxes(id)%cc(i+di, j+dj, i_phi)
+          ! mg%boxes(id)%cc(i, j-dj, mg_iphi) = 0.5_dp * mg%boxes(id)%cc(i, j-dj, mg_iphi) + &
+          !      0.75_dp * mg%boxes(id)%cc(i, j, mg_iphi) - 0.25_dp * &
+          !      mg%boxes(id)%cc(i+di, j+dj, mg_iphi)
        end do
 #elif NDIM == 3
     case (1)
@@ -570,22 +570,22 @@ contains
           do j = 1, nc
              dj = -1 + 2 * iand(j, 1)
              ! Trilinear extrapolation (using 8 points)
-             ! boxes(id)%cc(i-di, j, k, i_phi) = &
-             !      0.5_dp * boxes(id)%cc(i-di, j, k, i_phi) + 0.0625_dp * (&
-             !      27 * boxes(id)%cc(i, j, k, i_phi) &
-             !      - 9 * boxes(id)%cc(i+di, j, k, i_phi) &
-             !      - 9 * boxes(id)%cc(i, j+dj, k, i_phi) &
-             !      - 9 * boxes(id)%cc(i, j, k+dk, i_phi) &
-             !      + 3 * boxes(id)%cc(i+di, j+dj, k, i_phi) &
-             !      + 3 * boxes(id)%cc(i+di, j, k+dk, i_phi) &
-             !      + 3 * boxes(id)%cc(i, j+dj, k+dk, i_phi) &
-             !      - 1 * boxes(id)%cc(i+di, j+dj, k+dk, i_phi))
+             ! boxes(id)%cc(i-di, j, k, mg_iphi) = &
+             !      0.5_dp * boxes(id)%cc(i-di, j, k, mg_iphi) + 0.0625_dp * (&
+             !      27 * boxes(id)%cc(i, j, k, mg_iphi) &
+             !      - 9 * boxes(id)%cc(i+di, j, k, mg_iphi) &
+             !      - 9 * boxes(id)%cc(i, j+dj, k, mg_iphi) &
+             !      - 9 * boxes(id)%cc(i, j, k+dk, mg_iphi) &
+             !      + 3 * boxes(id)%cc(i+di, j+dj, k, mg_iphi) &
+             !      + 3 * boxes(id)%cc(i+di, j, k+dk, mg_iphi) &
+             !      + 3 * boxes(id)%cc(i, j+dj, k+dk, mg_iphi) &
+             !      - 1 * boxes(id)%cc(i+di, j+dj, k+dk, mg_iphi))
 
              ! Extrapolation using 2 points
-             mg%boxes(id)%cc(i-di, j, k, i_phi) = &
+             mg%boxes(id)%cc(i-di, j, k, mg_iphi) = &
                   0.5_dp * cgc(ix_off(2)+(j+1)/2, ix_off(3)+(k+1)/2) + &
-                  0.75_dp * mg%boxes(id)%cc(i, j, k, i_phi) - &
-                  0.25_dp * mg%boxes(id)%cc(i+di, j+dj, k+dk, i_phi)
+                  0.75_dp * mg%boxes(id)%cc(i, j, k, mg_iphi) - &
+                  0.25_dp * mg%boxes(id)%cc(i+di, j+dj, k+dk, mg_iphi)
           end do
        end do
     case (2)
@@ -596,21 +596,21 @@ contains
           do i = 1, nc
              di = -1 + 2 * iand(i, 1)
 
-             ! boxes(id)%cc(i, j-dj, k, i_phi) = &
-             !      0.5_dp * boxes(id)%cc(i, j-dj, k, i_phi) + 0.0625_dp * (&
-             !      27 * boxes(id)%cc(i, j, k, i_phi) &
-             !      - 9 * boxes(id)%cc(i+di, j, k, i_phi) &
-             !      - 9 * boxes(id)%cc(i, j+dj, k, i_phi) &
-             !      - 9 * boxes(id)%cc(i, j, k+dk, i_phi) &
-             !      + 3 * boxes(id)%cc(i+di, j+dj, k, i_phi) &
-             !      + 3 * boxes(id)%cc(i+di, j, k+dk, i_phi) &
-             !      + 3 * boxes(id)%cc(i, j+dj, k+dk, i_phi) &
-             !      - 1 * boxes(id)%cc(i+di, j+dj, k+dk, i_phi))
+             ! boxes(id)%cc(i, j-dj, k, mg_iphi) = &
+             !      0.5_dp * boxes(id)%cc(i, j-dj, k, mg_iphi) + 0.0625_dp * (&
+             !      27 * boxes(id)%cc(i, j, k, mg_iphi) &
+             !      - 9 * boxes(id)%cc(i+di, j, k, mg_iphi) &
+             !      - 9 * boxes(id)%cc(i, j+dj, k, mg_iphi) &
+             !      - 9 * boxes(id)%cc(i, j, k+dk, mg_iphi) &
+             !      + 3 * boxes(id)%cc(i+di, j+dj, k, mg_iphi) &
+             !      + 3 * boxes(id)%cc(i+di, j, k+dk, mg_iphi) &
+             !      + 3 * boxes(id)%cc(i, j+dj, k+dk, mg_iphi) &
+             !      - 1 * boxes(id)%cc(i+di, j+dj, k+dk, mg_iphi))
 
-             mg%boxes(id)%cc(i, j-dj, k, i_phi) = &
+             mg%boxes(id)%cc(i, j-dj, k, mg_iphi) = &
                   0.5_dp * cgc(ix_off(1)+(i+1)/2, ix_off(3)+(k+1)/2) + &
-                  0.75_dp * mg%boxes(id)%cc(i, j, k, i_phi) - &
-                  0.25_dp * mg%boxes(id)%cc(i+di, j+dj, k+dk, i_phi)
+                  0.75_dp * mg%boxes(id)%cc(i, j, k, mg_iphi) - &
+                  0.25_dp * mg%boxes(id)%cc(i+di, j+dj, k+dk, mg_iphi)
           end do
        end do
     case (3)
@@ -621,21 +621,21 @@ contains
           do i = 1, nc
              di = -1 + 2 * iand(i, 1)
 
-             ! boxes(id)%cc(i, j, k-dk, i_phi) = &
-             !      0.5_dp * boxes(id)%cc(i, j, k-dk, i_phi) + 0.0625_dp * (&
-             !      27 * boxes(id)%cc(i, j, k, i_phi) &
-             !      - 9 * boxes(id)%cc(i+di, j, k, i_phi) &
-             !      - 9 * boxes(id)%cc(i, j+dj, k, i_phi) &
-             !      - 9 * boxes(id)%cc(i, j, k+dk, i_phi) &
-             !      + 3 * boxes(id)%cc(i+di, j+dj, k, i_phi) &
-             !      + 3 * boxes(id)%cc(i+di, j, k+dk, i_phi) &
-             !      + 3 * boxes(id)%cc(i, j+dj, k+dk, i_phi) &
-             !      - 1 * boxes(id)%cc(i+di, j+dj, k+dk, i_phi))
+             ! boxes(id)%cc(i, j, k-dk, mg_iphi) = &
+             !      0.5_dp * boxes(id)%cc(i, j, k-dk, mg_iphi) + 0.0625_dp * (&
+             !      27 * boxes(id)%cc(i, j, k, mg_iphi) &
+             !      - 9 * boxes(id)%cc(i+di, j, k, mg_iphi) &
+             !      - 9 * boxes(id)%cc(i, j+dj, k, mg_iphi) &
+             !      - 9 * boxes(id)%cc(i, j, k+dk, mg_iphi) &
+             !      + 3 * boxes(id)%cc(i+di, j+dj, k, mg_iphi) &
+             !      + 3 * boxes(id)%cc(i+di, j, k+dk, mg_iphi) &
+             !      + 3 * boxes(id)%cc(i, j+dj, k+dk, mg_iphi) &
+             !      - 1 * boxes(id)%cc(i+di, j+dj, k+dk, mg_iphi))
 
-             mg%boxes(id)%cc(i, j, k-dk, i_phi) = &
+             mg%boxes(id)%cc(i, j, k-dk, mg_iphi) = &
                   0.5_dp * cgc(ix_off(1)+(i+1)/2, ix_off(2)+(j+1)/2) + &
-                  0.75_dp * mg%boxes(id)%cc(i, j, k, i_phi) - &
-                  0.25_dp * mg%boxes(id)%cc(i+di, j+dj, k+dk, i_phi)
+                  0.75_dp * mg%boxes(id)%cc(i, j, k, mg_iphi) - &
+                  0.25_dp * mg%boxes(id)%cc(i+di, j+dj, k+dk, mg_iphi)
           end do
        end do
 #endif
