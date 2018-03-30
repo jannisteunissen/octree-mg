@@ -20,7 +20,7 @@ contains
     type(mg_t), intent(inout) :: mg
     integer, intent(in)       :: domain_size(NDIM)
     integer, intent(in)       :: box_size
-    real(dp), intent(in)      :: dx
+    real(dp), intent(in)      :: dx(NDIM)
     real(dp), intent(in)      :: r_min(NDIM)
     logical, intent(in)       :: periodic(NDIM)
     integer, intent(in)       :: n_finer
@@ -41,12 +41,12 @@ contains
     mg%box_size         = box_size
     mg%box_size_lvl(1)  = box_size
     mg%first_normal_lvl = 1
-    mg%dr(1)            = dx
+    mg%dr(:, 1)         = dx
     boxes_per_dim(:, :) = 0
     boxes_per_dim(:, 1) = domain_size / box_size
 
     do lvl = 1, lvl_lo_bnd+1, -1
-       if (any(modulo(nx, 2) == 1 .or. nx == 2)) exit
+       if (any(modulo(nx, 2) == 1 .or. nx == mg%coarsest_grid)) exit
 
        if (all(modulo(nx/mg%box_size_lvl(lvl), 2) == 0)) then
           mg%box_size_lvl(lvl-1) = mg%box_size_lvl(lvl)
@@ -57,7 +57,7 @@ contains
           boxes_per_dim(:, lvl-1) = boxes_per_dim(:, lvl)
        end if
 
-       mg%dr(lvl-1) = mg%dr(lvl) * 2
+       mg%dr(:, lvl-1) = mg%dr(:, lvl) * 2
        nx = nx / 2
     end do
 
@@ -65,7 +65,7 @@ contains
     mg%highest_lvl = 1
 
     do lvl = 2, lvl_hi_bnd
-       mg%dr(lvl)           = mg%dr(lvl-1) * 0.5_dp
+       mg%dr(:, lvl) = mg%dr(:, lvl-1) * 0.5_dp
        mg%box_size_lvl(lvl) = box_size
     end do
 
@@ -90,7 +90,7 @@ contains
        mg%boxes(n)%lvl         = mg%lowest_lvl
        mg%boxes(n)%ix(:)       = [IJK]
        mg%boxes(n)%r_min(:)    = r_min + (mg%boxes(n)%ix(:) - 1) * &
-            mg%box_size_lvl(mg%lowest_lvl) * mg%dr(mg%lowest_lvl)
+            mg%box_size_lvl(mg%lowest_lvl) * mg%dr(:, mg%lowest_lvl)
        mg%boxes(n)%parent      = no_box
        mg%boxes(n)%children(:) = no_box
 
@@ -333,7 +333,7 @@ contains
        mg%boxes(c_id)%children  = no_box
        mg%boxes(c_id)%neighbors = no_box
        mg%boxes(c_id)%r_min     = mg%boxes(id)%r_min + &
-            mg%dr(lvl) * child_dix(:, i) * mg%box_size
+            mg%dr(:, lvl) * child_dix(:, i) * mg%box_size
     end do
 
     ! Set boundary conditions at children

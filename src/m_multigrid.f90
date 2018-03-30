@@ -18,9 +18,46 @@ module m_multigrid
   ! Public methods
   public :: mg_fas_vcycle
   public :: mg_fas_fmg
-  public :: box_lpl
+  public :: mg_set_methods
 
 contains
+
+  subroutine mg_set_methods(mg)
+    use m_laplacian
+    type(mg_t), intent(inout) :: mg
+
+    select case (mg%operator_type)
+    case (mg_laplacian)
+       call laplacian_set_methods(mg)
+    case default
+       error stop "mg_set_methods: unknown operator"
+    end select
+
+    ! For red-black, perform two smoothing sub-steps so that all unknowns are
+    ! updated per cycle
+    if (mg%smoother_type == smoother_gsrb) then
+       mg%n_smoother_substeps = 2
+    else
+       mg%n_smoother_substeps = 1
+    end if
+
+    ! Ensure boundary conditions are correct for geometry
+    if (mg%geometry_type == mg_cylindrical) then
+       mg%bc(neighb_lowx)%bc_type = bc_neumann
+       mg%bc(neighb_lowx)%bc_value = 0.0_dp
+    end if
+
+  end subroutine mg_set_methods
+
+  subroutine check_methods(mg)
+    type(mg_t), intent(inout) :: mg
+
+    if (.not. associated(mg%box_op) .or. &
+         .not. associated(mg%box_smoother)) then
+       call mg_set_methods(mg)
+    end if
+
+  end subroutine check_methods
 
   subroutine mg_add_timers(mg)
     type(mg_t), intent(inout) :: mg
@@ -41,6 +78,8 @@ contains
     logical, intent(in)       :: have_guess   !< If false, start from phi = 0
     integer                   :: lvl, i, id
 
+    call check_methods(mg)
+
     if (.not. have_guess) then
        do lvl = mg%highest_lvl, mg%lowest_lvl, -1
           do i = 1, size(mg%lvls(lvl)%my_ids)
@@ -56,7 +95,7 @@ contains
     end do
 
     do lvl = mg%lowest_lvl, mg%highest_lvl
-       ! Store phmg_iold
+       ! Store phi_old
        do i = 1, size(mg%lvls(lvl)%my_ids)
           id = mg%lvls(lvl)%my_ids(i)
           mg%boxes(id)%cc(DTIMES(:), mg_iold) = &
@@ -65,7 +104,7 @@ contains
 
        if (lvl > mg%lowest_lvl) then
           ! Correct solution at this lvl using lvl-1 data
-          ! phi = phi + prolong(phi_coarse - phmg_iold_coarse)
+          ! phi = phi + prolong(phi_coarse - phi_old_coarse)
           call correct_children(mg, lvl-1)
 
           ! Update ghost cells
@@ -91,6 +130,8 @@ contains
     real(dp)                      :: res, init_res
     real(dp)                      :: sum_phi(lvl_lo_bnd:lvl_hi_bnd)
     real(dp)                      :: mean_phi(lvl_lo_bnd:lvl_hi_bnd)
+
+    call check_methods(mg)
 
     if (timer_smoother == -1) then
        call mg_add_timers(mg)
@@ -131,7 +172,7 @@ contains
     ! Do the upwards part of the v-cycle in the tree
     do lvl = min_lvl+1, max_lvl
        ! Correct solution at this lvl using lvl-1 data
-       ! phi = phi + prolong(phi_coarse - phmg_iold_coarse)
+       ! phi = phi + prolong(phi_coarse - phi_old_coarse)
        call timer_start(mg%timers(timer_correct))
        call correct_children(mg, lvl-1)
 
@@ -244,164 +285,6 @@ contains
   !     call fill_ghost_cells_lvl(mg, 1)
   !   end subroutine solve_coarse_grid
 
-  !> Perform Gauss-Seidel relaxation on box for a Laplacian operator
-  subroutine box_gsrb_lpl(mg, id, nc, redblack_cntr)
-    type(mg_t), intent(inout) :: mg
-    integer, intent(in)       :: id
-    integer, intent(in)       :: nc
-    integer, intent(in)       :: redblack_cntr !< Iteration counter
-    integer                   :: IJK, i0
-    real(dp)                  :: dx2
-#if NDIM == 3
-    real(dp), parameter       :: sixth = 1/6.0_dp
-#endif
-
-    dx2 = mg%dr(mg%boxes(id)%lvl)**2
-
-    ! The parity of redblack_cntr determines which cells we use. If
-    ! redblack_cntr is even, we use the even cells and vice versa.
-    associate (box => mg%boxes(id))
-#if NDIM == 2
-      do j = 1, nc
-         i0 = 2 - iand(ieor(redblack_cntr, j), 1)
-         do i = i0, nc, 2
-            box%cc(i, j, mg_iphi) = 0.25_dp * ( &
-                 box%cc(i+1, j, mg_iphi) + box%cc(i-1, j, mg_iphi) + &
-                 box%cc(i, j+1, mg_iphi) + box%cc(i, j-1, mg_iphi) - &
-                 dx2 * box%cc(i, j, mg_irhs))
-         end do
-      end do
-#elif NDIM == 3
-      do k = 1, nc
-         do j = 1, nc
-            i0 = 2 - iand(ieor(redblack_cntr, k+j), 1)
-            do i = i0, nc, 2
-               box%cc(i, j, k, mg_iphi) = sixth * ( &
-                    box%cc(i+1, j, k, mg_iphi) + box%cc(i-1, j, k, mg_iphi) + &
-                    box%cc(i, j+1, k, mg_iphi) + box%cc(i, j-1, k, mg_iphi) + &
-                    box%cc(i, j, k+1, mg_iphi) + box%cc(i, j, k-1, mg_iphi) - &
-                    dx2 * box%cc(i, j, k, mg_irhs))
-            end do
-         end do
-      end do
-#endif
-    end associate
-  end subroutine box_gsrb_lpl
-
-  !> Perform Gauss-Seidel relaxation on box for a Laplacian operator
-  subroutine box_gs_lpl(mg, id, nc)
-    type(mg_t), intent(inout) :: mg
-    integer, intent(in)       :: id
-    integer, intent(in)       :: nc
-    integer                   :: IJK
-    real(dp)                  :: dx2
-#if NDIM == 3
-    real(dp), parameter       :: sixth = 1/6.0_dp
-#endif
-
-    dx2 = mg%dr(mg%boxes(id)%lvl)**2
-
-    ! The parity of redblack_cntr determines which cells we use. If
-    ! redblack_cntr is even, we use the even cells and vice versa.
-    associate (box => mg%boxes(id))
-#if NDIM == 2
-      do j = 1, nc
-         do i = 1, nc
-            box%cc(i, j, mg_iphi) = 0.25_dp * ( &
-                 box%cc(i+1, j, mg_iphi) + box%cc(i-1, j, mg_iphi) + &
-                 box%cc(i, j+1, mg_iphi) + box%cc(i, j-1, mg_iphi) - &
-                 dx2 * box%cc(i, j, mg_irhs))
-         end do
-      end do
-#elif NDIM == 3
-      do k = 1, nc
-         do j = 1, nc
-            do i = 1, nc
-               box%cc(i, j, k, mg_iphi) = sixth * ( &
-                    box%cc(i+1, j, k, mg_iphi) + box%cc(i-1, j, k, mg_iphi) + &
-                    box%cc(i, j+1, k, mg_iphi) + box%cc(i, j-1, k, mg_iphi) + &
-                    box%cc(i, j, k+1, mg_iphi) + box%cc(i, j, k-1, mg_iphi) - &
-                    dx2 * box%cc(i, j, k, mg_irhs))
-            end do
-         end do
-      end do
-#endif
-    end associate
-  end subroutine box_gs_lpl
-
-  !> Perform Jacobi relaxation on box for a Laplacian operator
-  subroutine box_jacobi_lpl(mg, id, nc)
-    type(mg_t), intent(inout) :: mg
-    integer, intent(in)       :: id
-    integer, intent(in)       :: nc
-    integer                   :: IJK
-    real(dp), parameter       :: w     = 2.0_dp / 3
-    real(dp)                  :: tmp(DTIMES(0:nc+1))
-    real(dp)                  :: dx2
-#if NDIM == 3
-    real(dp), parameter       :: sixth = 1/6.0_dp
-#endif
-
-    dx2   = mg%dr(mg%boxes(id)%lvl)**2
-
-    associate (box => mg%boxes(id))
-      tmp = box%cc(DTIMES(:), mg_iphi)
-      do KJI_DO(1, nc)
-#if NDIM == 2
-         box%cc(i, j, mg_iphi) = (1-w) * box%cc(i, j, mg_iphi) + &
-              0.25_dp * w * ( &
-              tmp(i+1, j) + tmp(i-1, j) + &
-              tmp(i, j+1) + tmp(i, j-1) - &
-              dx2 * box%cc(i, j, mg_irhs))
-#elif NDIM == 3
-         box%cc(i, j, k, mg_iphi) = (1-w) * &
-              box%cc(i, j, k, mg_iphi) + &
-              sixth * w * ( &
-              tmp(i+1, j, k) + tmp(i-1, j, k) + &
-              tmp(i, j+1, k) + tmp(i, j-1, k) + &
-              tmp(i, j, k+1) + tmp(i, j, k-1) - &
-              dx2 * box%cc(i, j, k, mg_irhs))
-#endif
-      end do; CLOSE_DO
-    end associate
-  end subroutine box_jacobi_lpl
-
-  !> Perform Laplacian operator on a box
-  subroutine box_lpl(mg, id, nc, i_out)
-    type(mg_t), intent(inout) :: mg
-    integer, intent(in)       :: id
-    integer, intent(in)       :: nc
-    integer, intent(in)       :: i_out !< Index of variable to store Laplacian in
-    integer                   :: IJK
-    real(dp)                  :: inv_dr_sq
-
-    inv_dr_sq = 1 / mg%dr(mg%boxes(id)%lvl)**2
-
-    associate (box => mg%boxes(id))
-#if NDIM == 2
-      do j = 1, nc
-         do i = 1, nc
-            box%cc(i, j, i_out) = inv_dr_sq * (box%cc(i-1, j, mg_iphi) + &
-                 box%cc(i+1, j, mg_iphi) + box%cc(i, j-1, mg_iphi) + &
-                 box%cc(i, j+1, mg_iphi) - 4 * box%cc(i, j, mg_iphi))
-         end do
-      end do
-#elif NDIM == 3
-      do k = 1, nc
-         do j = 1, nc
-            do i = 1, nc
-               box%cc(i, j, k, i_out) = inv_dr_sq * &
-                    (box%cc(i-1, j, k, mg_iphi) + &
-                    box%cc(i+1, j, k, mg_iphi) + box%cc(i, j-1, k, mg_iphi) + &
-                    box%cc(i, j+1, k, mg_iphi) + box%cc(i, j, k-1, mg_iphi) + &
-                    box%cc(i, j, k+1, mg_iphi) - 6 * box%cc(i, j, k, mg_iphi))
-            end do
-         end do
-      end do
-#endif
-    end associate
-  end subroutine box_lpl
-
   ! Set rhs on coarse grid, restrict phi, and copy mg_iphi to mg_iold for the
   ! correction later
   subroutine update_coarse(mg, lvl)
@@ -430,7 +313,7 @@ contains
        id = mg%lvls(lvl-1)%my_parents(i)
 
        ! Set rhs = L phi
-       call box_lpl(mg, id, nc_c, mg_irhs)
+       call mg%box_op(mg, id, nc_c, mg_irhs)
 
        ! Add the fine grid residual to rhs
        mg%boxes(id)%cc(DTIMES(:), mg_irhs) = &
@@ -443,7 +326,7 @@ contains
     end do
   end subroutine update_coarse
 
-  ! Sets phi = phi + prolong(phi_coarse - phmg_iold_coarse)
+  ! Sets phi = phi + prolong(phi_coarse - phi_old_coarse)
   subroutine correct_children(mg, lvl)
     type(mg_t), intent(inout) :: mg
     integer, intent(in)       :: lvl
@@ -469,37 +352,18 @@ contains
 
     nc = mg%box_size_lvl(lvl)
 
-    select case (mg%smoother_type)
-    case (smoother_jacobi, smoother_gs)
-       do n = 1, n_cycle
-          call timer_start(mg%timers(timer_smoother))
-          do i = 1, size(mg%lvls(lvl)%my_ids)
-             id = mg%lvls(lvl)%my_ids(i)
-             if (mg%smoother_type == smoother_jacobi) then
-                call box_jacobi_lpl(mg, id, nc)
-             else
-                call box_gs_lpl(mg, id, nc)
-             end if
-          end do
-          call timer_end(mg%timers(timer_smoother))
-          call timer_start(mg%timers(timer_smoother_gc))
-          call fill_ghost_cells_lvl(mg, lvl)
-          call timer_end(mg%timers(timer_smoother_gc))
+    do n = 1, n_cycle * mg%n_smoother_substeps
+       call timer_start(mg%timers(timer_smoother))
+       do i = 1, size(mg%lvls(lvl)%my_ids)
+          id = mg%lvls(lvl)%my_ids(i)
+          call mg%box_smoother(mg, id, nc, n)
        end do
-    case (smoother_gsrb)
-       do n = 1, 2 * n_cycle
-          call timer_start(mg%timers(timer_smoother))
-          do i = 1, size(mg%lvls(lvl)%my_ids)
-             id = mg%lvls(lvl)%my_ids(i)
-             call box_gsrb_lpl(mg, id, nc, n)
-          end do
-          call timer_end(mg%timers(timer_smoother))
+       call timer_end(mg%timers(timer_smoother))
 
-          call timer_start(mg%timers(timer_smoother_gc))
-          call fill_ghost_cells_lvl(mg, lvl)
-          call timer_end(mg%timers(timer_smoother_gc))
-       end do
-    end select
+       call timer_start(mg%timers(timer_smoother_gc))
+       call fill_ghost_cells_lvl(mg, lvl)
+       call timer_end(mg%timers(timer_smoother_gc))
+    end do
   end subroutine smooth_boxes
 
   subroutine residual_box(mg, id, nc)
@@ -507,7 +371,7 @@ contains
     integer, intent(in)       :: id
     integer, intent(in)       :: nc
 
-    call box_lpl(mg, id, nc, mg_ires)
+    call mg%box_op(mg, id, nc, mg_ires)
 
     mg%boxes(id)%cc(DTIMES(1:nc), mg_ires) = &
          mg%boxes(id)%cc(DTIMES(1:nc), mg_irhs) &

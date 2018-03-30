@@ -413,7 +413,7 @@ contains
     integer, intent(in)       :: nc
     integer, intent(in)       :: nb      !< Neighbor direction
     integer, intent(in)       :: bc_type !< Type of b.c.
-    real(dp)                  :: c0, c1, c2
+    real(dp)                  :: c0, c1, c2, dr
 
     ! If we call the interior point x1, x2 and the ghost point x0, then a
     ! Dirichlet boundary value b can be imposed as:
@@ -429,7 +429,8 @@ contains
        c1 = -1
        c2 = 0
     case (bc_neumann)
-       c0 = mg%dr(mg%boxes(id)%lvl) * neighb_high_pm(nb) ! This gives a + or - sign
+       dr = mg%dr(neighb_dim(nb), mg%boxes(id)%lvl)
+       c0 = dr * neighb_high_pm(nb) ! This gives a + or - sign
        c1 = 1
        c2 = 0
     case (bc_continuous)

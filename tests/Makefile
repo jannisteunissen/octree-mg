@@ -21,10 +21,12 @@ clean:
 test_uniform_grid_2d: LIBDIRS:=../lib_2d
 test_uniform_grid_2d: INCDIRS:=../lib_2d
 test_uniform_grid_2d: export NDIM:=2
+test_uniform_grid_2d: ../lib_2d/libomg.a
 
 test_uniform_grid_3d: LIBDIRS:=../lib_3d
 test_uniform_grid_3d: INCDIRS:=../lib_3d
 test_uniform_grid_3d: export NDIM:=3
+test_uniform_grid_3d: ../lib_3d/libomg.a
 
 
 

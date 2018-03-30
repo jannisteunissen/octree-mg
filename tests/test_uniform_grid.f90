@@ -7,13 +7,14 @@ program test_one_level
 
   integer             :: box_size
   integer             :: domain_size(NDIM)
-  real(dp)            :: dr, r_min(NDIM) = 0.0_dp
-  logical             :: periodic(NDIM) = .false.
-  integer             :: n_finer = 0
-  real(dp), parameter :: pi = acos(-1.0_dp)
+  real(dp)            :: dr(NDIM), r_min(NDIM) = 0.0_dp
+  logical             :: periodic(NDIM)  = .false.
+  integer             :: n_finer         = 0
+  real(dp), parameter :: pi              = acos(-1.0_dp)
   character(len=40)   :: arg_string
   integer             :: lvl, n, ierr, n_args
   real(dp)            :: t0, t1
+  integer             :: i_sol
   type(mg_t)          :: mg
 
   n_args = command_argument_count()
@@ -29,12 +30,20 @@ program test_one_level
      read(arg_string, *) domain_size(n)
   end do
 
-  dr                     =  1.0_dp / minval(domain_size)
-  mg%n_cycle_up          =  2
-  mg%n_cycle_down        =  2
-  mg%smoother_type       =  smoother_gsrb
-  mg%residual_coarse_abs =  1e-10_dp
-  mg%residual_coarse_rel =  1e-10_dp
+  dr =  1.0_dp / domain_size
+
+  mg%n_user_vars = 1
+  i_sol = mg_num_vars + 1
+
+  mg%geometry_type = mg_cartesian
+  mg%operator_type = mg_laplacian
+  mg%smoother_type = smoother_gs
+
+  call mg_set_methods(mg)
+
+  ! if (mg%geometry_type == mg_cylindrical .and. NDIM == 3) then
+  !    periodic(2) = .true.
+  ! end if
 
   call mg_comm_init(mg)
   call mg_build_rectangle(mg, domain_size, box_size, dr, r_min, &
@@ -49,7 +58,14 @@ program test_one_level
   end if
 
   call mg_allocate_storage(mg)
-  call set_initial_conditions(mg)
+
+  call set_solution(mg)
+
+  do lvl = mg%lowest_lvl, mg%highest_lvl
+     call fill_ghost_cells_lvl(mg, lvl)
+  end do
+
+  call compute_rhs_and_reset(mg)
 
   do n = 1, num_neighbors
      mg%bc(n)%bc_type = bc_dirichlet
@@ -57,10 +73,6 @@ program test_one_level
   end do
 
   call print_error(mg)
-
-  do lvl = mg%lowest_lvl, mg%highest_lvl
-     call fill_ghost_cells_lvl(mg, lvl)
-  end do
 
   t0 = mpi_wtime()
   do n = 1, 10
@@ -81,7 +93,7 @@ program test_one_level
 
 contains
 
-  subroutine set_initial_conditions(mg)
+  subroutine set_solution(mg)
     type(mg_t), intent(inout) :: mg
     integer                   :: n, id, lvl, nc, IJK
     real(dp)                  :: r(NDIM), sol
@@ -93,28 +105,42 @@ contains
           do KJI_DO(0, nc+1)
 #if NDIM == 2
              r = mg%boxes(id)%r_min + &
-                  [i-0.5_dp, j-0.5_dp] * mg%dr(lvl)
+                  [i-0.5_dp, j-0.5_dp] * mg%dr(:, lvl)
              sol = product(sin(2 * pi * r))
-             mg%boxes(id)%cc(i, j, mg_iphi) = sol
+             mg%boxes(id)%cc(i, j, i_sol) = sol
 #elif NDIM == 3
 
              r = mg%boxes(id)%r_min + &
-                  [i-0.5_dp, j-0.5_dp, k-0.5_dp] * mg%dr(lvl)
+                  [i-0.5_dp, j-0.5_dp, k-0.5_dp] * mg%dr(:, lvl)
              sol = product(sin(2 * pi * r))
-             mg%boxes(id)%cc(i, j, k, mg_iphi) = sol
+             mg%boxes(id)%cc(i, j, k, i_sol) = sol
 #endif
           end do; CLOSE_DO
-
-          call box_lpl(mg, id, nc, mg_irhs)
-          mg%boxes(id)%cc(DTIMES(:), mg_iphi) = 0
        end do
     end do
-  end subroutine set_initial_conditions
+  end subroutine set_solution
+
+  subroutine compute_rhs_and_reset(mg)
+    type(mg_t), intent(inout) :: mg
+    integer                   :: n, id, lvl, nc
+
+    do lvl = mg%lowest_lvl, mg%highest_lvl
+       nc = mg%box_size_lvl(lvl)
+       do n = 1, size(mg%lvls(lvl)%my_ids)
+          id = mg%lvls(lvl)%my_ids(n)
+
+          mg%boxes(id)%cc(DTIMES(:), mg_iphi) = &
+               mg%boxes(id)%cc(DTIMES(:), i_sol)
+          call mg%box_op(mg, id, nc, mg_irhs)
+          mg%boxes(id)%cc(DTIMES(:), mg_iphi) = 0.0_dp
+       end do
+    end do
+  end subroutine compute_rhs_and_reset
 
   subroutine print_error(mg)
     type(mg_t), intent(inout) :: mg
     integer                   :: n, nc, id, lvl, IJK, ierr
-    real(dp)                  :: r(NDIM), sol, val, err, max_err
+    real(dp)                  :: sol, val, err, max_err
 
     err = 0.0_dp
 
@@ -123,18 +149,11 @@ contains
        do n = 1, size(mg%lvls(lvl)%my_ids)
           id = mg%lvls(lvl)%my_ids(n)
           do KJI_DO(1, nc)
-#if NDIM == 2
-             r = mg%boxes(id)%r_min + &
-                  [i-0.5_dp, j-0.5_dp] * mg%dr(lvl)
-#elif NDIM == 3
-             r = mg%boxes(id)%r_min + &
-                  [i-0.5_dp, j-0.5_dp, k-0.5_dp] * mg%dr(lvl)
-#endif
-             sol = product(sin(2 * pi * r))
+             sol = mg%boxes(id)%cc(IJK, i_sol)
              val = mg%boxes(id)%cc(IJK, mg_iphi)
              err = max(err, abs(val-sol))
-             ! err = max(err, abs(mg%boxes(id)%cc(IJK, i_res)))
-             ! print *, lvl, id, i, j, r, sol, val, abs(sol-val)
+             ! err = max(err, abs(mg%boxes(id)%cc(IJK, mg_ires)))
+             ! print *, lvl, id, i, j, sol, val, abs(sol-val)
           end do; CLOSE_DO
        end do
     end do

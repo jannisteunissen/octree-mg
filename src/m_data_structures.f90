@@ -7,11 +7,21 @@ module m_data_structures
   !> Type of reals
   integer, parameter :: dp = kind(0.0d0)
 
+  integer, parameter :: mg_laplacian = 1
+
+  integer, parameter :: mg_cartesian   = 1 !< Cartesian coordinate system
+  integer, parameter :: mg_cylindrical = 2 !< Cylindrical coordinate system
+  integer, parameter :: mg_spherical   = 3 !< Spherical coordinate system
+
+  integer, parameter :: smoother_gs     = 1
+  integer, parameter :: smoother_gsrb   = 2
+  integer, parameter :: smoother_jacobi = 3
+
   !> Problem dimension
   integer, parameter :: mg_ndim = NDIM
 
   !> Number of predefined multigrid variables
-  integer, parameter :: mg_num_var = 4
+  integer, parameter :: mg_num_vars = 4
   !> Index of solution
   integer, parameter :: mg_iphi = 1
   !> Index of right-hand side
@@ -34,11 +44,6 @@ module m_data_structures
 
   !> Value to indicate a continuous boundary condition
   integer, parameter :: bc_continuous = -12
-
-  !> Smoother types
-  integer, parameter :: smoother_gsrb   = 1
-  integer, parameter :: smoother_jacobi = 2
-  integer, parameter :: smoother_gs     = 3
 
   !> Special value that indicates there is no box
   integer, parameter :: no_box = 0
@@ -230,7 +235,7 @@ module m_data_structures
      !> Size of boxes per level (differs for coarsest levels)
      integer                  :: box_size_lvl(lvl_lo_bnd:lvl_hi_bnd)
      !> Grid spacing per level
-     real(dp)                 :: dr(lvl_lo_bnd:lvl_hi_bnd)
+     real(dp)                 :: dr(NDIM, lvl_lo_bnd:lvl_hi_bnd)
      !> List of all levels
      type(lvl_t)              :: lvls(lvl_lo_bnd:lvl_hi_bnd)
      !> Array with all boxes in the tree. Only boxes owned by this task are
@@ -253,16 +258,24 @@ module m_data_structures
      !> To set a user-defined refinement boundary method
      procedure(subr_rb), pointer, nopass :: refinement_bnd => null()
 
+     !> Type of operator
+     integer :: operator_type = mg_laplacian
+     !> Type of grid geometry
+     integer :: geometry_type = mg_cartesian
+
      !> Whether the mean has to be subtracted from the multigrid solution
-     logical                  :: subtract_mean    = .false.
+     logical  :: subtract_mean       = .false.
      !> Type of multigrid smoother
      integer  :: smoother_type       = smoother_gs
+     !> Number of substeps for the smoother (for GSRB this is 2)
+     integer  :: n_smoother_substeps = 1
      !> Number of cycles when doing downwards relaxation
      integer  :: n_cycle_down        = 2
      !> Number of cycles when doing upwards relaxation
      integer  :: n_cycle_up          = 2
      !> Maximum number of cycles on the coarse grid
      integer  :: max_coarse_cycles   = 1000
+     integer  :: coarsest_grid(NDIM) = 2
      !> Stop coarse grid when max. residual is smaller than this
      real(dp) :: residual_coarse_abs = 1e-8_dp
      !> Stop coarse grid when residual has been reduced by this factor
@@ -307,18 +320,20 @@ module m_data_structures
      end subroutine subr_rb
 
      !> Subroutine that performs A * cc(..., i_in) = cc(..., i_out)
-     subroutine mg_box_op(mg, id, i_out)
+     subroutine mg_box_op(mg, id, nc, i_out)
        import
        type(mg_t), intent(inout) :: mg
        integer, intent(in)       :: id
+       integer, intent(in)       :: nc
        integer, intent(in)       :: i_out
      end subroutine mg_box_op
 
      !> Subroutine that performs Gauss-Seidel relaxation
-     subroutine mg_box_gsrb(mg, id, redblack_cntr)
+     subroutine mg_box_gsrb(mg, id, nc, redblack_cntr)
        import
        type(mg_t), intent(inout) :: mg
        integer, intent(in)       :: id
+       integer, intent(in)       :: nc
        integer, intent(in)       :: redblack_cntr
      end subroutine mg_box_gsrb
   end interface

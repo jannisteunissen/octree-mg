@@ -69,7 +69,7 @@ contains
        do i = 1, size(mg%lvls(lvl)%my_ids)
           id = mg%lvls(lvl)%my_ids(i)
           allocate(mg%boxes(id)%cc(DTIMES(0:nc+1), &
-               mg_num_var + mg%n_user_vars))
+               mg_num_vars + mg%n_user_vars))
 
           ! Set all initial values to zero
           mg%boxes(id)%cc(DTIMES(:), :) = 0.0_dp

@@ -1,5 +1,6 @@
 FC := mpif90
-FFLAGS = -O2 -std=f2008 -fopenmp -Wall -Wextra -g -cpp -DNDIM=$(NDIM)
+FFLAGS = -O2 -std=f2008 -fopenmp -Wall -g -cpp -DNDIM=$(NDIM)	\
+-Wno-unused-dummy-argument -Wno-unused-function
 
 ifeq ($(DEBUG), 1)
 	FFLAGS += -fcheck=all -ffpe-trap=invalid,zero,overflow \
