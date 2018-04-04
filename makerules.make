@@ -8,7 +8,7 @@ ifeq ($(DEBUG), 1)
 endif
 
 ifeq ($(PROF), 1)
-	FFLAGS += -pg -O0
+	FFLAGS += -pg
 endif
 
 # How to get .o object files from .f90 source files
