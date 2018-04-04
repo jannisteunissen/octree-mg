@@ -26,6 +26,8 @@ contains
           error stop "laplacian_set_methods: unsupported smoother type"
        end select
     case (mg_cylindrical)
+       if (NDIM == 3) error stop "Cylindrical 3D not supported yet"
+
        mg%box_op => box_clpl
 
        select case (mg%smoother_type)
@@ -218,7 +220,8 @@ contains
   end subroutine box_clpl
 
   !> Perform Gauss-Seidel relaxation on box for a Laplacian operator in
-  !> cylindrical geometry
+  !> cylindrical geometry. TODO: in 3D this does not converge well, maybe it
+  !> will for a stretched grid.
   subroutine box_gs_clpl(mg, id, nc, redblack_cntr)
     type(mg_t), intent(inout) :: mg
     integer, intent(in)       :: id
@@ -275,9 +278,6 @@ contains
                     idr2(3) * (cc(i, j, k+1, n) + &
                     cc(i, j, k-1, n)) - cc(i, j, k, mg_irhs)) * &
                     0.5_dp / (idr2(1) + idr2(2) * r_inv(i)**2 + idr2(3))
-               ! print *, i, j, k, cc(i, j, k, n), (idr2(1) * sum(r_face(i:i+1)) * r_inv(i) + &
-               !      2 * idr2(2) * r_inv(i)**2 + 2 * idr2(3)), &
-               !      0.5 / (idr2(1) + idr2(2) * r_inv(i)**2 + idr2(3))
             end do
          end do
       end do
