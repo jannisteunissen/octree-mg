@@ -128,8 +128,8 @@ contains
     integer                       :: lvl, min_lvl, i, id
     integer                       :: max_lvl, nc, ierr
     real(dp)                      :: res, init_res
-    real(dp)                      :: sum_phi(lvl_lo_bnd:lvl_hi_bnd)
-    real(dp)                      :: mean_phi(lvl_lo_bnd:lvl_hi_bnd)
+    real(dp)                      :: sum_phi
+    real(dp)                      :: mean_phi
 
     call check_methods(mg)
 
@@ -160,7 +160,7 @@ contains
        error stop "Multiple CPUs for coarse grid (not implemented yet)"
     end if
 
-    init_res = max_residual(mg, 1)
+    init_res = max_residual(mg, min_lvl)
     do i = 1, mg%max_coarse_cycles
        call smooth_boxes(mg, min_lvl, mg%n_cycle_up+mg%n_cycle_down)
        res = max_residual(mg, min_lvl)
@@ -196,23 +196,20 @@ contains
 
     ! Subtract mean(phi) from phi
     if (mg%subtract_mean) then
-       do lvl = min_lvl, max_lvl
-          sum_phi(lvl) = get_sum_lvl(mg, lvl, mg_iphi)
-       end do
+       sum_phi = get_sum(mg, mg_iphi)
 
-       call mpi_allreduce(sum_phi(min_lvl:max_lvl), &
-            mean_phi(min_lvl:max_lvl), max_lvl-min_lvl+1, &
+       call mpi_allreduce(sum_phi, mean_phi, 1, &
             mpi_double, mpi_sum, mg%comm, ierr)
+       nc = mg%box_size
+       mean_phi = mean_phi / (nc**NDIM * size(mg%lvls(1)%ids))
 
        do lvl = min_lvl, max_lvl
           nc = mg%box_size_lvl(lvl)
-          mean_phi(lvl) = mean_phi(lvl) / (nc**NDIM * &
-               size(mg%lvls(lvl)%ids))
 
           do i = 1, size(mg%lvls(lvl)%my_ids)
              id = mg%lvls(lvl)%my_ids(i)
              mg%boxes(id)%cc(DTIMES(:), mg_iphi) = &
-                  mg%boxes(id)%cc(DTIMES(:), mg_iphi) - mean_phi(lvl)
+                  mg%boxes(id)%cc(DTIMES(:), mg_iphi) - mean_phi
           end do
        end do
     end if
@@ -220,21 +217,21 @@ contains
     call timer_end(mg%timers(timer_total))
   end subroutine mg_fas_vcycle
 
-  real(dp) function get_sum_lvl(mg, lvl, iv)
+  real(dp) function get_sum(mg, iv)
     type(mg_t), intent(in) :: mg
-    integer, intent(in)    :: lvl
     integer, intent(in)    :: iv
-    integer                :: i, id, nc
+    integer                :: lvl, i, id, nc
 
-    get_sum_lvl = 0.0_dp
-    nc          = mg%box_size_lvl(lvl)
-
-    do i = 1, size(mg%lvls(lvl)%my_ids)
-       id = mg%lvls(lvl)%my_ids(i)
-       get_sum_lvl = get_sum_lvl + &
-            sum(mg%boxes(id)%cc(DTIMES(1:nc), iv))
+    get_sum = 0.0_dp
+    do lvl = 1, mg%highest_lvl
+       nc = mg%box_size_lvl(lvl)
+       do i = 1, size(mg%lvls(lvl)%my_leaves)
+          id = mg%lvls(lvl)%my_leaves(i)
+          get_sum = get_sum + &
+               sum(mg%boxes(id)%cc(DTIMES(1:nc), iv))
+       end do
     end do
-  end function get_sum_lvl
+  end function get_sum
 
   real(dp) function max_residual(mg, lvl)
     type(mg_t), intent(inout) :: mg
