@@ -1,3 +1,6 @@
+!> Module for load balancing a tree (that already has been constructed). The
+!> load balancing determines which ranks (MPI processes) allocated physical
+!> storage for boxes. The tree structure itself is present on all processes.
 module m_load_balance
   use m_data_structures
 
@@ -13,10 +16,12 @@ contains
   !> Load balance all boxes in the multigrid tree. This routine is only provided
   !> for testing, in a normal application the load balancing comes from the
   !> 'calling' routine.
+  !>
+  !> @todo Improve this using e.g. a Morton curve
   subroutine mg_load_balance(mg)
     type(mg_t), intent(inout) :: mg
-    integer :: i, id, lvl, single_cpu_lvl
-    integer :: work_left, my_work, i_cpu
+    integer                   :: i, id, lvl, single_cpu_lvl
+    integer                   :: work_left, my_work, i_cpu
 
     ! Up to this level, all boxes have to be on a single processor because they
     ! have a different size and the communication routines don't support this
@@ -56,7 +61,10 @@ contains
 
   end subroutine mg_load_balance
 
-  !> Load balance the parents (non-leafs), by taking the 
+  !> Load balance the parents (non-leafs). Assign them to the rank that has most
+  !> children.
+  !>
+  !> @todo In case of ties, assign to the rank with least boxes.
   subroutine mg_load_balance_parents(mg)
     type(mg_t), intent(inout) :: mg
     integer                   :: i, id, lvl
