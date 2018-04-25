@@ -357,7 +357,7 @@ contains
     lvl                      = mg%boxes(id)%lvl+1
 
     mg%boxes(c_id)%rank      = mg%boxes(id)%rank
-    mg%boxes(c_id)%ix        = 2 * mg%boxes(id)%ix - 1
+    mg%boxes(c_id)%ix        = mg%boxes(id)%ix
     mg%boxes(c_id)%lvl       = lvl
     mg%boxes(c_id)%parent    = id
     mg%boxes(c_id)%children  = no_box
