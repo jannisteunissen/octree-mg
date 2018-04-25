@@ -77,6 +77,7 @@ contains
     logical, intent(in)       :: set_residual !< If true, store residual in i_tmp
     logical, intent(in)       :: have_guess   !< If false, start from phi = 0
     integer                   :: lvl, i, id
+    logical                   :: store_residual
 
     call check_methods(mg)
 
@@ -93,6 +94,11 @@ contains
        ! Set rhs on coarse grid and restrict phi
        call update_coarse(mg, lvl)
     end do
+
+    if (mg%subtract_mean) then
+       ! For fully periodic solutions, the mean source term has to be zero
+       call subtract_mean(mg, mg_irhs)
+    end if
 
     do lvl = mg%lowest_lvl, mg%highest_lvl
        ! Store phi_old
@@ -112,8 +118,8 @@ contains
        end if
 
        ! Perform V-cycle, only set residual on last iteration
-       call mg_fas_vcycle(mg, &
-            set_residual .and. lvl == mg%highest_lvl, lvl)
+       store_residual = set_residual .and. lvl == mg%highest_lvl
+       call mg_fas_vcycle(mg, store_residual, lvl)
     end do
   end subroutine mg_fas_fmg
 
@@ -121,15 +127,11 @@ contains
   !> needs valid ghost cells (for mg_iphi) on input, and gives back valid ghost
   !> cells on output
   subroutine mg_fas_vcycle(mg, set_residual, highest_lvl)
-    use mpi
     type(mg_t), intent(inout)     :: mg
     logical, intent(in)           :: set_residual !< If true, store residual in mg_ires
     integer, intent(in), optional :: highest_lvl  !< Maximum level for V-cycle
-    integer                       :: lvl, min_lvl, i, id
-    integer                       :: max_lvl, nc, ierr
+    integer                       :: lvl, min_lvl, i, id, max_lvl, nc
     real(dp)                      :: res, init_res
-    real(dp)                      :: sum_phi
-    real(dp)                      :: mean_phi
 
     call check_methods(mg)
 
@@ -138,6 +140,12 @@ contains
     end if
 
     call timer_start(mg%timers(timer_total))
+
+    if (mg%subtract_mean .and. .not. present(highest_lvl)) then
+       ! Assume that this is a stand-alone call. For fully periodic solutions,
+       ! ensure the mean source term is zero.
+       call subtract_mean(mg, mg_irhs)
+    end if
 
     min_lvl = mg%lowest_lvl
     max_lvl = mg%highest_lvl
@@ -196,38 +204,52 @@ contains
 
     ! Subtract mean(phi) from phi
     if (mg%subtract_mean) then
-       sum_phi = get_sum(mg, mg_iphi)
-
-       call mpi_allreduce(sum_phi, mean_phi, 1, &
-            mpi_double, mpi_sum, mg%comm, ierr)
-       nc = mg%box_size
-       mean_phi = mean_phi / (nc**NDIM * size(mg%lvls(1)%ids))
-
-       do lvl = min_lvl, max_lvl
-          nc = mg%box_size_lvl(lvl)
-
-          do i = 1, size(mg%lvls(lvl)%my_ids)
-             id = mg%lvls(lvl)%my_ids(i)
-             mg%boxes(id)%cc(DTIMES(:), mg_iphi) = &
-                  mg%boxes(id)%cc(DTIMES(:), mg_iphi) - mean_phi
-          end do
-       end do
+       call subtract_mean(mg, mg_iphi)
     end if
 
     call timer_end(mg%timers(timer_total))
   end subroutine mg_fas_vcycle
 
+  subroutine subtract_mean(mg, iv)
+    use mpi
+    type(mg_t), intent(inout) :: mg
+    integer, intent(in)       :: iv
+    integer                   :: i, id, lvl, nc, ierr
+    real(dp)                  :: sum_iv, mean_iv, volume
+
+    nc = mg%box_size
+    sum_iv = get_sum(mg, iv)
+    call mpi_allreduce(sum_iv, mean_iv, 1, &
+         mpi_double, mpi_sum, mg%comm, ierr)
+
+    ! Divide by total grid volume to get mean
+    volume = nc**NDIM * product(mg%dr(:, 1)) * size(mg%lvls(1)%ids)
+    mean_iv = mean_iv / volume
+
+    do lvl = mg%lowest_lvl, mg%highest_lvl
+       nc = mg%box_size_lvl(lvl)
+
+       do i = 1, size(mg%lvls(lvl)%my_ids)
+          id = mg%lvls(lvl)%my_ids(i)
+          mg%boxes(id)%cc(DTIMES(:), iv) = &
+               mg%boxes(id)%cc(DTIMES(:), iv) - mean_iv
+       end do
+    end do
+  end subroutine subtract_mean
+
   real(dp) function get_sum(mg, iv)
     type(mg_t), intent(in) :: mg
     integer, intent(in)    :: iv
     integer                :: lvl, i, id, nc
+    real(dp)               :: w
 
     get_sum = 0.0_dp
     do lvl = 1, mg%highest_lvl
        nc = mg%box_size_lvl(lvl)
+       w  = product(mg%dr(:, lvl)) ! Adjust for non-Cartesian cases
        do i = 1, size(mg%lvls(lvl)%my_leaves)
           id = mg%lvls(lvl)%my_leaves(i)
-          get_sum = get_sum + &
+          get_sum = get_sum + w * &
                sum(mg%boxes(id)%cc(DTIMES(1:nc), iv))
        end do
     end do
