@@ -369,7 +369,12 @@ contains
     integer, intent(in)    :: id
     integer                :: ix_offset(NDIM)
 
-    ix_offset = iand(mg%boxes(id)%ix-1, 1) * ishft(mg%box_size, -1) ! * n_cell / 2
+    if (mg%boxes(id)%lvl <= mg%first_normal_lvl) then
+       ix_offset(:) = 0
+    else
+       ix_offset = iand(mg%boxes(id)%ix-1, 1) * &
+            ishft(mg%box_size, -1) ! * n_cell / 2
+    end if
   end function get_child_offset
 
   integer function add_timer(mg, name)
