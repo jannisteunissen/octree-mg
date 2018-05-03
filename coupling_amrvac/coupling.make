@@ -19,10 +19,14 @@ vpath %.t $(AMRVAC_DIR)/external_libs/octree-mg/coupling_amrvac
 
 # How to get .mod files from .f90 source files (remake only if they have been
 # removed, otherwise assume they are up to date)
-%.mod: %.f90 %.o
+m_%.mod: m_%.f90 m_%.o
 	@test -f $@ || $(F90) -c -o $(@:.mod=.o) $< $(F90FLAGS) $(MY_FLAGS)
 
-# Coupling depentency
+# AMRVAC dependencies
+amrvac.o: mod_multigrid_coupling.mod
+amr_coarsen_refine.o: mod_multigrid_coupling.mod
+
+# Coupling dependency
 mod_multigrid_coupling.o: m_octree_mg.mod
 
 # Other dependencies

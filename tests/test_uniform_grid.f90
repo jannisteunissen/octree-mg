@@ -76,8 +76,7 @@ program test_one_level
 
   t0 = mpi_wtime()
   do n = 1, 10
-     call mg_fas_fmg(mg, .true., n > 1)
-     ! call mg_fas_vcycle(mg, .true.)
+     call mg_fas_fmg(mg, n > 1)
      call print_error(mg)
   end do
   t1 = mpi_wtime()

@@ -72,12 +72,11 @@ contains
   !> Perform FAS-FMG cycle (full approximation scheme, full multigrid). Note
   !> that this routine needs valid ghost cells (for mg_iphi) on input, and gives
   !> back valid ghost cells on output
-  subroutine mg_fas_fmg(mg, set_residual, have_guess)
-    type(mg_t), intent(inout) :: mg
-    logical, intent(in)       :: set_residual !< If true, store residual in i_tmp
-    logical, intent(in)       :: have_guess   !< If false, start from phi = 0
-    integer                   :: lvl, i, id
-    logical                   :: store_residual
+  subroutine mg_fas_fmg(mg, have_guess, max_res)
+    type(mg_t), intent(inout)       :: mg
+    logical, intent(in)             :: have_guess !< If false, start from phi = 0
+    real(dp), intent(out), optional :: max_res    !< Store max(abs(residual))
+    integer                         :: lvl, i, id
 
     call check_methods(mg)
 
@@ -117,21 +116,25 @@ contains
           call fill_ghost_cells_lvl(mg, lvl)
        end if
 
-       ! Perform V-cycle, only set residual on last iteration
-       store_residual = set_residual .and. lvl == mg%highest_lvl
-       call mg_fas_vcycle(mg, store_residual, lvl)
+       ! Perform V-cycle, possibly set residual on last iteration
+       if (lvl == mg%highest_lvl) then
+          call mg_fas_vcycle(mg, lvl, max_res)
+       else
+          call mg_fas_vcycle(mg, lvl)
+       end if
     end do
   end subroutine mg_fas_fmg
 
   !> Perform FAS V-cycle (full approximation scheme). Note that this routine
   !> needs valid ghost cells (for mg_iphi) on input, and gives back valid ghost
   !> cells on output
-  subroutine mg_fas_vcycle(mg, set_residual, highest_lvl)
-    type(mg_t), intent(inout)     :: mg
-    logical, intent(in)           :: set_residual !< If true, store residual in mg_ires
-    integer, intent(in), optional :: highest_lvl  !< Maximum level for V-cycle
-    integer                       :: lvl, min_lvl, i, id, max_lvl, nc
-    real(dp)                      :: res, init_res
+  subroutine mg_fas_vcycle(mg, highest_lvl, max_res)
+    use mpi
+    type(mg_t), intent(inout)       :: mg
+    integer, intent(in), optional   :: highest_lvl !< Maximum level for V-cycle
+    real(dp), intent(out), optional :: max_res     !< Store max(abs(residual))
+    integer                         :: lvl, min_lvl, i, max_lvl, ierr
+    real(dp)                        :: init_res, res
 
     call check_methods(mg)
 
@@ -168,10 +171,10 @@ contains
        error stop "Multiple CPUs for coarse grid (not implemented yet)"
     end if
 
-    init_res = max_residual(mg, min_lvl)
+    init_res = max_residual_lvl(mg, min_lvl)
     do i = 1, mg%max_coarse_cycles
        call smooth_boxes(mg, min_lvl, mg%n_cycle_up+mg%n_cycle_down)
-       res = max_residual(mg, min_lvl)
+       res = max_residual_lvl(mg, min_lvl)
        if (res < mg%residual_coarse_rel * init_res .or. &
             res < mg%residual_coarse_abs) exit
     end do
@@ -192,14 +195,14 @@ contains
        call smooth_boxes(mg, lvl, mg%n_cycle_up)
     end do
 
-    if (set_residual) then
+    if (present(max_res)) then
+       max_res = 0.0_dp
        do lvl = min_lvl, max_lvl
-          nc = mg%box_size_lvl(lvl)
-          do i = 1, size(mg%lvls(lvl)%my_ids)
-             id = mg%lvls(lvl)%my_ids(i)
-             call residual_box(mg, id, nc)
-          end do
+          res = max_residual_lvl(mg, lvl)
+          max_res = max(res, max_res)
        end do
+       call mpi_allreduce(init_res, max_res, 1, &
+            mpi_double, mpi_sum, mg%comm, ierr)
     end if
 
     ! Subtract mean(phi) from phi
@@ -255,22 +258,22 @@ contains
     end do
   end function get_sum
 
-  real(dp) function max_residual(mg, lvl)
+  real(dp) function max_residual_lvl(mg, lvl)
     type(mg_t), intent(inout) :: mg
     integer, intent(in)       :: lvl
     integer                   :: i, id, nc
     real(dp)                  :: res
 
     nc           = mg%box_size_lvl(lvl)
-    max_residual = 0.0_dp
+    max_residual_lvl = 0.0_dp
 
     do i = 1, size(mg%lvls(lvl)%my_ids)
        id = mg%lvls(lvl)%my_ids(i)
        call residual_box(mg, id, nc)
        res = maxval(abs(mg%boxes(id)%cc(DTIMES(1:nc), mg_ires)))
-       max_residual = max(max_residual, res)
+       max_residual_lvl = max(max_residual_lvl, res)
     end do
-  end function max_residual
+  end function max_residual_lvl
 
   !   subroutine solve_coarse_grid(mg)
   !     use m_fishpack

@@ -87,7 +87,7 @@ contains
     type(tree_node), pointer :: pnode
 
     if (.not. mg%is_allocated) &
-         error stop "multigrid tree not allocated yet"
+         error stop "mg_copy_to_tree: tree not allocated yet"
 
     do iigrid = 1, igridstail
        igrid =  igrids(iigrid);
@@ -118,7 +118,7 @@ contains
     type(tree_node), pointer :: pnode
 
     if (.not. mg%is_allocated) &
-         error stop "multigrid tree not allocated yet"
+         error stop "mg_copy_from_tree: tree not allocated yet"
 
     do iigrid = 1, igridstail
        igrid =  igrids(iigrid);
@@ -150,7 +150,7 @@ contains
     type(tree_node), pointer :: pnode
 
     if (.not. mg%is_allocated) &
-         error stop "multigrid tree not allocated yet"
+         error stop "mg_copy_from_tree_gc: tree not allocated yet"
 
     do iigrid = 1, igridstail
        igrid =  igrids(iigrid);
