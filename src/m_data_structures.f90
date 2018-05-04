@@ -7,7 +7,11 @@ module m_data_structures
   !> Type of reals
   integer, parameter :: dp = kind(0.0d0)
 
+  !> Indicates a standard Laplacian
   integer, parameter :: mg_laplacian = 1
+
+  !> Indicates a variable-coefficient Laplacian
+  integer, parameter :: mg_vlaplacian = 2
 
   integer, parameter :: mg_cartesian   = 1 !< Cartesian coordinate system
   integer, parameter :: mg_cylindrical = 2 !< Cylindrical coordinate system
@@ -214,7 +218,7 @@ module m_data_structures
      !> Whether storage has been allocated for boxes
      logical                  :: is_allocated     = .false.
      !> Number of extra cell-centered variable (e.g., for coefficients)
-     integer                  :: n_user_vars      = 0
+     integer                  :: n_extra_vars      = 0
      !> MPI communicator
      integer                  :: comm             = -1
      !> Number of MPI tasks
@@ -287,6 +291,9 @@ module m_data_structures
      !> Multigrid smoother
      procedure(mg_box_gsrb), pointer, nopass :: box_smoother => null()
 
+     !> Multigrid prolongation method
+     procedure(mg_box_prolong), pointer, nopass :: box_prolong => null()
+
      !> Number of timers
      integer       :: n_timers = 0
      !> Values for the timers
@@ -336,6 +343,17 @@ module m_data_structures
        integer, intent(in)       :: nc
        integer, intent(in)       :: redblack_cntr
      end subroutine mg_box_gsrb
+
+     !> Subroutine that performs prolongation to a single child
+     subroutine mg_box_prolong(mg, p_id, dix, nc, iv, fine)
+       import
+       type(mg_t), intent(inout) :: mg
+       integer, intent(in)       :: p_id             !< Id of parent
+       integer, intent(in)       :: dix(NDIM)        !< Offset of child in parent grid
+       integer, intent(in)       :: nc               !< Child grid size
+       integer, intent(in)       :: iv               !< Prolong from this variable
+       real(dp), intent(out)     :: fine(DTIMES(nc)) !< Prolonged values
+     end subroutine mg_box_prolong
   end interface
 
 contains

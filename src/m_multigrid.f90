@@ -24,11 +24,17 @@ contains
 
   subroutine mg_set_methods(mg)
     use m_laplacian
+    use m_vlaplacian
     type(mg_t), intent(inout) :: mg
+
+    ! Set default prolongation method (routines below can override this)
+    mg%box_prolong => prolong_sparse
 
     select case (mg%operator_type)
     case (mg_laplacian)
        call laplacian_set_methods(mg)
+    case (mg_vlaplacian)
+       call vlaplacian_set_methods(mg)
     case default
        error stop "mg_set_methods: unknown operator"
     end select
@@ -363,7 +369,7 @@ contains
             mg%boxes(id)%cc(DTIMES(:), mg_iold)
     end do
 
-    call prolong(mg, lvl, mg_ires, mg_iphi, add=.true.)
+    call prolong(mg, lvl, mg_ires, mg_iphi, mg%box_prolong, add=.true.)
   end subroutine correct_children
 
   subroutine smooth_boxes(mg, lvl, n_cycle)

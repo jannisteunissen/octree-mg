@@ -14,7 +14,7 @@ program test_one_level
   character(len=40)   :: arg_string
   integer             :: lvl, n, ierr, n_args
   real(dp)            :: t0, t1
-  integer             :: i_sol
+  integer             :: i_sol, i_eps
   type(mg_t)          :: mg
 
   n_args = command_argument_count()
@@ -32,12 +32,13 @@ program test_one_level
 
   dr =  1.0_dp / domain_size
 
-  mg%n_user_vars = 1
-  i_sol = mg_num_vars + 1
+  mg%n_extra_vars = 2
+  i_eps = mg_num_vars + 1
+  i_sol = mg_num_vars + 2
 
   mg%geometry_type = mg_cartesian
   mg%operator_type = mg_laplacian
-  mg%smoother_type = smoother_gs
+  mg%smoother_type = smoother_gsrb
 
   call mg_set_methods(mg)
 
@@ -107,12 +108,14 @@ contains
                   [i-0.5_dp, j-0.5_dp] * mg%dr(:, lvl)
              sol = product(sin(2 * pi * r))
              mg%boxes(id)%cc(i, j, i_sol) = sol
+             mg%boxes(id)%cc(i, j, i_eps) = 1.0_dp
 #elif NDIM == 3
 
              r = mg%boxes(id)%r_min + &
                   [i-0.5_dp, j-0.5_dp, k-0.5_dp] * mg%dr(:, lvl)
              sol = product(sin(2 * pi * r))
              mg%boxes(id)%cc(i, j, k, i_sol) = sol
+             mg%boxes(id)%cc(i, j, k, i_eps) = max(1.0_dp, 1.0_dp + r(1))
 #endif
           end do; CLOSE_DO
        end do

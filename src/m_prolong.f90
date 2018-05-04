@@ -8,6 +8,7 @@ module m_prolong
   ! Public methods
   public :: prolong
   public :: prolong_buffer_size
+  public :: prolong_sparse
 
 contains
 
@@ -39,33 +40,36 @@ contains
             mg%comm_restrict%n_recv(:, lvl+1)
     end do
 
-    ! Send coarse grid points + ghost cells
-    dsize = (mg%box_size/2 + 2)**NDIM
+    ! Send fine grid points, because this is more flexible than sending coarse
+    ! grid points (e.g., when multiple variables are used for interpolation)
+    dsize = (mg%box_size)**NDIM
     n_send = maxval(mg%comm_prolong%n_send, dim=2)
     n_recv = maxval(mg%comm_prolong%n_recv, dim=2)
   end subroutine prolong_buffer_size
 
   !> Prolong variable iv from lvl to variable iv_to at lvl+1
-  subroutine prolong(mg, lvl, iv, iv_to, add)
+  subroutine prolong(mg, lvl, iv, iv_to, method, add)
     use m_communication
     type(mg_t), intent(inout) :: mg
     integer, intent(in)       :: lvl   !< Level to prolong from
     integer, intent(in)       :: iv    !< Source variable
     integer, intent(in)       :: iv_to !< Target variable
+    procedure(mg_box_prolong) :: method !< Prolongation method
     logical, intent(in)       :: add   !< If true, add to current values
     integer                   :: i, id, dsize, nc
 
     if (lvl == mg%highest_lvl) error stop "cannot prolong highest level"
     if (lvl < mg%lowest_lvl) error stop "cannot prolong below lowest level"
 
+    ! Below the first normal level, all boxes are on the same CPU
     if (lvl >= mg%first_normal_lvl-1) then
-       dsize            = (mg%box_size/2 + 2)**NDIM
+       dsize            = mg%box_size**NDIM
        mg%buf(:)%i_send = 0
        mg%buf(:)%i_ix   = 0
 
        do i = 1, size(mg%lvls(lvl)%my_ids)
           id = mg%lvls(lvl)%my_ids(i)
-          call prolong_set_buffer(mg, id, iv)
+          call prolong_set_buffer(mg, id, mg%box_size, iv, method)
        end do
 
        mg%buf(:)%i_recv = mg%comm_prolong%n_recv(:, lvl) * dsize
@@ -76,19 +80,23 @@ contains
     nc = mg%box_size_lvl(lvl+1)
     do i = 1, size(mg%lvls(lvl+1)%my_ids)
        id = mg%lvls(lvl+1)%my_ids(i)
-       call prolong_onto(mg, id, nc, iv, iv_to, add)
+       call prolong_onto(mg, id, nc, iv, iv_to, add, method)
     end do
   end subroutine prolong
 
-  subroutine prolong_set_buffer(mg, id, iv)
+  !> In case the fine grid is on a different CPU, perform the prolongation and
+  !> store the fine-grid values in the send buffer.
+  subroutine prolong_set_buffer(mg, id, nc, iv, method)
     type(mg_t), intent(inout) :: mg
-    integer, intent(in)          :: id
-    integer, intent(in)          :: iv
-    integer                      :: i, hnc, dix(NDIM)
-    integer                      :: i_c, c_id, c_rank, dsize
+    integer, intent(in)       :: id
+    integer, intent(in)       :: nc
+    integer, intent(in)       :: iv
+    procedure(mg_box_prolong) :: method
+    integer                   :: i, dix(NDIM)
+    integer                   :: i_c, c_id, c_rank, dsize
+    real(dp)                  :: tmp(DTIMES(nc))
 
-    hnc   = mg%box_size/2
-    dsize = (hnc+2)**NDIM
+    dsize = nc**NDIM
 
     do i_c = 1, num_children
        c_id = mg%boxes(id)%children(i_c)
@@ -96,19 +104,12 @@ contains
           c_rank = mg%boxes(c_id)%rank
           if (c_rank /= mg%my_rank) then
              dix = get_child_offset(mg, c_id)
+             call method(mg, id, dix, nc, iv, tmp)
+
              i   = mg%buf(c_rank)%i_send
-
-#if NDIM == 2
-             mg%buf(c_rank)%send(i+1:i+dsize) = &
-                  pack(mg%boxes(id)%cc(dix(1):dix(1)+hnc+1, &
-                  dix(2):dix(2)+hnc+1, iv), .true.)
-#elif NDIM == 3
-             mg%buf(c_rank)%send(i+1:i+dsize) = &
-                  pack(mg%boxes(id)%cc(dix(1):dix(1)+hnc+1, &
-                  dix(2):dix(2)+hnc+1, dix(3):dix(3)+hnc+1, iv), .true.)
-#endif
-
+             mg%buf(c_rank)%send(i+1:i+dsize) = pack(tmp, .true.)
              mg%buf(c_rank)%i_send  = mg%buf(c_rank)%i_send + dsize
+
              i                      = mg%buf(c_rank)%i_ix
              mg%buf(c_rank)%ix(i+1) = c_id
              mg%buf(c_rank)%i_ix    = mg%buf(c_rank)%i_ix + 1
@@ -117,20 +118,17 @@ contains
     end do
   end subroutine prolong_set_buffer
 
-  subroutine prolong_onto(mg, id, nc, iv, iv_to, add)
+  !> Prolong onto a child box
+  subroutine prolong_onto(mg, id, nc, iv, iv_to, add, method)
     type(mg_t), intent(inout) :: mg
     integer, intent(in)       :: id
     integer, intent(in)       :: nc
-    integer, intent(in)       :: iv
-    integer, intent(in)       :: iv_to
-    logical, intent(in)       :: add
-    integer                   :: IJK, hnc, p_id, p_rank, dix(NDIM), dsize
-#if NDIM == 2
-    real(dp)                  :: f0, flx, fhx, fly, fhy
-#elif NDIM == 3
-    real(dp)                  :: f0, flx, fhx, fly, fhy, flz, fhz
-#endif
-    real(dp)                  :: tmp(DTIMES(0:nc/2+1))
+    integer, intent(in)       :: iv    !< Prolong from this variable
+    integer, intent(in)       :: iv_to !< Prolong to this variable
+    logical, intent(in)       :: add   !< If true, add to current values
+    procedure(mg_box_prolong) :: method
+    integer                   :: hnc, p_id, p_rank, i, dix(NDIM), dsize
+    real(dp)                  :: tmp(DTIMES(nc))
 
     hnc    = nc/2
     p_id   = mg%boxes(id)%parent
@@ -138,84 +136,91 @@ contains
 
     if (p_rank == mg%my_rank) then
        dix    = get_child_offset(mg, id)
-#if NDIM == 2
-       tmp = mg%boxes(p_id)%cc(dix(1):dix(1)+hnc+1, &
-            dix(2):dix(2)+hnc+1, iv)
-#elif NDIM == 3
-       tmp = mg%boxes(p_id)%cc(dix(1):dix(1)+hnc+1, &
-            dix(2):dix(2)+hnc+1, dix(3):dix(3)+hnc+1, iv)
-#endif
+       call method(mg, p_id, dix, nc, iv, tmp)
     else
-       dsize  = (hnc+2)**NDIM
+       dsize  = nc**NDIM
        i = mg%buf(p_rank)%i_recv
-       tmp = reshape(mg%buf(p_rank)%recv(i+1:i+dsize), [DTIMES(hnc+2)])
+       tmp = reshape(mg%buf(p_rank)%recv(i+1:i+dsize), [DTIMES(nc)])
        mg%buf(p_rank)%i_recv = mg%buf(p_rank)%i_recv + dsize
     end if
 
-    if (.not. add) then
-       mg%boxes(id)%cc(DTIMES(:), iv_to) = 0.0_dp
+    if (add) then
+       mg%boxes(id)%cc(DTIMES(1:nc), iv_to) = &
+            mg%boxes(id)%cc(DTIMES(1:nc), iv_to) + tmp
+    else
+       mg%boxes(id)%cc(DTIMES(1:nc), iv_to) = tmp
     end if
 
-#if NDIM == 2
-    do j = 1, hnc
-       do i = 1, hnc
-          f0  = 0.5_dp * tmp(i, j)
-          flx = 0.25_dp * tmp(i-1, j)
-          fhx = 0.25_dp * tmp(i+1, j)
-          fly = 0.25_dp * tmp(i, j-1)
-          fhy = 0.25_dp * tmp(i, j+1)
-
-          mg%boxes(id)%cc(2*i-1, 2*j-1, iv_to) = f0 + flx + fly + &
-               mg%boxes(id)%cc(2*i-1, 2*j-1, iv_to)
-          mg%boxes(id)%cc(2*i  , 2*j-1, iv_to) = f0 + fhx + fly + &
-               mg%boxes(id)%cc(2*i  , 2*j-1, iv_to)
-          mg%boxes(id)%cc(2*i-1, 2*j,   iv_to) = f0 + flx + fhy + &
-               mg%boxes(id)%cc(2*i-1, 2*j,   iv_to)
-          mg%boxes(id)%cc(2*i  , 2*j,   iv_to) = f0 + fhx + fhy + &
-               mg%boxes(id)%cc(2*i  , 2*j,   iv_to)
-       end do
-    end do
-#elif NDIM == 3
-    do k = 1, hnc
-       do j = 1, hnc
-          do i = 1, hnc
-             f0  = 0.25_dp * tmp(i, j, k)
-             flx = 0.25_dp * tmp(i-1, j, k)
-             fhx = 0.25_dp * tmp(i+1, j, k)
-             fly = 0.25_dp * tmp(i, j-1, k)
-             fhy = 0.25_dp * tmp(i, j+1, k)
-             flz = 0.25_dp * tmp(i, j, k-1)
-             fhz = 0.25_dp * tmp(i, j, k+1)
-
-             mg%boxes(id)%cc(2*i-1, 2*j-1, 2*k-1, iv_to) = &
-                  mg%boxes(id)%cc(2*i-1, 2*j-1, 2*k-1, iv_to) + &
-                  f0 + flx + fly + flz
-             mg%boxes(id)%cc(2*i, 2*j-1, 2*k-1, iv_to)   = &
-                  mg%boxes(id)%cc(2*i, 2*j-1, 2*k-1, iv_to) + &
-                  f0 + fhx + fly + flz
-             mg%boxes(id)%cc(2*i-1, 2*j, 2*k-1, iv_to)   = &
-                  mg%boxes(id)%cc(2*i-1, 2*j, 2*k-1, iv_to) + &
-                  f0 + flx + fhy + flz
-             mg%boxes(id)%cc(2*i, 2*j, 2*k-1, iv_to)      = &
-                  mg%boxes(id)%cc(2*i, 2*j, 2*k-1, iv_to) + &
-                  f0 + fhx + fhy + flz
-
-             mg%boxes(id)%cc(2*i-1, 2*j-1, 2*k, iv_to) = &
-                  mg%boxes(id)%cc(2*i-1, 2*j-1, 2*k, iv_to) + &
-                  f0 + flx + fly + fhz
-             mg%boxes(id)%cc(2*i, 2*j-1, 2*k, iv_to)   = &
-                  mg%boxes(id)%cc(2*i, 2*j-1, 2*k, iv_to) + &
-                  f0 + fhx + fly + fhz
-             mg%boxes(id)%cc(2*i-1, 2*j, 2*k, iv_to)   = &
-                  mg%boxes(id)%cc(2*i-1, 2*j, 2*k, iv_to) + &
-                  f0 + flx + fhy + fhz
-             mg%boxes(id)%cc(2*i, 2*j, 2*k, iv_to)      = &
-                  mg%boxes(id)%cc(2*i, 2*j, 2*k, iv_to) + &
-                  f0 + fhx + fhy + fhz
-          end do
-       end do
-    end do
-#endif
   end subroutine prolong_onto
+
+  !> Prolong from a parent to a child with index offset dix
+  subroutine prolong_sparse(mg, p_id, dix, nc, iv, fine)
+    type(mg_t), intent(inout) :: mg
+    integer, intent(in)       :: p_id             !< Id of parent
+    integer, intent(in)       :: dix(NDIM)        !< Offset of child in parent grid
+    integer, intent(in)       :: nc               !< Child grid size
+    integer, intent(in)       :: iv               !< Prolong from this variable
+    real(dp), intent(out)     :: fine(DTIMES(nc)) !< Prolonged values
+
+    integer  :: IJK, hnc
+#if NDIM == 2
+    integer  :: ic, jc
+    real(dp) :: f0, flx, fhx, fly, fhy
+#elif NDIM == 3
+    integer  :: ic, jc, kc
+    real(dp) :: f0, flx, fhx, fly, fhy, flz, fhz
+#endif
+
+    hnc = nc/2
+
+    associate (crs => mg%boxes(p_id)%cc)
+#if NDIM == 2
+      do j = 1, hnc
+         jc = j + dix(2)
+         do i = 1, hnc
+            ic = i + dix(1)
+
+            f0  = 0.5_dp * crs(ic, jc, iv)
+            flx = 0.25_dp * crs(ic-1, jc, iv)
+            fhx = 0.25_dp * crs(ic+1, jc, iv)
+            fly = 0.25_dp * crs(ic, jc-1, iv)
+            fhy = 0.25_dp * crs(ic, jc+1, iv)
+
+            fine(2*i-1, 2*j-1) = f0 + flx + fly
+            fine(2*i  , 2*j-1) = f0 + fhx + fly
+            fine(2*i-1, 2*j)   = f0 + flx + fhy
+            fine(2*i  , 2*j)   = f0 + fhx + fhy
+         end do
+      end do
+#elif NDIM == 3
+      do k = 1, hnc
+         kc = k + dix(3)
+         do j = 1, hnc
+            jc = j + dix(2)
+            do i = 1, hnc
+               ic = i + dix(1)
+
+               f0  = 0.25_dp * crs(ic, jc, kc, iv)
+               flx = 0.25_dp * crs(ic-1, jc, kc, iv)
+               fhx = 0.25_dp * crs(ic+1, jc, kc, iv)
+               fly = 0.25_dp * crs(ic, jc-1, kc, iv)
+               fhy = 0.25_dp * crs(ic, jc+1, kc, iv)
+               flz = 0.25_dp * crs(ic, jc, kc-1, iv)
+               fhz = 0.25_dp * crs(ic, jc, kc+1, iv)
+
+               fine(2*i-1, 2*j-1, 2*k-1) = f0 + flx + fly + flz
+               fine(2*i, 2*j-1, 2*k-1)   = f0 + fhx + fly + flz
+               fine(2*i-1, 2*j, 2*k-1)   = f0 + flx + fhy + flz
+               fine(2*i, 2*j, 2*k-1)     = f0 + fhx + fhy + flz
+               fine(2*i-1, 2*j-1, 2*k)   = f0 + flx + fly + fhz
+               fine(2*i, 2*j-1, 2*k)     = f0 + fhx + fly + fhz
+               fine(2*i-1, 2*j, 2*k)     = f0 + flx + fhy + fhz
+               fine(2*i, 2*j, 2*k)       = f0 + fhx + fhy + fhz
+            end do
+         end do
+      end do
+#endif
+    end associate
+  end subroutine prolong_sparse
 
 end module m_prolong
