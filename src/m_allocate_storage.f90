@@ -48,9 +48,9 @@ contains
   !> Allocate communication buffers and local boxes for a tree that has already
   !> been created
   subroutine mg_allocate_storage(mg)
-    use m_ghost_cells, only: ghost_cell_buffer_size
-    use m_restrict, only: restrict_buffer_size
-    use m_prolong, only: prolong_buffer_size
+    use m_ghost_cells, only: mg_ghost_cell_buffer_size
+    use m_restrict, only: mg_restrict_buffer_size
+    use m_prolong, only: mg_prolong_buffer_size
     type(mg_t), intent(inout) :: mg
     integer                   :: i, id, lvl, nc
     integer                   :: n_send(0:mg%n_cpu-1, 3)
@@ -78,11 +78,11 @@ contains
 
     allocate(mg%buf(0:mg%n_cpu-1))
 
-    call ghost_cell_buffer_size(mg, n_send(:, 1), &
+    call mg_ghost_cell_buffer_size(mg, n_send(:, 1), &
          n_recv(:, 1), dsize(1))
-    call restrict_buffer_size(mg, n_send(:, 2), &
+    call mg_restrict_buffer_size(mg, n_send(:, 2), &
          n_recv(:, 2), dsize(2))
-    call prolong_buffer_size(mg, n_send(:, 3), &
+    call mg_prolong_buffer_size(mg, n_send(:, 3), &
          n_recv(:, 3), dsize(3))
 
     do i = 0, mg%n_cpu-1

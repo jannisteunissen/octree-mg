@@ -6,14 +6,14 @@ module m_prolong
   private
 
   ! Public methods
-  public :: prolong
-  public :: prolong_buffer_size
-  public :: prolong_sparse
+  public :: mg_prolong
+  public :: mg_prolong_buffer_size
+  public :: mg_prolong_sparse
 
 contains
 
   !> Specify minimum buffer size (per process) for communication
-  subroutine prolong_buffer_size(mg, n_send, n_recv, dsize)
+  subroutine mg_prolong_buffer_size(mg, n_send, n_recv, dsize)
     type(mg_t), intent(inout) :: mg
     integer, intent(out)      :: n_send(0:mg%n_cpu-1)
     integer, intent(out)      :: n_recv(0:mg%n_cpu-1)
@@ -45,10 +45,10 @@ contains
     dsize = (mg%box_size)**NDIM
     n_send = maxval(mg%comm_prolong%n_send, dim=2)
     n_recv = maxval(mg%comm_prolong%n_recv, dim=2)
-  end subroutine prolong_buffer_size
+  end subroutine mg_prolong_buffer_size
 
   !> Prolong variable iv from lvl to variable iv_to at lvl+1
-  subroutine prolong(mg, lvl, iv, iv_to, method, add)
+  subroutine mg_prolong(mg, lvl, iv, iv_to, method, add)
     use m_communication
     type(mg_t), intent(inout) :: mg
     integer, intent(in)       :: lvl   !< Level to prolong from
@@ -82,7 +82,7 @@ contains
        id = mg%lvls(lvl+1)%my_ids(i)
        call prolong_onto(mg, id, nc, iv, iv_to, add, method)
     end do
-  end subroutine prolong
+  end subroutine mg_prolong
 
   !> In case the fine grid is on a different CPU, perform the prolongation and
   !> store the fine-grid values in the send buffer.
@@ -154,7 +154,7 @@ contains
   end subroutine prolong_onto
 
   !> Prolong from a parent to a child with index offset dix
-  subroutine prolong_sparse(mg, p_id, dix, nc, iv, fine)
+  subroutine mg_prolong_sparse(mg, p_id, dix, nc, iv, fine)
     type(mg_t), intent(inout) :: mg
     integer, intent(in)       :: p_id             !< Id of parent
     integer, intent(in)       :: dix(NDIM)        !< Offset of child in parent grid
@@ -221,6 +221,6 @@ contains
       end do
 #endif
     end associate
-  end subroutine prolong_sparse
+  end subroutine mg_prolong_sparse
 
 end module m_prolong

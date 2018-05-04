@@ -35,6 +35,9 @@ module m_data_structures
   !> Index of residual
   integer, parameter :: mg_ires = 4
 
+  !> Index of the variable coefficient (at cell centers)
+  integer, parameter :: mg_iveps = 5
+
   !> Minimum allowed grid level
   integer, parameter :: lvl_lo_bnd = -20
   !> Maximum allowed grid level
@@ -257,7 +260,7 @@ module m_data_structures
 
      !> To store pre-defined boundary conditions
      type(bc_t)                          :: bc(num_neighbors)
-     !> To set user-defined boundary conditions
+     !> To set user-defined boundary conditions (overrides bc(:))
      procedure(subr_bc), pointer, nopass :: boundary_cond  => null()
      !> To set a user-defined refinement boundary method
      procedure(subr_rb), pointer, nopass :: refinement_bnd => null()
@@ -302,21 +305,23 @@ module m_data_structures
 
   interface
      !> To fill ghost cells near physical boundaries
-     subroutine subr_bc(mg, id, nc, nb, bc_type)
+     subroutine subr_bc(mg, id, nc, iv, nb, bc_type)
        import
        type(mg_t), intent(inout) :: mg
        integer, intent(in)       :: id
        integer, intent(in)       :: nc
+       integer, intent(in)       :: iv      !< Index of variable
        integer, intent(in)       :: nb      !< Direction
        integer, intent(out)      :: bc_type !< Type of b.c.
      end subroutine subr_bc
 
      !> To fill ghost cells near refinement boundaries
-     subroutine subr_rb(mg, id, nc, nb, cgc)
+     subroutine subr_rb(mg, id, nc, iv, nb, cgc)
        import
        type(mg_t), intent(inout) :: mg
        integer, intent(in)       :: id
        integer, intent(in)       :: nc
+       integer, intent(in)       :: iv !< Index of variable
        integer, intent(in)       :: nb !< Direction
        !> Coarse data
 #if NDIM == 2

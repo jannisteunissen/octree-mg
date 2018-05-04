@@ -28,7 +28,7 @@ contains
     type(mg_t), intent(inout) :: mg
 
     ! Set default prolongation method (routines below can override this)
-    mg%box_prolong => prolong_sparse
+    mg%box_prolong => mg_prolong_sparse
 
     select case (mg%operator_type)
     case (mg_laplacian)
@@ -119,7 +119,7 @@ contains
           call correct_children(mg, lvl-1)
 
           ! Update ghost cells
-          call fill_ghost_cells_lvl(mg, lvl)
+          call mg_fill_ghost_cells_lvl(mg, lvl, mg_iphi)
        end if
 
        ! Perform V-cycle, possibly set residual on last iteration
@@ -194,7 +194,7 @@ contains
        call correct_children(mg, lvl-1)
 
        ! Have to fill ghost cells after correction
-       call fill_ghost_cells_lvl(mg, lvl)
+       call mg_fill_ghost_cells_lvl(mg, lvl, mg_iphi)
        call timer_end(mg%timers(timer_correct))
 
        ! Upwards relaxation
@@ -330,10 +330,10 @@ contains
     end do
 
     ! Restrict phi and the residual
-    call restrict(mg, mg_iphi, lvl)
-    call restrict(mg, mg_ires, lvl)
+    call mg_restrict_lvl(mg, mg_iphi, lvl)
+    call mg_restrict_lvl(mg, mg_ires, lvl)
 
-    call fill_ghost_cells_lvl(mg, lvl-1)
+    call mg_fill_ghost_cells_lvl(mg, lvl-1, mg_iphi)
 
     ! Set rhs_c = laplacian(phi_c) + restrict(res) where it is refined, and
     ! store current coarse phi in old.
@@ -369,7 +369,7 @@ contains
             mg%boxes(id)%cc(DTIMES(:), mg_iold)
     end do
 
-    call prolong(mg, lvl, mg_ires, mg_iphi, mg%box_prolong, add=.true.)
+    call mg_prolong(mg, lvl, mg_ires, mg_iphi, mg%box_prolong, add=.true.)
   end subroutine correct_children
 
   subroutine smooth_boxes(mg, lvl, n_cycle)
@@ -389,7 +389,7 @@ contains
        call timer_end(mg%timers(timer_smoother))
 
        call timer_start(mg%timers(timer_smoother_gc))
-       call fill_ghost_cells_lvl(mg, lvl)
+       call mg_fill_ghost_cells_lvl(mg, lvl, mg_iphi)
        call timer_end(mg%timers(timer_smoother_gc))
     end do
   end subroutine smooth_boxes

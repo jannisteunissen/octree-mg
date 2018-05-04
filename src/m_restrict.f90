@@ -6,13 +6,14 @@ module m_restrict
   private
 
   ! Public methods
-  public :: restrict
-  public :: restrict_buffer_size
+  public :: mg_restrict
+  public :: mg_restrict_lvl
+  public :: mg_restrict_buffer_size
 
 contains
 
   !> Specify minimum buffer size (per process) for communication
-  subroutine restrict_buffer_size(mg, n_send, n_recv, dsize)
+  subroutine mg_restrict_buffer_size(mg, n_send, n_recv, dsize)
     type(mg_t), intent(inout) :: mg
     integer, intent(out)      :: n_send(0:mg%n_cpu-1)
     integer, intent(out)      :: n_recv(0:mg%n_cpu-1)
@@ -65,9 +66,21 @@ contains
     dsize  = (mg%box_size/2)**NDIM
     n_send = maxval(n_out, dim=2)
     n_recv = maxval(n_in, dim=2)
-  end subroutine restrict_buffer_size
+  end subroutine mg_restrict_buffer_size
 
-  subroutine restrict(mg, iv, lvl)
+  !> Restrict all levels
+  subroutine mg_restrict(mg, iv)
+    type(mg_t), intent(inout) :: mg
+    integer, intent(in)       :: iv
+    integer                   :: lvl
+
+    do lvl = mg%highest_lvl, mg%lowest_lvl+1, -1
+       call mg_restrict_lvl(mg, iv, lvl)
+    end do
+  end subroutine mg_restrict
+
+  !> Restrict from lvl to lvl-1
+  subroutine mg_restrict_lvl(mg, iv, lvl)
     use m_communication
     type(mg_t), intent(inout) :: mg
     integer, intent(in)       :: iv
@@ -98,7 +111,7 @@ contains
        id = mg%lvls(lvl-1)%my_parents(i)
        call restrict_onto(mg, id, nc, iv)
     end do
-  end subroutine restrict
+  end subroutine mg_restrict_lvl
 
   subroutine restrict_set_buffer(mg, id, iv)
     type(mg_t), intent(inout) :: mg

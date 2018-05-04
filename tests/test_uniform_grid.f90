@@ -37,8 +37,8 @@ program test_one_level
   i_sol = mg_num_vars + 2
 
   mg%geometry_type = mg_cartesian
-  mg%operator_type = mg_laplacian
-  mg%smoother_type = smoother_gsrb
+  mg%operator_type = mg_vlaplacian
+  mg%smoother_type = smoother_gs
 
   call mg_set_methods(mg)
 
@@ -63,7 +63,7 @@ program test_one_level
   call set_solution(mg)
 
   do lvl = mg%lowest_lvl, mg%highest_lvl
-     call fill_ghost_cells_lvl(mg, lvl)
+     call mg_fill_ghost_cells_lvl(mg, lvl, mg_iphi)
   end do
 
   call compute_rhs_and_reset(mg)

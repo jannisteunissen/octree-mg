@@ -9,6 +9,15 @@ module mod_multigrid_coupling
   !> Data structure containing the multigrid tree.
   type(mg_t) :: mg
 
+  !> If defined, this routine is called after a new multigrid tree is
+  !> constructed.
+  procedure(after_new_tree), pointer :: mg_after_new_tree => null()
+
+  interface
+     subroutine after_new_tree()
+     end subroutine after_new_tree
+  end interface
+
 contains
 
   !> Setup multigrid for usage
@@ -28,6 +37,7 @@ contains
          error stop "Multigrid requires all block_nx to be equal"
 
     call mg_comm_init(mg)
+    call mg_set_methods(mg)
     call mg_tree_from_amrvac(mg)
   end subroutine mg_setup_multigrid
 
@@ -106,6 +116,38 @@ contains
 }
     end do
   end subroutine mg_copy_to_tree
+
+  !> Copy a variable to the multigrid tree with a single layer of ghost cells
+  subroutine mg_copy_to_tree_gc(iw_from, iw_to)
+    use mod_global_parameters
+    use mod_forest
+    integer, intent(in)      :: iw_from !< Variable to use as right-hand side
+    integer, intent(in)      :: iw_to   !< Copy to this variable
+    integer                  :: iigrid, igrid, id
+    integer                  :: nc, lvl
+    type(tree_node), pointer :: pnode
+
+    if (.not. mg%is_allocated) &
+         error stop "mg_copy_to_tree: tree not allocated yet"
+
+    do iigrid = 1, igridstail
+       igrid =  igrids(iigrid);
+       pnode => igrid_to_node(igrid, mype)%node
+       id    =  pnode%id
+       lvl   =  mg%boxes(id)%lvl
+       nc    =  mg%box_size_lvl(lvl)
+
+{^IFTWOD
+       mg%boxes(id)%cc(0:nc+1, 0:nc+1, iw_to) = &
+            pw(igrid)%w(ixMlo1-1:ixMhi1+1, ixMlo2-1:ixMhi2+1, iw_from)
+}
+{^IFTHREED
+       mg%boxes(id)%cc(0:nc+1, 0:nc+1, 0:nc+1, iw_to) = &
+            pw(igrid)%w(ixMlo1-1:ixMhi1+1, ixMlo2-1:ixMhi2+1, &
+            ixMlo3-1:ixMhi3+1, iw_from)
+}
+    end do
+  end subroutine mg_copy_to_tree_gc
 
   !> Copy a variable from the multigrid tree
   subroutine mg_copy_from_tree(iw_from, iw_to)
@@ -248,6 +290,10 @@ contains
 
     ! Allocate storage for boxes owned by this process
     call mg_allocate_storage(mg)
+
+    if (associated(mg_after_new_tree)) then
+       call mg_after_new_tree()
+    end if
 
   end subroutine mg_tree_from_amrvac
 

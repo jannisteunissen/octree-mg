@@ -7,9 +7,6 @@ module m_vlaplacian
   implicit none
   private
 
-  !> The index of the variable coefficient (at cell centers)
-  integer, protected :: i_eps
-
   public :: vlaplacian_set_methods
 
 contains
@@ -17,9 +14,11 @@ contains
   subroutine vlaplacian_set_methods(mg)
     type(mg_t), intent(inout) :: mg
 
-    if (mg%n_extra_vars < 1) &
-         error stop "vlaplacian_set_methods: requires mg%n_extra_vars >= 1"
-    i_eps = mg_num_vars + 1
+    if (mg%n_extra_vars == 0 .and. mg%is_allocated) then
+       error stop "vlaplacian_set_methods: mg%n_extra_vars == 0"
+    else
+       mg%n_extra_vars = max(1, mg%n_extra_vars)
+    end if
 
     select case (mg%geometry_type)
     case (mg_cartesian)
@@ -67,7 +66,8 @@ contains
 
     ! The parity of redblack_cntr determines which cells we use. If
     ! redblack_cntr is even, we use the even cells and vice versa.
-    associate (cc => mg%boxes(id)%cc, n => mg_iphi)
+    associate (cc => mg%boxes(id)%cc, n => mg_iphi, &
+         i_eps => mg_iveps)
 #if NDIM == 2
       do j = 1, nc
          if (mg%smoother_type == smoother_gsrb) &
@@ -122,7 +122,8 @@ contains
     idr2(1:2*NDIM:2) = 1/mg%dr(:, mg%boxes(id)%lvl)**2
     idr2(2:2*NDIM:2) = idr2(1:2*NDIM:2)
 
-    associate (cc => mg%boxes(id)%cc, n => mg_iphi)
+    associate (cc => mg%boxes(id)%cc, n => mg_iphi, &
+         i_eps => mg_iveps)
 #if NDIM == 2
       do j = 1, nc
          do i = 1, nc
@@ -183,7 +184,8 @@ contains
 
     hnc = nc/2
 
-    associate (crs => mg%boxes(p_id)%cc)
+    associate (crs => mg%boxes(p_id)%cc, &
+         i_eps => mg_iveps)
 #if NDIM == 2
       do j = 1, hnc
          jc = j + dix(2)
