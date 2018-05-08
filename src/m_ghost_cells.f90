@@ -75,10 +75,10 @@ contains
   subroutine mg_fill_ghost_cells_lvl(mg, lvl, iv)
     use m_communication
     use mpi
-    type(mg_t)          :: mg
-    integer, intent(in) :: lvl
-    integer, intent(in) :: iv !< Index of variable
-    integer             :: i, id, dsize, nc
+    type(mg_t)                   :: mg
+    integer, intent(in)          :: lvl
+    integer, intent(in)          :: iv !< Index of variable
+    integer                      :: i, id, dsize, nc
 
     if (lvl < mg%lowest_lvl) &
          error stop "fill_ghost_cells_lvl: lvl < lowest_lvl"
@@ -173,12 +173,12 @@ contains
   end subroutine buffer_refinement_boundaries
 
   subroutine set_ghost_cells(mg, id, nc, iv, dry_run)
-    type(mg_t), intent(inout) :: mg
-    integer, intent(in)       :: id
-    integer, intent(in)       :: nc
-    integer, intent(in)       :: iv
-    logical, intent(in)       :: dry_run
-    integer                   :: nb, nb_id, nb_rank, bc_type
+    type(mg_t), intent(inout)    :: mg
+    integer, intent(in)          :: id
+    integer, intent(in)          :: nc
+    integer, intent(in)          :: iv
+    logical, intent(in)          :: dry_run
+    integer                      :: nb, nb_id, nb_rank, bc_type
 
     do nb = 1, num_neighbors
        nb_id = mg%boxes(id)%neighbors(nb)
@@ -199,12 +199,12 @@ contains
           call fill_refinement_bnd(mg, id, nb, nc, iv, dry_run)
        else if (.not. dry_run) then
           ! Physical boundary
-          if (associated(mg%boundary_cond)) then
-             call mg%boundary_cond(mg, id, nc, iv, nb, bc_type)
+          if (associated(mg%bc(nb, iv)%boundary_cond)) then
+             call mg%bc(nb, iv)%boundary_cond(mg, id, nc, iv, nb, bc_type)
           else
-             bc_type = mg%bc(nb)%bc_type
+             bc_type = mg%bc(nb, iv)%bc_type
              call box_set_gc_scalar(mg%boxes(id), nb, nc, iv, &
-                     mg%bc(nb)%bc_value)
+                     mg%bc(nb, iv)%bc_value)
           end if
           call bc_to_gc(mg, id, nc, iv, nb, bc_type)
        end if
@@ -239,8 +239,8 @@ contains
     end if
 
     if (.not. dry_run) then
-       if (associated(mg%refinement_bnd)) then
-          call mg%refinement_bnd(mg, id, nc, iv, nb, cgc)
+       if (associated(mg%bc(nb, iv)%refinement_bnd)) then
+          call mg%bc(nb, iv)%refinement_bnd(mg, id, nc, iv, nb, cgc)
        else
           call sides_rb(mg, id, nc, iv, nb, cgc)
        end if

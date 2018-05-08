@@ -26,6 +26,8 @@ module m_data_structures
 
   !> Number of predefined multigrid variables
   integer, parameter :: mg_num_vars = 4
+  !> Maximum number of variables
+  integer, parameter :: mg_max_num_vars = 10
   !> Index of solution
   integer, parameter :: mg_iphi = 1
   !> Index of right-hand side
@@ -207,6 +209,10 @@ module m_data_structures
   type bc_t
      integer  :: bc_type  = bc_dirichlet !< Type of boundary condition
      real(dp) :: bc_value = 0.0_dp       !< Value (for e.g. Dirichlet or Neumann)
+     !> To set user-defined boundary conditions (overrides bc(:))
+     procedure(subr_bc), pointer, nopass :: boundary_cond  => null()
+     !> To set a user-defined refinement boundary method
+     procedure(subr_rb), pointer, nopass :: refinement_bnd => null()
   end type bc_t
 
   type timer_t
@@ -258,12 +264,8 @@ module m_data_structures
      !> Communication info for ghost cell filling
      type(comm_t)             :: comm_ghostcell
 
-     !> To store pre-defined boundary conditions
-     type(bc_t)                          :: bc(num_neighbors)
-     !> To set user-defined boundary conditions (overrides bc(:))
-     procedure(subr_bc), pointer, nopass :: boundary_cond  => null()
-     !> To set a user-defined refinement boundary method
-     procedure(subr_rb), pointer, nopass :: refinement_bnd => null()
+     !> To store pre-defined boundary conditions per direction per variable
+     type(bc_t) :: bc(num_neighbors, mg_max_num_vars)
 
      !> Type of operator
      integer :: operator_type = mg_laplacian

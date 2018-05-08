@@ -20,6 +20,11 @@ contains
        mg%n_extra_vars = max(1, mg%n_extra_vars)
     end if
 
+    ! Use Neumann zero boundary conditions for the variable coefficient, since
+    ! it is needed in ghost cells.
+    mg%bc(:, mg_iveps)%bc_type = bc_neumann
+    mg%bc(:, mg_iveps)%bc_value = 0.0_dp
+
     select case (mg%geometry_type)
     case (mg_cartesian)
        mg%box_op => box_vlpl

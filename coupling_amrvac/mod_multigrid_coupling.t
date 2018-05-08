@@ -41,7 +41,7 @@ contains
     call mg_tree_from_amrvac(mg)
   end subroutine mg_setup_multigrid
 
-  !> Set multigrid boundary conditions according to variable iw
+  !> Set multigrid boundary conditions for the solution according to variable iw
   subroutine mg_copy_boundary_conditions(mg, iw)
     use mod_global_parameters
     type(mg_t), intent(inout) :: mg
@@ -52,14 +52,14 @@ contains
     do n = 1, num_neighbors
        select case (typeboundary(iw, n))
        case ('symm')
-          mg%bc(n)%bc_type = bc_neumann
-          mg%bc(n)%bc_value = 0.0_dp
+          mg%bc(n, mg_iphi)%bc_type = bc_neumann
+          mg%bc(n, mg_iphi)%bc_value = 0.0_dp
        case ('asymm')
-          mg%bc(n)%bc_type = bc_dirichlet
-          mg%bc(n)%bc_value = 0.0_dp
+          mg%bc(n, mg_iphi)%bc_type = bc_dirichlet
+          mg%bc(n, mg_iphi)%bc_value = 0.0_dp
        case ('cont')
-          mg%bc(n)%bc_type = bc_continuous
-          mg%bc(n)%bc_value = 0.0_dp ! Not needed
+          mg%bc(n, mg_iphi)%bc_type = bc_continuous
+          mg%bc(n, mg_iphi)%bc_value = 0.0_dp ! Not needed
        case ('periodic')
           ! Nothing to do here
        case default
