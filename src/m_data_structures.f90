@@ -13,6 +13,9 @@ module m_data_structures
   !> Indicates a variable-coefficient Laplacian
   integer, parameter :: mg_vlaplacian = 2
 
+  !> Indicates a constant-coefficient Helmholtz equation
+  integer, parameter :: mg_helmholtz = 3
+
   integer, parameter :: mg_cartesian   = 1 !< Cartesian coordinate system
   integer, parameter :: mg_cylindrical = 2 !< Cylindrical coordinate system
   integer, parameter :: mg_spherical   = 3 !< Spherical coordinate system

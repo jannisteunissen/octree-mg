@@ -69,8 +69,8 @@ program test_one_level
   call compute_rhs_and_reset(mg)
 
   do n = 1, num_neighbors
-     mg%bc(n)%bc_type = bc_dirichlet
-     mg%bc(n)%bc_value = 0.0_dp
+     mg%bc(n, mg_iphi)%bc_type = bc_dirichlet
+     mg%bc(n, mg_iphi)%bc_value = 0.0_dp
   end do
 
   call print_error(mg)

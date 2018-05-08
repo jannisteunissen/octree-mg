@@ -9,6 +9,7 @@ module m_octree_mg
   use m_communication
   use m_prolong
   use m_multigrid
+  use m_helmholtz
 
   implicit none
   public

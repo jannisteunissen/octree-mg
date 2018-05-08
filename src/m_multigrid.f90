@@ -25,6 +25,7 @@ contains
   subroutine mg_set_methods(mg)
     use m_laplacian
     use m_vlaplacian
+    use m_helmholtz
     type(mg_t), intent(inout) :: mg
 
     ! Set default prolongation method (routines below can override this)
@@ -35,6 +36,8 @@ contains
        call laplacian_set_methods(mg)
     case (mg_vlaplacian)
        call vlaplacian_set_methods(mg)
+    case (mg_helmholtz)
+       call helmholtz_set_methods(mg)
     case default
        error stop "mg_set_methods: unknown operator"
     end select
