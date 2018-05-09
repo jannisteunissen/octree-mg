@@ -19,6 +19,7 @@ module m_multigrid
   public :: mg_fas_vcycle
   public :: mg_fas_fmg
   public :: mg_set_methods
+  public :: mg_apply_op
 
 contains
 
@@ -408,5 +409,25 @@ contains
          mg%boxes(id)%cc(DTIMES(1:nc), mg_irhs) &
          - mg%boxes(id)%cc(DTIMES(1:nc), mg_ires)
   end subroutine residual_box
+
+  !> Apply operator to the tree and store in variable i_out
+  subroutine mg_apply_op(mg, i_out, op)
+    type(mg_t), intent(inout)      :: mg
+    integer, intent(in)            :: i_out
+    procedure(mg_box_op), optional :: op
+    integer                        :: lvl, i, id, nc
+
+    do lvl = mg%lowest_lvl, mg%highest_lvl
+       nc = mg%box_size_lvl(lvl)
+       do i = 1, size(mg%lvls(lvl)%my_ids)
+          id = mg%lvls(lvl)%my_ids(i)
+          if (present(op)) then
+             call op(mg, id, nc, i_out)
+          else
+             call mg%box_op(mg, id, nc, i_out)
+          end if
+       end do
+    end do
+  end subroutine mg_apply_op
 
 end module m_multigrid
