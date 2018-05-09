@@ -6,7 +6,7 @@ endif
 SRCS := m_data_structures.f90 m_build_tree.f90 m_load_balance.f90	\
 m_ghost_cells.f90 m_allocate_storage.f90 m_mrgrnk.f90 m_restrict.f90	\
 m_communication.f90 m_prolong.f90 m_multigrid.f90 m_octree_mg.f90	\
-m_laplacian.f90 m_vlaplacian.f90 m_helmholtz.f90
+m_laplacian.f90 m_vlaplacian.f90 m_helmholtz.f90 m_vhelmholtz.f90
 
 OBJS := $(SRCS:%.f90=%.o)
 LIB := libomg.a
@@ -43,6 +43,7 @@ m_multigrid.o: m_helmholtz.mod
 m_multigrid.o: m_laplacian.mod
 m_multigrid.o: m_prolong.mod
 m_multigrid.o: m_restrict.mod
+m_multigrid.o: m_vhelmholtz.mod
 m_multigrid.o: m_vlaplacian.mod
 m_octree_mg.o: m_allocate_storage.mod
 m_octree_mg.o: m_build_tree.mod
@@ -54,8 +55,10 @@ m_octree_mg.o: m_load_balance.mod
 m_octree_mg.o: m_multigrid.mod
 m_octree_mg.o: m_prolong.mod
 m_octree_mg.o: m_restrict.mod
+m_octree_mg.o: m_vhelmholtz.mod
 m_prolong.o: m_communication.mod
 m_prolong.o: m_data_structures.mod
 m_restrict.o: m_communication.mod
 m_restrict.o: m_data_structures.mod
+m_vhelmholtz.o: m_data_structures.mod
 m_vlaplacian.o: m_data_structures.mod

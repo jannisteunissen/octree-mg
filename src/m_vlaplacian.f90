@@ -54,9 +54,6 @@ contains
     integer                   :: IJK, i0, di
     real(dp)                  :: idr2(2*NDIM), u(2*NDIM)
     real(dp)                  :: a0, a(2*NDIM), c(2*NDIM)
-#if NDIM == 3
-    real(dp), parameter       :: sixth = 1/6.0_dp
-#endif
 
     ! Duplicate 1/dr^2 array to multiply neighbor values
     idr2(1:2*NDIM:2) = 1/mg%dr(:, mg%boxes(id)%lvl)**2

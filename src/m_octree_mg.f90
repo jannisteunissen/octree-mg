@@ -10,6 +10,7 @@ module m_octree_mg
   use m_prolong
   use m_multigrid
   use m_helmholtz
+  use m_vhelmholtz
 
   implicit none
   public

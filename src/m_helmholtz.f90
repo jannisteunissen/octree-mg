@@ -1,6 +1,6 @@
 #include "cpp_macros.h"
 !> Module which contains multigrid procedures for a Helmholtz operator of the
-!> form: div(phi) - lambda*phi = f
+!> form: laplacian(phi) - lambda*phi = f
 module m_helmholtz
   use m_data_structures
 
