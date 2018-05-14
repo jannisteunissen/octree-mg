@@ -82,9 +82,7 @@ contains
     timer_update_coarse = add_timer(mg, "mg update coarse")
   end subroutine mg_add_timers
 
-  !> Perform FAS-FMG cycle (full approximation scheme, full multigrid). Note
-  !> that this routine needs valid ghost cells (for mg_iphi) on input, and gives
-  !> back valid ghost cells on output
+  !> Perform FAS-FMG cycle (full approximation scheme, full multigrid).
   subroutine mg_fas_fmg(mg, have_guess, max_res)
     type(mg_t), intent(inout)       :: mg
     logical, intent(in)             :: have_guess !< If false, start from phi = 0
@@ -101,6 +99,9 @@ contains
           end do
        end do
     end if
+
+    ! Ensure ghost cells are filled correctly
+    call mg_fill_ghost_cells_lvl(mg, mg%highest_lvl, mg_iphi)
 
     do lvl = mg%highest_lvl,  mg%lowest_lvl+1, -1
        ! Set rhs on coarse grid and restrict phi
@@ -138,9 +139,7 @@ contains
     end do
   end subroutine mg_fas_fmg
 
-  !> Perform FAS V-cycle (full approximation scheme). Note that this routine
-  !> needs valid ghost cells (for mg_iphi) on input, and gives back valid ghost
-  !> cells on output
+  !> Perform FAS V-cycle (full approximation scheme).
   subroutine mg_fas_vcycle(mg, highest_lvl, max_res)
     use mpi
     type(mg_t), intent(inout)       :: mg
@@ -166,6 +165,9 @@ contains
     min_lvl = mg%lowest_lvl
     max_lvl = mg%highest_lvl
     if (present(highest_lvl)) max_lvl = highest_lvl
+
+    ! Ensure ghost cells are filled correctly
+    call mg_fill_ghost_cells_lvl(mg, max_lvl, mg_iphi)
 
     do lvl = max_lvl,  min_lvl+1, -1
        ! Downwards relaxation
