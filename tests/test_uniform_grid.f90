@@ -42,10 +42,6 @@ program test_one_level
 
   call mg_set_methods(mg)
 
-  ! if (mg%geometry_type == mg_cylindrical .and. NDIM == 3) then
-  !    periodic(2) = .true.
-  ! end if
-
   call mg_comm_init(mg)
   call mg_build_rectangle(mg, domain_size, box_size, dr, r_min, &
        periodic, n_finer)
