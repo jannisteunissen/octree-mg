@@ -53,13 +53,6 @@ contains
     else
        mg%n_smoother_substeps = 1
     end if
-
-    ! Ensure boundary conditions are correct for geometry
-    if (mg%geometry_type == mg_cylindrical) then
-       mg%bc(neighb_lowx, :)%bc_type = bc_neumann
-       mg%bc(neighb_lowx, :)%bc_value = 0.0_dp
-    end if
-
   end subroutine mg_set_methods
 
   subroutine check_methods(mg)

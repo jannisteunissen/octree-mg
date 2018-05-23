@@ -30,8 +30,15 @@ contains
     if (ndim /= mg_ndim) &
          error stop "Multigrid module was compiled for different ndim"
 
-    if (typeaxial /= "slab") &
-         error stop "Multigrid only supports slab geometry"
+    select case (typeaxial)
+    case ("slab")
+       if (ndim == 1) error stop "Multigrid only support 2D, 3D"
+    case ("cylindrical")
+       if (ndim == 3) error stop "Multigrid does not support cylindrical 3D"
+       mg%geometry_type = mg_cylindrical
+    case default
+       error stop "Multigrid does not support your geometry"
+    end select
 
     if (any([ block_nx^D ] /= block_nx1)) &
          error stop "Multigrid requires all block_nx to be equal"
