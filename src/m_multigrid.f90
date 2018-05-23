@@ -204,10 +204,10 @@ contains
     end do
 
     if (present(max_res)) then
-       max_res = 0.0_dp
+       init_res = 0.0_dp
        do lvl = min_lvl, max_lvl
           res = max_residual_lvl(mg, lvl)
-          max_res = max(res, max_res)
+          init_res = max(res, init_res)
        end do
        call mpi_allreduce(init_res, max_res, 1, &
             mpi_double, mpi_sum, mg%comm, ierr)

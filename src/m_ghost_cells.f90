@@ -74,7 +74,6 @@ contains
   !> Fill ghost cells at a grid level
   subroutine mg_fill_ghost_cells_lvl(mg, lvl, iv)
     use m_communication
-    use mpi
     type(mg_t)                   :: mg
     integer, intent(in)          :: lvl
     integer, intent(in)          :: iv !< Index of variable
@@ -269,7 +268,6 @@ contains
   end subroutine copy_from_nb
 
   subroutine buffer_for_nb(mg, box, nc, iv, nb_id, nb_rank, nb, dry_run)
-    use mpi
     type(mg_t), intent(inout)  :: mg
     type(box_t), intent(inout) :: box
     integer, intent(in)        :: nc
@@ -305,7 +303,6 @@ contains
   end subroutine buffer_for_nb
 
   subroutine buffer_for_fine_nb(mg, box, nc, iv, fine_id, fine_rank, nb, dry_run)
-    use mpi
     type(mg_t), intent(inout)  :: mg
     type(box_t), intent(inout) :: box
     integer, intent(in)        :: nc
@@ -342,7 +339,6 @@ contains
   end subroutine buffer_for_fine_nb
 
   subroutine fill_buffered_nb(mg, box, nb_rank, nb, nc, iv, dry_run)
-    use mpi
     type(mg_t), intent(inout)  :: mg
     type(box_t), intent(inout) :: box
     integer, intent(in)        :: nb_rank
