@@ -37,11 +37,15 @@ program test_one_level
   i_sol = mg_num_vars + 2
 
   mg%geometry_type = mg_cartesian
-  mg%operator_type = mg_vlaplacian
+  mg%operator_type = mg_laplacian
   mg%smoother_type = smoother_gs
 
-  call mg_set_methods(mg)
+  do n = 1, num_neighbors
+     mg%bc(n, mg_iphi)%bc_type = bc_dirichlet
+     mg%bc(n, mg_iphi)%bc_value = 0.0_dp
+  end do
 
+  call mg_set_methods(mg)
   call mg_comm_init(mg)
   call mg_build_rectangle(mg, domain_size, box_size, dr, r_min, &
        periodic, n_finer)
@@ -55,19 +59,8 @@ program test_one_level
   end if
 
   call mg_allocate_storage(mg)
-
   call set_solution(mg)
-
-  do lvl = mg%lowest_lvl, mg%highest_lvl
-     call mg_fill_ghost_cells_lvl(mg, lvl, mg_iphi)
-  end do
-
   call compute_rhs_and_reset(mg)
-
-  do n = 1, num_neighbors
-     mg%bc(n, mg_iphi)%bc_type = bc_dirichlet
-     mg%bc(n, mg_iphi)%bc_value = 0.0_dp
-  end do
 
   call print_error(mg)
 
@@ -99,20 +92,10 @@ contains
        do n = 1, size(mg%lvls(lvl)%my_ids)
           id = mg%lvls(lvl)%my_ids(n)
           do KJI_DO(0, nc+1)
-#if NDIM == 2
-             r = mg%boxes(id)%r_min + &
-                  [i-0.5_dp, j-0.5_dp] * mg%dr(:, lvl)
+             r = mg%boxes(id)%r_min + ([IJK] - 0.5_dp) * mg%dr(:, lvl)
              sol = product(sin(2 * pi * r))
-             mg%boxes(id)%cc(i, j, i_sol) = sol
-             mg%boxes(id)%cc(i, j, i_eps) = 1.0_dp
-#elif NDIM == 3
-
-             r = mg%boxes(id)%r_min + &
-                  [i-0.5_dp, j-0.5_dp, k-0.5_dp] * mg%dr(:, lvl)
-             sol = product(sin(2 * pi * r))
-             mg%boxes(id)%cc(i, j, k, i_sol) = sol
-             mg%boxes(id)%cc(i, j, k, i_eps) = max(1.0_dp, 1.0_dp + r(1))
-#endif
+             mg%boxes(id)%cc(IJK, i_sol) = sol
+             mg%boxes(id)%cc(IJK, i_eps) = max(1.0_dp, 1.0_dp + r(1))
           end do; CLOSE_DO
        end do
     end do
