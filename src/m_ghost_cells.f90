@@ -218,7 +218,11 @@ contains
     integer, intent(in)       :: iv
     integer, intent(in)       :: nb
     logical, intent(in)       :: dry_run
+#if NDIM == 2
     real(dp)                  :: gc(nc)
+#elif NDIM == 3
+    real(dp)                  :: gc(nc, nc)
+#endif
     integer                   :: p_id, p_nb_id, ix_offset(NDIM)
     integer                   :: i, dsize, p_nb_rank
 
@@ -230,7 +234,7 @@ contains
     if (p_nb_rank /= mg%my_rank) then
        i = mg%buf(p_nb_rank)%i_recv
        if (.not. dry_run) then
-          gc = mg%buf(p_nb_rank)%recv(i+1:i+dsize)
+          gc = reshape(mg%buf(p_nb_rank)%recv(i+1:i+dsize), shape(gc))
        end if
        mg%buf(p_nb_rank)%i_recv = mg%buf(p_nb_rank)%i_recv + dsize
     else if (.not. dry_run) then
@@ -432,17 +436,17 @@ contains
        tmp = box%cc(di(1):di(1)+hnc+1, nc, iv)
 #elif NDIM == 3
     case (neighb_lowx)
-       gc = box%cc(1, di(2):di(2)+hnc+1, di(3):di(3)+hnc+1, iv)
+       tmp = box%cc(1, di(2):di(2)+hnc+1, di(3):di(3)+hnc+1, iv)
     case (neighb_highx)
-       gc = box%cc(nc, di(2):di(2)+hnc+1, di(3):di(3)+hnc+1, iv)
+       tmp = box%cc(nc, di(2):di(2)+hnc+1, di(3):di(3)+hnc+1, iv)
     case (neighb_lowy)
-       gc = box%cc(di(1):di(1)+hnc+1, 1, di(3):di(3)+hnc+1, iv)
+       tmp = box%cc(di(1):di(1)+hnc+1, 1, di(3):di(3)+hnc+1, iv)
     case (neighb_highy)
-       gc = box%cc(di(1):di(1)+hnc+1, nc, di(3):di(3)+hnc+1, iv)
+       tmp = box%cc(di(1):di(1)+hnc+1, nc, di(3):di(3)+hnc+1, iv)
     case (neighb_lowz)
-       gc = box%cc(di(1):di(1)+hnc+1, di(2):di(2)+hnc+1, 1, iv)
+       tmp = box%cc(di(1):di(1)+hnc+1, di(2):di(2)+hnc+1, 1, iv)
     case (neighb_highz)
-       gc = box%cc(di(1):di(1)+hnc+1, di(2):di(2)+hnc+1, nc, iv)
+       tmp = box%cc(di(1):di(1)+hnc+1, di(2):di(2)+hnc+1, nc, iv)
 #endif
     end select
 
