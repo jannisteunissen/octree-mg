@@ -1,11 +1,12 @@
-PROGS := test_uniform_grid_2d test_uniform_grid_3d
+PROGS_2D := test_uniform_grid_2d test_performance_2d
+PROGS_3D := test_uniform_grid_3d test_performance_3d
 LIBS := omg
 
 include ../makerules.make
 
 .PHONY: all
 
-all: $(PROGS)
+all: $(PROGS_2D) $(PROGS_3D)
 
 clean:
 	$(RM) $(PROGS)
@@ -18,15 +19,15 @@ clean:
 	$(FC) -o $@ $^ $(FFLAGS) $(addprefix -I,$(INCDIRS)) \
 	$(addprefix -L,$(LIBDIRS)) $(addprefix -l,$(LIBS))
 
-test_uniform_grid_2d: LIBDIRS:=../lib_2d
-test_uniform_grid_2d: INCDIRS:=../lib_2d
-test_uniform_grid_2d: export NDIM:=2
-test_uniform_grid_2d: ../lib_2d/libomg.a
+$(PROGS_2D): LIBDIRS:=../lib_2d
+$(PROGS_2D): INCDIRS:=../lib_2d
+$(PROGS_2D): export NDIM:=2
+$(PROGS_2D): ../lib_2d/libomg.a
 
-test_uniform_grid_3d: LIBDIRS:=../lib_3d
-test_uniform_grid_3d: INCDIRS:=../lib_3d
-test_uniform_grid_3d: export NDIM:=3
-test_uniform_grid_3d: ../lib_3d/libomg.a
+$(PROGS_3D): LIBDIRS:=../lib_3d
+$(PROGS_3D): INCDIRS:=../lib_3d
+$(PROGS_3D): export NDIM:=3
+$(PROGS_3D): ../lib_3d/libomg.a
 
 
 
