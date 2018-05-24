@@ -57,11 +57,13 @@ program test_one_level
   t1 = mpi_wtime()
 
   if (mg%my_rank == 0) then
+     print *, "n_cpu            ", mg%n_cpu
      print *, "problem_size     ", domain_size
      print *, "n_iterations     ", n_its
      print *, "time/iteration   ", (t1-t0) / n_its
      print *, "total_time(s)    ", (t1-t0)
      print *, "unknowns/microsec", 1e-6_dp * n_its * product(domain_size) / (t1-t0)
+     print *, ""
   end if
   call timers_show(mg)
 
@@ -84,27 +86,5 @@ contains
        end do
     end do
   end subroutine set_rhs
-
-  subroutine print_error(mg)
-    type(mg_t), intent(inout) :: mg
-    integer                   :: n, nc, id, lvl, IJK, ierr
-    real(dp)                  :: err, max_err
-
-    err = 0.0_dp
-
-    do lvl = mg%highest_lvl, mg%highest_lvl
-       nc = mg%box_size_lvl(lvl)
-       do n = 1, size(mg%lvls(lvl)%my_ids)
-          id = mg%lvls(lvl)%my_ids(n)
-          do KJI_DO(1, nc)
-             err = max(err, abs(mg%boxes(id)%cc(IJK, mg_ires)))
-          end do; CLOSE_DO
-       end do
-    end do
-
-    call mpi_reduce(err, max_err, 1, MPI_DOUBLE, MPI_MAX, 0, &
-         mpi_comm_world, ierr)
-    if (mg%my_rank == 0) print *, "max residual", max_err
-  end subroutine print_error
 
 end program test_one_level

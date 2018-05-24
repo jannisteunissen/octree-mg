@@ -210,7 +210,7 @@ contains
           init_res = max(res, init_res)
        end do
        call mpi_allreduce(init_res, max_res, 1, &
-            mpi_double, mpi_sum, mg%comm, ierr)
+            mpi_double, mpi_max, mg%comm, ierr)
     end if
 
     ! Subtract mean(phi) from phi
