@@ -50,12 +50,6 @@ program test_one_level
   call mg_allocate_storage(mg)
   call set_rhs(mg)
 
-  do n = mg%highest_lvl, mg%highest_lvl
-     ! print *, n, mg%my_rank, ":", size(mg%lvls(n)%my_ids)
-     print *, n, mg%my_rank, sum(mg%comm_ghostcell%n_send(:, n)), &
-          sum(mg%comm_ghostcell%n_recv(:, n))
-  end do
-
   t0 = mpi_wtime()
   do n = 1, n_its
      call mg_fas_fmg(mg, n > 1)
@@ -63,7 +57,10 @@ program test_one_level
   t1 = mpi_wtime()
 
   if (mg%my_rank == 0) then
-     print *, "time/iteration", (t1-t0) / n_its
+     print *, "problem_size     ", domain_size
+     print *, "n_iterations     ", n_its
+     print *, "time/iteration   ", (t1-t0) / n_its
+     print *, "total_time(s)    ", (t1-t0)
      print *, "unknowns/microsec", 1e-6_dp * n_its * product(domain_size) / (t1-t0)
   end if
   call timers_show(mg)
