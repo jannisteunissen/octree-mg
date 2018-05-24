@@ -13,11 +13,9 @@ module m_load_balance
 
 contains
 
-  !> Load balance all boxes in the multigrid tree. This routine is only provided
-  !> for testing, in a normal application the load balancing comes from the
-  !> 'calling' routine.
-  !>
-  !> @todo Improve this using e.g. a Morton curve
+  !> Load balance all boxes in the multigrid tree. Note that in a typical
+  !> application the load balancing of the leaves is already determined, then
+  !> mg_load_balance_parents can be used.
   subroutine mg_load_balance(mg)
     type(mg_t), intent(inout) :: mg
     integer                   :: i, id, lvl, single_cpu_lvl
@@ -34,8 +32,8 @@ contains
        end do
     end do
 
-    ! Distribute the boxes equally. This could be improved with e.g. a
-    ! Morton-curve.
+    ! Distribute the boxes equally. Due to the way the mesh is constructed, the
+    ! mg%lvls(lvl)%ids array already contains a Morton-like ordering.
     do lvl = single_cpu_lvl+1, mg%highest_lvl
        work_left = size(mg%lvls(lvl)%ids)
        my_work   = 0
