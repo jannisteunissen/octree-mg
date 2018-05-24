@@ -9,14 +9,14 @@ include ../makerules.make
 all: $(PROGS_2D) $(PROGS_3D)
 
 clean:
-	$(RM) $(PROGS)
+	$(RM) $(PROGS_2D) $(PROGS_3D)
 
 # Special rules to compile 2d/3d version of same program
 %_2d: %.f90
-	$(FC) -o $@ $^ $(FFLAGS) $(addprefix -I,$(INCDIRS)) \
+	$(F90C) -o $@ $^ $(FFLAGS) $(addprefix -I,$(INCDIRS)) \
 	$(addprefix -L,$(LIBDIRS)) $(addprefix -l,$(LIBS))
 %_3d: %.f90
-	$(FC) -o $@ $^ $(FFLAGS) $(addprefix -I,$(INCDIRS)) \
+	$(F90C) -o $@ $^ $(FFLAGS) $(addprefix -I,$(INCDIRS)) \
 	$(addprefix -L,$(LIBDIRS)) $(addprefix -l,$(LIBS))
 
 $(PROGS_2D): LIBDIRS:=../lib_2d

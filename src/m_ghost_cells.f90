@@ -199,7 +199,7 @@ contains
        else if (.not. dry_run) then
           ! Physical boundary
           if (associated(mg%bc(nb, iv)%boundary_cond)) then
-             call mg%bc(nb, iv)%boundary_cond(mg, id, nc, iv, nb, bc_type)
+             call mg%bc(nb, iv)%boundary_cond(mg%boxes(id), nc, iv, nb, bc_type)
           else
              bc_type = mg%bc(nb, iv)%bc_type
              call box_set_gc_scalar(mg%boxes(id), nb, nc, iv, &
@@ -244,9 +244,9 @@ contains
 
     if (.not. dry_run) then
        if (associated(mg%bc(nb, iv)%refinement_bnd)) then
-          call mg%bc(nb, iv)%refinement_bnd(mg, id, nc, iv, nb, gc)
+          call mg%bc(nb, iv)%refinement_bnd(mg%boxes(id), nc, iv, nb, gc)
        else
-          call sides_rb(mg, id, nc, iv, nb, gc)
+          call sides_rb(mg%boxes(id), nc, iv, nb, gc)
        end if
     end if
   end subroutine fill_refinement_bnd
@@ -629,9 +629,8 @@ contains
   end subroutine bc_to_gc
 
   !> Fill ghost cells near refinement boundaries which preserves diffusive fluxes.
-  subroutine sides_rb(mg, id, nc, iv, nb, gc)
-    type(mg_t), intent(inout) :: mg
-    integer, intent(in)       :: id !< Id of box
+  subroutine sides_rb(box, nc, iv, nb, gc)
+    type(box_t), intent(inout) :: box
     integer, intent(in)       :: nc
     integer, intent(in)       :: iv
     integer, intent(in)       :: nb !< Ghost cell direction
@@ -642,12 +641,9 @@ contains
     real(dp), intent(in)      :: gc(nc, nc)
 #endif
     integer                   :: IJK, ix, dix, di, dj
-    integer                   :: ix_off(NDIM)
 #if NDIM == 3
     integer                   :: dk
 #endif
-
-    ix_off = get_child_offset(mg, id)
 
     if (neighb_low(nb)) then
        ix = 1
@@ -665,18 +661,18 @@ contains
 
        do j = 1, nc
           dj = -1 + 2 * iand(j, 1)
-          mg%boxes(id)%cc(i-di, j, iv) = 0.5_dp * gc(j) &
-               + 0.75_dp * mg%boxes(id)%cc(i, j, iv) &
-               - 0.25_dp * mg%boxes(id)%cc(i+di, j, iv)
+          box%cc(i-di, j, iv) = 0.5_dp * gc(j) &
+               + 0.75_dp * box%cc(i, j, iv) &
+               - 0.25_dp * box%cc(i+di, j, iv)
        end do
     case (2)
        j = ix
        dj = dix
        do i = 1, nc
           di = -1 + 2 * iand(i, 1)
-          mg%boxes(id)%cc(i, j-dj, iv) = 0.5_dp * gc(i) &
-               + 0.75_dp * mg%boxes(id)%cc(i, j, iv) &
-               - 0.25_dp * mg%boxes(id)%cc(i, j+dj, iv)
+          box%cc(i, j-dj, iv) = 0.5_dp * gc(i) &
+               + 0.75_dp * box%cc(i, j, iv) &
+               - 0.25_dp * box%cc(i, j+dj, iv)
        end do
 #elif NDIM == 3
     case (1)
@@ -686,9 +682,9 @@ contains
           dk = -1 + 2 * iand(k, 1)
           do j = 1, nc
              dj = -1 + 2 * iand(j, 1)
-             mg%boxes(id)%cc(i-di, j, k, iv) = 0.5_dp * gc(j, k) &
-                  + 0.75_dp * mg%boxes(id)%cc(i, j, k, iv) &
-                  - 0.25_dp * mg%boxes(id)%cc(i+di, j, k, iv)
+             box%cc(i-di, j, k, iv) = 0.5_dp * gc(j, k) &
+                  + 0.75_dp * box%cc(i, j, k, iv) &
+                  - 0.25_dp * box%cc(i+di, j, k, iv)
           end do
        end do
     case (2)
@@ -698,9 +694,9 @@ contains
           dk = -1 + 2 * iand(k, 1)
           do i = 1, nc
              di = -1 + 2 * iand(i, 1)
-             mg%boxes(id)%cc(i, j-dj, k, iv) = 0.5_dp * gc(i, k) &
-                  + 0.75_dp * mg%boxes(id)%cc(i, j, k, iv) &
-                  - 0.25_dp * mg%boxes(id)%cc(i, j+dj, k, iv)
+             box%cc(i, j-dj, k, iv) = 0.5_dp * gc(i, k) &
+                  + 0.75_dp * box%cc(i, j, k, iv) &
+                  - 0.25_dp * box%cc(i, j+dj, k, iv)
           end do
        end do
     case (3)
@@ -710,9 +706,9 @@ contains
           dj = -1 + 2 * iand(j, 1)
           do i = 1, nc
              di = -1 + 2 * iand(i, 1)
-             mg%boxes(id)%cc(i, j, k-dk, iv) = 0.5_dp * gc(i, j) &
-                  + 0.75_dp * mg%boxes(id)%cc(i, j, k, iv) &
-                  - 0.25_dp * mg%boxes(id)%cc(i, j, k+dk, iv)
+             box%cc(i, j, k-dk, iv) = 0.5_dp * gc(i, j) &
+                  + 0.75_dp * box%cc(i, j, k, iv) &
+                  - 0.25_dp * box%cc(i, j, k+dk, iv)
           end do
        end do
 #endif
