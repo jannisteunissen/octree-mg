@@ -5,14 +5,17 @@ program test_one_level
 
   implicit none
 
+  integer             :: n_its          = 10
+  integer             :: n_modes(NDIM)  = 5
   integer             :: box_size
   integer             :: domain_size(NDIM)
-  real(dp)            :: dr(NDIM), r_min(NDIM) = 0.0_dp
-  logical             :: periodic(NDIM)  = .false.
-  integer             :: n_finer         = 0
-  real(dp), parameter :: pi              = acos(-1.0_dp)
+  real(dp)            :: dr(NDIM)
+  real(dp)            :: r_min(NDIM)    = 0.0_dp
+  logical             :: periodic(NDIM) = .false.
+  integer             :: n_finer        = 0
+  real(dp), parameter :: pi             = acos(-1.0_dp)
   character(len=40)   :: arg_string
-  integer             :: lvl, n, ierr, n_args
+  integer             :: n, ierr, n_args
   real(dp)            :: t0, t1
   integer             :: i_sol, i_eps
   type(mg_t)          :: mg
@@ -51,27 +54,20 @@ program test_one_level
        periodic, n_finer)
   call mg_load_balance(mg)
 
-  if (mg%my_rank == 0) then
-     print *, "First normal level", mg%first_normal_lvl
-     do lvl = mg%lowest_lvl, mg%highest_lvl
-        print *, lvl, ":", size(mg%lvls(lvl)%ids), mg%box_size_lvl(lvl)
-     end do
-  end if
-
   call mg_allocate_storage(mg)
   call set_solution(mg)
   call compute_rhs_and_reset(mg)
 
-  call print_error(mg)
+  call print_error(mg, 0)
 
   t0 = mpi_wtime()
   do n = 1, 10
      call mg_fas_fmg(mg, n > 1)
-     call print_error(mg)
+     call print_error(mg, n)
   end do
   t1 = mpi_wtime()
 
-    if (mg%my_rank == 0) then
+  if (mg%my_rank == 0) then
      print *, "n_cpu            ", mg%n_cpu
      print *, "problem_size     ", domain_size
      print *, "n_iterations     ", n_its
@@ -99,7 +95,7 @@ contains
           id = mg%lvls(lvl)%my_ids(n)
           do KJI_DO(0, nc+1)
              r = mg%boxes(id)%r_min + ([IJK] - 0.5_dp) * mg%dr(:, lvl)
-             sol = product(sin(2 * pi * r))
+             sol = product(sin(2 * pi * n_modes * r))
              mg%boxes(id)%cc(IJK, i_sol) = sol
              mg%boxes(id)%cc(IJK, i_eps) = max(1.0_dp, 1.0_dp + r(1))
           end do; CLOSE_DO
@@ -124,8 +120,9 @@ contains
     end do
   end subroutine compute_rhs_and_reset
 
-  subroutine print_error(mg)
+  subroutine print_error(mg, it)
     type(mg_t), intent(inout) :: mg
+    integer, intent(in)       :: it
     integer                   :: n, nc, id, lvl, IJK, ierr
     real(dp)                  :: sol, val, err, max_err
 
@@ -147,7 +144,7 @@ contains
 
     call mpi_reduce(err, max_err, 1, MPI_DOUBLE, MPI_MAX, 0, &
          mpi_comm_world, ierr)
-    if (mg%my_rank == 0) print *, "max err", max_err
+    if (mg%my_rank == 0) print *, it, "max err", max_err
   end subroutine print_error
 
 end program test_one_level
