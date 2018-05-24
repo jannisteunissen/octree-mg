@@ -71,9 +71,15 @@ program test_one_level
   end do
   t1 = mpi_wtime()
 
-  if (mg%my_rank == 0) then
-     print *, "time, time per iteration:", t1-t0, (t1-t0) / 10
-     print *, "unknowns/microsec", 1e-6_dp * 10 * product(domain_size) / (t1-t0)
+    if (mg%my_rank == 0) then
+     print *, "n_cpu            ", mg%n_cpu
+     print *, "problem_size     ", domain_size
+     print *, "n_iterations     ", n_its
+     print *, "time/iteration   ", (t1-t0) / n_its
+     print *, "total_time(s)    ", (t1-t0)
+     print *, "unknowns/microsec", 1e-6_dp * n_its * &
+          product(real(domain_size, dp)) / (t1-t0)
+     print *, ""
   end if
   call timers_show(mg)
 

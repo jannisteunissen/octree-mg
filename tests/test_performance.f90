@@ -62,7 +62,8 @@ program test_one_level
      print *, "n_iterations     ", n_its
      print *, "time/iteration   ", (t1-t0) / n_its
      print *, "total_time(s)    ", (t1-t0)
-     print *, "unknowns/microsec", 1e-6_dp * n_its * product(domain_size) / (t1-t0)
+     print *, "unknowns/microsec", 1e-6_dp * n_its * &
+          product(real(domain_size, dp)) / (t1-t0)
      print *, ""
   end if
   call timers_show(mg)
