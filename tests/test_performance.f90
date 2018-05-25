@@ -59,6 +59,7 @@ program test_one_level
   if (mg%my_rank == 0) then
      print *, "n_cpu            ", mg%n_cpu
      print *, "problem_size     ", domain_size
+     print *, "box_size         ", box_size
      print *, "n_iterations     ", n_its
      print *, "time/iteration   ", (t1-t0) / n_its
      print *, "total_time(s)    ", (t1-t0)
