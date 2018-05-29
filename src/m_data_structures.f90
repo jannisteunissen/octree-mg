@@ -386,6 +386,46 @@ contains
     end if
   end function mg_get_child_offset
 
+  !> Get coordinates at the face of a box
+  subroutine mg_get_face_coords(box, nb, nc, x)
+    type(mg_box_t), intent(in) :: box
+    integer, intent(in)        :: nb
+    integer, intent(in)        :: nc
+#if NDIM == 2
+    real(dp), intent(out)      :: x(nc, 2)
+    integer                    :: i
+#elif NDIM == 3
+    real(dp), intent(out)      :: x(nc, nc, 3)
+    integer                    :: i, j
+#endif
+    integer                    :: nb_dim, ixs(NDIM-1)
+    real(dp)                   :: dr(NDIM-1), rmin(NDIM)
+
+    ! Determine directions perpendicular to neighbor
+    nb_dim = mg_neighb_dim(nb)
+    ixs                     = [(i, i = 1, NDIM-1)]
+    ixs(nb_dim:) = ixs(nb_dim:) + 1
+
+    rmin = box%r_min
+    if (.not. mg_neighb_low(nb)) then
+       rmin(nb_dim) = rmin(nb_dim) + box%dr(nb_dim) * nc
+    end if
+
+#if NDIM == 2
+    do i = 1, nc
+       x(i, :) = rmin
+       x(i, ixs(1)) = x(i, ixs(1)) + (i-0.5d0) * box%dr(ixs(1))
+    end do
+#elif NDIM == 3
+    do j = 1, nc
+       do i = 1, nc
+          x(i, j, :) = rmin
+          x(i, j, ixs) = x(i, j, ixs) + ([i, j] - 0.5d0) * box%dr(ixs)
+       end do
+    end do
+#endif
+  end subroutine mg_get_face_coords
+
   integer function mg_add_timer(mg, name)
     type(mg_t), intent(inout) :: mg
     character(len=*), intent(in) :: name
