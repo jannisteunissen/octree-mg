@@ -68,11 +68,11 @@ contains
   !> Sort send buffers according to the idbuf array
   subroutine sort_sendbuf(gc, dsize)
     use m_mrgrnk
-    type(buf_t), intent(inout) :: gc
-    integer, intent(in)        :: dsize !< Size of send buffer elements
-    integer                    :: ix_sort(gc%i_ix)
-    real(dp)                   :: buf_cpy(gc%i_send)
-    integer                    :: i, j, n
+    type(mg_buf_t), intent(inout) :: gc
+    integer, intent(in)           :: dsize !< Size of send buffer elements
+    integer                       :: ix_sort(gc%i_ix)
+    real(dp)                      :: buf_cpy(gc%i_send)
+    integer                       :: i, j, n
 
     call mrgrnk(gc%ix(1:gc%i_ix), ix_sort)
 

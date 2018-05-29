@@ -53,19 +53,19 @@ contains
     use mod_global_parameters
     type(mg_t), intent(inout) :: mg
     integer, intent(in)       :: iw
-    character(len=std_len)    :: bnd_name(num_neighbors)
+    character(len=std_len)    :: bnd_name(mg_num_neighbors)
     integer                   :: n
 
-    do n = 1, num_neighbors
+    do n = 1, mg_num_neighbors
        select case (typeboundary(iw, n))
        case ('symm')
-          mg%bc(n, mg_iphi)%bc_type = bc_neumann
+          mg%bc(n, mg_iphi)%bc_type = mg_bc_neumann
           mg%bc(n, mg_iphi)%bc_value = 0.0_dp
        case ('asymm')
-          mg%bc(n, mg_iphi)%bc_type = bc_dirichlet
+          mg%bc(n, mg_iphi)%bc_type = mg_bc_dirichlet
           mg%bc(n, mg_iphi)%bc_value = 0.0_dp
        case ('cont')
-          mg%bc(n, mg_iphi)%bc_type = bc_continuous
+          mg%bc(n, mg_iphi)%bc_type = mg_bc_continuous
           mg%bc(n, mg_iphi)%bc_value = 0.0_dp ! Not needed
        case ('periodic')
           ! Nothing to do here
@@ -278,9 +278,9 @@ contains
           if (.not. pnode%leaf) then
              call mg_add_children(mg, id)
 
-             do i_c = 1, num_children
+             do i_c = 1, mg_num_children
                 c_id = mg%boxes(id)%children(i_c)
-                c_ix = child_dix(:, i_c) + 1
+                c_ix = mg_child_dix(:, i_c) + 1
                 pnode_ch => pnode%child({c_ix(^D)})%node
                 id_to_node(c_id)%node => pnode_ch
                 pnode_ch%id = c_id

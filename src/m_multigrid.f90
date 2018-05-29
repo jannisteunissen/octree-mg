@@ -48,7 +48,7 @@ contains
 
     ! For red-black, perform two smoothing sub-steps so that all unknowns are
     ! updated per cycle
-    if (mg%smoother_type == smoother_gsrb) then
+    if (mg%smoother_type == mg_smoother_gsrb) then
        mg%n_smoother_substeps = 2
     else
        mg%n_smoother_substeps = 1
@@ -67,12 +67,12 @@ contains
 
   subroutine mg_add_timers(mg)
     type(mg_t), intent(inout) :: mg
-    timer_total         = add_timer(mg, "mg total")
-    timer_smoother      = add_timer(mg, "mg smoother")
-    timer_smoother_gc   = add_timer(mg, "mg smoother g.c.")
-    timer_coarse        = add_timer(mg, "mg coarse")
-    timer_correct       = add_timer(mg, "mg correct")
-    timer_update_coarse = add_timer(mg, "mg update coarse")
+    timer_total         = mg_add_timer(mg, "mg total")
+    timer_smoother      = mg_add_timer(mg, "mg smoother")
+    timer_smoother_gc   = mg_add_timer(mg, "mg smoother g.c.")
+    timer_coarse        = mg_add_timer(mg, "mg coarse")
+    timer_correct       = mg_add_timer(mg, "mg correct")
+    timer_update_coarse = mg_add_timer(mg, "mg update coarse")
   end subroutine mg_add_timers
 
   !> Perform FAS-FMG cycle (full approximation scheme, full multigrid).
@@ -147,7 +147,7 @@ contains
        call mg_add_timers(mg)
     end if
 
-    call timer_start(mg%timers(timer_total))
+    call mg_timer_start(mg%timers(timer_total))
 
     if (mg%subtract_mean .and. .not. present(highest_lvl)) then
        ! Assume that this is a stand-alone call. For fully periodic solutions,
@@ -168,12 +168,12 @@ contains
 
        ! Set rhs on coarse grid, restrict phi, and copy mg_iphi to mg_iold for the
        ! correction later
-       call timer_start(mg%timers(timer_update_coarse))
+       call mg_timer_start(mg%timers(timer_update_coarse))
        call update_coarse(mg, lvl)
-       call timer_end(mg%timers(timer_update_coarse))
+       call mg_timer_end(mg%timers(timer_update_coarse))
     end do
 
-    call timer_start(mg%timers(timer_coarse))
+    call mg_timer_start(mg%timers(timer_coarse))
     if (.not. all(mg%boxes(mg%lvls(min_lvl)%ids)%rank == &
          mg%boxes(mg%lvls(min_lvl)%ids(1))%rank)) then
        error stop "Multiple CPUs for coarse grid (not implemented yet)"
@@ -186,18 +186,18 @@ contains
        if (res < mg%residual_coarse_rel * init_res .or. &
             res < mg%residual_coarse_abs) exit
     end do
-    call timer_end(mg%timers(timer_coarse))
+    call mg_timer_end(mg%timers(timer_coarse))
 
     ! Do the upwards part of the v-cycle in the tree
     do lvl = min_lvl+1, max_lvl
        ! Correct solution at this lvl using lvl-1 data
        ! phi = phi + prolong(phi_coarse - phi_old_coarse)
-       call timer_start(mg%timers(timer_correct))
+       call mg_timer_start(mg%timers(timer_correct))
        call correct_children(mg, lvl-1)
 
        ! Have to fill ghost cells after correction
        call mg_fill_ghost_cells_lvl(mg, lvl, mg_iphi)
-       call timer_end(mg%timers(timer_correct))
+       call mg_timer_end(mg%timers(timer_correct))
 
        ! Upwards relaxation
        call smooth_boxes(mg, lvl, mg%n_cycle_up)
@@ -218,7 +218,7 @@ contains
        call subtract_mean(mg, mg_iphi)
     end if
 
-    call timer_end(mg%timers(timer_total))
+    call mg_timer_end(mg%timers(timer_total))
   end subroutine mg_fas_vcycle
 
   subroutine subtract_mean(mg, iv)
@@ -383,16 +383,16 @@ contains
     nc = mg%box_size_lvl(lvl)
 
     do n = 1, n_cycle * mg%n_smoother_substeps
-       call timer_start(mg%timers(timer_smoother))
+       call mg_timer_start(mg%timers(timer_smoother))
        do i = 1, size(mg%lvls(lvl)%my_ids)
           id = mg%lvls(lvl)%my_ids(i)
           call mg%box_smoother(mg, id, nc, n)
        end do
-       call timer_end(mg%timers(timer_smoother))
+       call mg_timer_end(mg%timers(timer_smoother))
 
-       call timer_start(mg%timers(timer_smoother_gc))
+       call mg_timer_start(mg%timers(timer_smoother_gc))
        call mg_fill_ghost_cells_lvl(mg, lvl, mg_iphi)
-       call timer_end(mg%timers(timer_smoother_gc))
+       call mg_timer_end(mg%timers(timer_smoother_gc))
     end do
   end subroutine smooth_boxes
 

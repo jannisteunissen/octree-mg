@@ -66,8 +66,8 @@ contains
   subroutine mg_load_balance_parents(mg)
     type(mg_t), intent(inout) :: mg
     integer                   :: i, id, lvl
-    integer                   :: c_ids(num_children)
-    integer                   :: c_ranks(num_children)
+    integer                   :: c_ids(mg_num_children)
+    integer                   :: c_ranks(mg_num_children)
     integer                   :: single_cpu_lvl, coarse_rank
 
     ! Up to this level, all boxes have to be on a single processor because they
@@ -119,8 +119,8 @@ contains
   end function most_popular
 
   subroutine update_lvl_info(mg, lvl)
-    type(mg_t), intent(inout) :: mg
-    type(lvl_t), intent(inout)   :: lvl
+    type(mg_t), intent(inout)     :: mg
+    type(mg_lvl_t), intent(inout) :: lvl
 
     lvl%my_ids = pack(lvl%ids, &
          mg%boxes(lvl%ids)%rank == mg%my_rank)

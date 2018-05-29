@@ -31,10 +31,10 @@ contains
        ! Number of messages to receive (at lvl-1)
        do i = 1, size(mg%lvls(lvl-1)%my_parents)
           id = mg%lvls(lvl-1)%my_parents(i)
-          do i_c = 1, num_children
+          do i_c = 1, mg_num_children
              c_id = mg%boxes(id)%children(i_c)
 
-             if (c_id > no_box) then
+             if (c_id > mg_no_box) then
                 c_rank = mg%boxes(c_id)%rank
                 if (c_rank /= mg%my_rank) then
                    n_in(c_rank, lvl) = n_in(c_rank, lvl) + 1
@@ -151,8 +151,8 @@ contains
 
        ! To later sort the send buffer according to parent order
        i = mg%buf(p_rank)%i_ix
-       n = ix_to_ichild(mg%boxes(id)%ix)
-       mg%buf(p_rank)%ix(i+1) = num_children * p_id + n
+       n = mg_ix_to_ichild(mg%boxes(id)%ix)
+       mg%buf(p_rank)%ix(i+1) = mg_num_children * p_id + n
        mg%buf(p_rank)%i_ix = mg%buf(p_rank)%i_ix + 1
     end if
   end subroutine restrict_set_buffer
@@ -168,11 +168,11 @@ contains
     hnc   = nc/2
     dsize = hnc**NDIM
 
-    do i_c = 1, num_children
+    do i_c = 1, mg_num_children
        c_id   = mg%boxes(id)%children(i_c)
-       if (c_id == no_box) cycle ! For coarsened grid
+       if (c_id == mg_no_box) cycle ! For coarsened grid
        c_rank = mg%boxes(c_id)%rank
-       dix    = get_child_offset(mg, c_id)
+       dix    = mg_get_child_offset(mg, c_id)
 
        if (c_rank == mg%my_rank) then
           do KJI_DO(1, hnc)

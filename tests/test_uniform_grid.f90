@@ -41,10 +41,10 @@ program test_one_level
 
   mg%geometry_type = mg_cartesian
   mg%operator_type = mg_laplacian
-  mg%smoother_type = smoother_gs
+  mg%smoother_type = mg_smoother_gs
 
-  do n = 1, num_neighbors
-     mg%bc(n, mg_iphi)%bc_type = bc_dirichlet
+  do n = 1, mg_num_neighbors
+     mg%bc(n, mg_iphi)%bc_type = mg_bc_dirichlet
      mg%bc(n, mg_iphi)%bc_value = 0.0_dp
   end do
 
@@ -78,7 +78,7 @@ program test_one_level
           product(real(domain_size, dp)) / (t1-t0)
      print *, ""
   end if
-  call timers_show(mg)
+  call mg_timers_show(mg)
 
   call mpi_barrier(mpi_comm_world, ierr)
   call mpi_finalize(ierr)

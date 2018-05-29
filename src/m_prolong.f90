@@ -98,12 +98,12 @@ contains
 
     dsize = nc**NDIM
 
-    do i_c = 1, num_children
+    do i_c = 1, mg_num_children
        c_id = mg%boxes(id)%children(i_c)
-       if (c_id > no_box) then
+       if (c_id > mg_no_box) then
           c_rank = mg%boxes(c_id)%rank
           if (c_rank /= mg%my_rank) then
-             dix = get_child_offset(mg, c_id)
+             dix = mg_get_child_offset(mg, c_id)
              call method(mg, id, dix, nc, iv, tmp)
 
              i   = mg%buf(c_rank)%i_send
@@ -135,7 +135,7 @@ contains
     p_rank = mg%boxes(p_id)%rank
 
     if (p_rank == mg%my_rank) then
-       dix    = get_child_offset(mg, id)
+       dix    = mg_get_child_offset(mg, id)
        call method(mg, p_id, dix, nc, iv, tmp)
     else
        dsize  = nc**NDIM

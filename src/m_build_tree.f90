@@ -25,7 +25,7 @@ contains
     logical, intent(in)       :: periodic(NDIM)
     integer, intent(in)       :: n_finer
     integer                   :: IJK, lvl, n, id, nx(NDIM)
-    integer                   :: boxes_per_dim(NDIM, lvl_lo_bnd:1)
+    integer                   :: boxes_per_dim(NDIM, mg_lvl_lo:1)
     integer                   :: periodic_offset(NDIM)
 
     if (modulo(box_size, 2) /= 0) &
@@ -45,7 +45,7 @@ contains
     boxes_per_dim(:, :) = 0
     boxes_per_dim(:, 1) = domain_size / box_size
 
-    do lvl = 1, lvl_lo_bnd+1, -1
+    do lvl = 1, mg_lvl_lo+1, -1
        if (any(modulo(nx, 2) == 1 .or. nx == mg%coarsest_grid)) exit
 
        if (all(modulo(nx/mg%box_size_lvl(lvl), 2) == 0)) then
@@ -64,7 +64,7 @@ contains
     mg%lowest_lvl = lvl
     mg%highest_lvl = 1
 
-    do lvl = 2, lvl_hi_bnd
+    do lvl = 2, mg_lvl_hi
        mg%dr(:, lvl) = mg%dr(:, lvl-1) * 0.5_dp
        mg%box_size_lvl(lvl) = box_size
     end do
@@ -91,8 +91,9 @@ contains
        mg%boxes(n)%ix(:)       = [IJK]
        mg%boxes(n)%r_min(:)    = r_min + (mg%boxes(n)%ix(:) - 1) * &
             mg%box_size_lvl(mg%lowest_lvl) * mg%dr(:, mg%lowest_lvl)
-       mg%boxes(n)%parent      = no_box
-       mg%boxes(n)%children(:) = no_box
+       mg%boxes(n)%dr(:)       = mg%dr(:, mg%lowest_lvl)
+       mg%boxes(n)%parent      = mg_no_box
+       mg%boxes(n)%children(:) = mg_no_box
 
        ! Set default neighbors
 #if NDIM == 2
@@ -104,20 +105,20 @@ contains
 
        ! Handle boundaries
        where ([IJK] == 1 .and. .not. periodic)
-          mg%boxes(n)%neighbors(1:num_neighbors:2) = &
-               physical_boundary
+          mg%boxes(n)%neighbors(1:mg_num_neighbors:2) = &
+               mg_physical_boundary
        end where
        where ([IJK] == 1 .and. periodic)
-          mg%boxes(n)%neighbors(1:num_neighbors:2) = &
+          mg%boxes(n)%neighbors(1:mg_num_neighbors:2) = &
                n + periodic_offset
        end where
 
        where ([IJK] == nx .and. .not. periodic)
-          mg%boxes(n)%neighbors(2:num_neighbors:2) = &
-               physical_boundary
+          mg%boxes(n)%neighbors(2:mg_num_neighbors:2) = &
+               mg_physical_boundary
        end where
        where ([IJK] == nx .and. periodic)
-          mg%boxes(n)%neighbors(2:num_neighbors:2) = &
+          mg%boxes(n)%neighbors(2:mg_num_neighbors:2) = &
                n - periodic_offset
        end where
     end do; CLOSE_DO
@@ -179,10 +180,10 @@ contains
 
     ! Set next level ids to children of this level
     if (mg%box_size_lvl(lvl+1) == mg%box_size_lvl(lvl)) then
-       n = num_children * size(mg%lvls(lvl)%parents)
+       n = mg_num_children * size(mg%lvls(lvl)%parents)
        allocate(mg%lvls(lvl+1)%ids(n))
 
-       n = num_children
+       n = mg_num_children
        do i = 1, size(mg%lvls(lvl)%parents)
           id = mg%lvls(lvl)%parents(i)
           mg%lvls(lvl+1)%ids(n*(i-1)+1:n*i) = mg%boxes(id)%children
@@ -202,16 +203,16 @@ contains
 
   ! Set the neighbors of id (using their parent)
   subroutine set_neighbs(boxes, id)
-    type(box_t), intent(inout) :: boxes(:)
+    type(mg_box_t), intent(inout) :: boxes(:)
     integer, intent(in)         :: id
     integer                     :: nb, nb_id
 
-    do nb = 1, num_neighbors
-       if (boxes(id)%neighbors(nb) == no_box) then
+    do nb = 1, mg_num_neighbors
+       if (boxes(id)%neighbors(nb) == mg_no_box) then
           nb_id = find_neighb(boxes, id, nb)
-          if (nb_id > no_box) then
+          if (nb_id > mg_no_box) then
              boxes(id)%neighbors(nb) = nb_id
-             boxes(nb_id)%neighbors(neighb_rev(nb)) = id
+             boxes(nb_id)%neighbors(mg_neighb_rev(nb)) = id
           end if
        end if
     end do
@@ -219,34 +220,34 @@ contains
 
   !> Get the id of neighbor nb of boxes(id), through its parent
   function find_neighb(boxes, id, nb) result(nb_id)
-    type(box_t), intent(in) :: boxes(:) !< List with all the boxes
+    type(mg_box_t), intent(in) :: boxes(:) !< List with all the boxes
     integer, intent(in)      :: id       !< Box whose neighbor we are looking for
     integer, intent(in)      :: nb       !< Neighbor index
     integer                  :: nb_id, p_id, c_ix, d, old_pid
 
     p_id    = boxes(id)%parent
     old_pid = p_id
-    c_ix    = ix_to_ichild(boxes(id)%ix)
-    d       = neighb_dim(nb)
+    c_ix    = mg_ix_to_ichild(boxes(id)%ix)
+    d       = mg_neighb_dim(nb)
 
     ! Check if neighbor is in same direction as ix is (low/high). If so,
     ! use neighbor of parent
-    if (child_low(d, c_ix) .eqv. neighb_low(nb)) then
+    if (mg_child_low(d, c_ix) .eqv. mg_neighb_low(nb)) then
        p_id = boxes(p_id)%neighbors(nb)
     end if
 
     ! The child ix of the neighbor is reversed in direction d
-    nb_id = boxes(p_id)%children(child_rev(c_ix, d))
+    nb_id = boxes(p_id)%children(mg_child_rev(c_ix, d))
   end function find_neighb
 
   !> Create a list of leaves and a list of parents for a level
   subroutine mg_set_leaves_parents(boxes, level)
-    type(box_t), intent(in)   :: boxes(:) !< List of boxes
-    type(lvl_t), intent(inout) :: level !< Level type which contains the indices of boxes
+    type(mg_box_t), intent(in)   :: boxes(:) !< List of boxes
+    type(mg_lvl_t), intent(inout) :: level !< Level type which contains the indices of boxes
     integer                    :: i, id, i_leaf, i_parent
     integer                    :: n_parents, n_leaves
 
-    n_parents = count(has_children(boxes(level%ids)))
+    n_parents = count(mg_has_children(boxes(level%ids)))
     n_leaves = size(level%ids) - n_parents
 
     if (.not. allocated(level%parents)) then
@@ -267,7 +268,7 @@ contains
     i_parent = 0
     do i = 1, size(level%ids)
        id = level%ids(i)
-       if (has_children(boxes(id))) then
+       if (mg_has_children(boxes(id))) then
           i_parent                = i_parent + 1
           level%parents(i_parent) = id
        else
@@ -279,8 +280,8 @@ contains
 
   !> Create a list of refinement boundaries (from the coarse side)
   subroutine mg_set_refinement_boundaries(boxes, level)
-    type(box_t), intent(in)    :: boxes(:)
-    type(lvl_t), intent(inout) :: level
+    type(mg_box_t), intent(in)    :: boxes(:)
+    type(mg_lvl_t), intent(inout) :: level
     integer, allocatable       :: tmp(:)
     integer                    :: i, id, nb, nb_id, ix
 
@@ -295,10 +296,10 @@ contains
        do i = 1, size(level%leaves)
           id = level%leaves(i)
 
-          do nb = 1, num_neighbors
+          do nb = 1, mg_num_neighbors
              nb_id = boxes(id)%neighbors(nb)
-             if (nb_id > no_box) then
-                if (has_children(boxes(nb_id))) then
+             if (nb_id > mg_no_box) then
+                if (mg_has_children(boxes(nb_id))) then
                    ix = ix + 1
                    tmp(ix) = id
                    exit
@@ -314,32 +315,34 @@ contains
 
   subroutine mg_add_children(mg, id)
     type(mg_t), intent(inout) :: mg
-    integer, intent(in)          :: id      !< Id of box that gets children
-    integer                      :: lvl, i, nb, child_nb(2**(NDIM-1))
-    integer                      :: c_ids(num_children), c_id, c_ix_base(NDIM)
+    integer, intent(in)       :: id !< Id of box that gets children
+    integer                   :: lvl, i, nb, child_nb(2**(NDIM-1))
+    integer                   :: c_ids(mg_num_children)
+    integer                   :: c_id, c_ix_base(NDIM)
 
-    c_ids                 = [(mg%n_boxes+i, i=1,num_children)]
-    mg%n_boxes            = mg%n_boxes + num_children
+    c_ids                 = [(mg%n_boxes+i, i=1,mg_num_children)]
+    mg%n_boxes            = mg%n_boxes + mg_num_children
     mg%boxes(id)%children = c_ids
     c_ix_base             = 2 * mg%boxes(id)%ix - 1
     lvl                   = mg%boxes(id)%lvl+1
 
-    do i = 1, num_children
+    do i = 1, mg_num_children
        c_id                     = c_ids(i)
        mg%boxes(c_id)%rank      = mg%boxes(id)%rank
-       mg%boxes(c_id)%ix        = c_ix_base + child_dix(:, i)
+       mg%boxes(c_id)%ix        = c_ix_base + mg_child_dix(:, i)
        mg%boxes(c_id)%lvl       = lvl
        mg%boxes(c_id)%parent    = id
-       mg%boxes(c_id)%children  = no_box
-       mg%boxes(c_id)%neighbors = no_box
+       mg%boxes(c_id)%children  = mg_no_box
+       mg%boxes(c_id)%neighbors = mg_no_box
        mg%boxes(c_id)%r_min     = mg%boxes(id)%r_min + &
-            mg%dr(:, lvl) * child_dix(:, i) * mg%box_size
+            mg%dr(:, lvl) * mg_child_dix(:, i) * mg%box_size
+       mg%boxes(c_id)%dr(:)     = mg%dr(:, lvl)
     end do
 
     ! Set boundary conditions at children
-    do nb = 1, num_neighbors
-       if (mg%boxes(id)%neighbors(nb) < no_box) then
-          child_nb = c_ids(child_adj_nb(:, nb)) ! Neighboring children
+    do nb = 1, mg_num_neighbors
+       if (mg%boxes(id)%neighbors(nb) < mg_no_box) then
+          child_nb = c_ids(mg_child_adj_nb(:, nb)) ! Neighboring children
           mg%boxes(child_nb)%neighbors(nb) = mg%boxes(id)%neighbors(nb)
        end if
     end do
@@ -360,191 +363,15 @@ contains
     mg%boxes(c_id)%ix        = mg%boxes(id)%ix
     mg%boxes(c_id)%lvl       = lvl
     mg%boxes(c_id)%parent    = id
-    mg%boxes(c_id)%children  = no_box
-    where (mg%boxes(id)%neighbors == physical_boundary)
+    mg%boxes(c_id)%children  = mg_no_box
+    where (mg%boxes(id)%neighbors == mg_physical_boundary)
        mg%boxes(c_id)%neighbors = mg%boxes(id)%neighbors
     elsewhere
        mg%boxes(c_id)%neighbors = mg%boxes(id)%neighbors + n_boxes_lvl
     end where
     mg%boxes(c_id)%r_min = mg%boxes(id)%r_min
+    mg%boxes(c_id)%dr(:) = mg%dr(:, lvl)
 
   end subroutine add_single_child
-
-  ! subroutine build_tree_2d(n_leaves, blvls, branks, bixs, tree)
-  !   integer, intent(in) :: n_leaves
-  !   integer, intent(in) :: blvls(n_leaves)
-  !   integer, intent(in) :: branks(n_leaves)
-  !   integer, intent(in) :: bixs(2, n_leaves)
-  !   type(tree_2d), intent(inout) :: tree
-
-  !   type(tree_2d) :: copy
-  !   integer, allocatable :: ids(:), ix_sort(:)
-
-  !   integer(int64) :: mn
-  !   integer(int64), allocatable :: mortons(:)
-  !   integer :: i_ch, ix(2), p_id, nb, nb_id, nb_rev
-  !   integer :: n_boxes, n_done, search_val
-  !   integer :: lvl, highest_lvl, i, n, id, i_box
-  !   integer :: child_ranks(4)
-  !   integer, allocatable :: leaf_cnt(:), parent_cnt(:), total_cnt(:)
-
-  !   highest_lvl = maxval(blvls)
-
-  !   tree%highest_lvl = highest_lvl
-  !   allocate(tree%lvls(highest_lvl))
-  !   allocate(leaf_cnt(highest_lvl))
-  !   allocate(parent_cnt(highest_lvl))
-  !   allocate(total_cnt(highest_lvl))
-  !   leaf_cnt(:)  = 0
-  !   parent_cnt(:) = 0
-  !   total_cnt(:) = 0
-
-  !   ! Create tree structure
-
-  !   ! First determine number of leaves and parents per level
-  !   do n = 1, n_leaves
-  !      lvl = blvls(n)
-  !      leaf_cnt(lvl) = leaf_cnt(lvl) + 1
-  !   end do
-
-  !   do lvl = highest_lvl, 2, -1
-  !      parent_cnt(lvl-1) = (leaf_cnt(lvl) + parent_cnt(lvl))/4
-  !   end do
-
-  !   ! Now allocate storage per level
-  !   n_boxes = 0
-  !   do lvl = 1, highest_lvl
-  !      allocate(tree%lvls(lvl)%leaves(leaf_cnt(lvl)))
-  !      allocate(tree%lvls(lvl)%parents(parent_cnt(lvl)))
-  !      n        = parent_cnt(lvl) + leaf_cnt(lvl)
-  !      allocate(tree%lvls(lvl)%ids(n))
-  !      n_boxes = n_boxes + n
-  !   end do
-
-  !   tree%n_boxes = n_boxes
-  !   allocate(tree%boxes(n_boxes))
-
-  !   ! First add all leaves
-  !   total_cnt(:)  = 0
-  !   i_box = 0
-
-  !   do n = 1, n_leaves
-  !      i_box = i_box + 1
-  !      lvl   = blvls(n)
-
-  !      total_cnt(lvl) = total_cnt(lvl) + 1
-  !      tree%lvls(lvl)%ids(total_cnt(lvl)) = i_box
-
-  !      tree%boxes(i_box)%lvl  = blvls(n)
-  !      tree%boxes(i_box)%ix   = bixs(:, n)
-  !      tree%boxes(i_box)%rank = branks(n)
-  !      tree%boxes(i_box)%morton = &
-  !           morton_from_ix2(tree%boxes(i_box)%ix-1)
-  !   end do
-
-  !   ! Then add all the parents
-  !   do lvl = highest_lvl, 2, -1
-  !      do n = 1, total_cnt(lvl)
-  !         id = tree%lvls(lvl)%ids(n)
-
-  !         if (first_child(tree%boxes(id)%ix)) then
-  !            ! Add parent
-  !            i_box = i_box + 1
-
-  !            total_cnt(lvl-1) = total_cnt(lvl-1) + 1
-  !            tree%lvls(lvl-1)%ids(total_cnt(lvl-1)) = i_box
-
-  !            tree%boxes(i_box)%lvl = lvl-1
-  !            tree%boxes(i_box)%ix = (tree%boxes(id)%ix + 1) / 2
-  !            tree%boxes(i_box)%morton = &
-  !                 morton_from_ix2(tree%boxes(i_box)%ix-1)
-  !         end if
-  !      end do
-  !   end do
-
-  !   copy = tree
-  !   n_done = 0
-
-  !   ! Sort all levels according to their Morton order
-  !   do lvl = 1, highest_lvl
-  !      n = total_cnt(lvl)
-  !      ids = copy%lvls(lvl)%ids
-  !      ix_sort = ids
-
-  !      call morton_rank(copy%boxes(ids)%morton, ix_sort)
-
-  !      tree%boxes(n_done+1:n_done+n) = copy%boxes(ids(ix_sort))
-  !      tree%lvls(lvl)%ids = [(n_done+i, i=1,n)]
-
-  !      n_done = n_done + n
-  !   end do
-
-  !   ! Set parents / children
-  !   do lvl = 2, highest_lvl
-  !      mortons = tree%boxes(tree%lvls(lvl-1)%ids)%morton
-
-  !      do i = 1, size(tree%lvls(lvl)%ids)
-  !         id = tree%lvls(lvl)%ids(i)
-  !         ix = tree%boxes(id)%ix
-
-  !         ! Morton number of parent
-  !         mn = morton_from_ix2((ix-1)/2)
-
-  !         ! Find parent in morton list
-  !         p_id = tree%lvls(lvl-1)%ids(morton_bsearch(mortons, mn))
-  !         tree%boxes(id)%parent = p_id
-
-  !         ! Set child on parent
-  !         i_ch = ix2_to_ichild(ix)
-  !         tree%boxes(p_id)%children(i_ch) = id
-  !      end do
-  !   end do
-
-  !   ! Set neighbors (can optimize this later)
-  !   do lvl = 1, highest_lvl
-  !      mortons = tree%boxes(tree%lvls(lvl)%ids)%morton
-
-  !      do i = 1, size(tree%lvls(lvl)%ids)
-  !         id = tree%lvls(lvl)%ids(i)
-  !         ix = tree%boxes(id)%ix
-
-  !         do nb = 1, 4
-  !            mn = morton_from_ix2(ix + nb_offset_2d(:, nb) - 1)
-  !            search_val = morton_bsearch(mortons, mn)
-
-  !            if (search_val /= -1) then
-  !               nb_id = tree%lvls(lvl)%ids(search_val)
-  !               tree%boxes(id)%neighbors(nb) = nb_id
-  !               ! Reverse neighbor direction (odd -> +1, even -> -1)
-  !               nb_rev = nb - 1 + 2 * iand(nb, 1)
-  !               tree%boxes(nb_id)%neighbors(nb_rev) = id
-  !            else
-  !               tree%boxes(id)%neighbors(nb) = no_box
-  !            end if
-  !         end do
-  !      end do
-  !   end do
-
-  !   ! Fill arrays of parents/leaves, and set ranks of parents
-  !   leaf_cnt(:)  = 0
-  !   parent_cnt(:) = 0
-
-  !   do lvl = highest_lvl, 1, -1
-  !      do i = 1, size(tree%lvls(lvl)%ids)
-  !         id = tree%lvls(lvl)%ids(i)
-  !         if (tree%boxes(id)%children(1) > no_box) then
-  !            parent_cnt(lvl) = parent_cnt(lvl) + 1
-  !            tree%lvls(lvl)%parents(parent_cnt(lvl)) = id
-
-  !            child_ranks = tree%boxes(tree%boxes(id)%children)%rank
-  !            tree%boxes(id)%rank = most_popular(child_ranks)
-  !         else
-  !            leaf_cnt(lvl) = leaf_cnt(lvl) + 1
-  !            tree%lvls(lvl)%leaves(leaf_cnt(lvl)) = id
-  !         end if
-  !      end do
-  !   end do
-
-  ! end subroutine build_tree_2d
 
 end module m_build_tree

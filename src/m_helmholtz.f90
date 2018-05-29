@@ -23,7 +23,7 @@ contains
        mg%box_op => box_helmh
 
        select case (mg%smoother_type)
-       case (smoother_gs, smoother_gsrb)
+       case (mg_smoother_gs, mg_smoother_gsrb)
           mg%box_smoother => box_gs_helmh
        case default
           error stop "helmholtz_set_methods: unsupported smoother type"
@@ -59,7 +59,7 @@ contains
     fac = 1.0_dp / (2 * sum(idr2) + helmholtz_lambda)
     i0  = 1
 
-    if (mg%smoother_type == smoother_gsrb) then
+    if (mg%smoother_type == mg_smoother_gsrb) then
        di = 2
     else
        di = 1
@@ -70,7 +70,7 @@ contains
     associate (cc => mg%boxes(id)%cc, n => mg_iphi)
 #if NDIM == 2
       do j = 1, nc
-         if (mg%smoother_type == smoother_gsrb) &
+         if (mg%smoother_type == mg_smoother_gsrb) &
               i0 = 2 - iand(ieor(redblack_cntr, j), 1)
 
          do i = i0, nc, di
@@ -83,7 +83,7 @@ contains
 #elif NDIM == 3
       do k = 1, nc
          do j = 1, nc
-            if (mg%smoother_type == smoother_gsrb) &
+            if (mg%smoother_type == mg_smoother_gsrb) &
                  i0 = 2 - iand(ieor(redblack_cntr, k+j), 1)
             do i = i0, nc, di
                cc(i, j, k, n) = fac * ( &

@@ -22,7 +22,7 @@ contains
 
     ! Use Neumann zero boundary conditions for the variable coefficient, since
     ! it is needed in ghost cells.
-    mg%bc(:, mg_iveps)%bc_type = bc_neumann
+    mg%bc(:, mg_iveps)%bc_type = mg_bc_neumann
     mg%bc(:, mg_iveps)%bc_value = 0.0_dp
 
     select case (mg%geometry_type)
@@ -33,7 +33,7 @@ contains
        ! mg%box_prolong => vlpl_prolong
 
        select case (mg%smoother_type)
-       case (smoother_gs, smoother_gsrb)
+       case (mg_smoother_gs, mg_smoother_gsrb)
           mg%box_smoother => box_gs_vlpl
        case default
           error stop "vlaplacian_set_methods: unsupported smoother type"
@@ -60,7 +60,7 @@ contains
     idr2(2:2*NDIM:2) = idr2(1:2*NDIM:2)
     i0  = 1
 
-    if (mg%smoother_type == smoother_gsrb) then
+    if (mg%smoother_type == mg_smoother_gsrb) then
        di = 2
     else
        di = 1
@@ -72,7 +72,7 @@ contains
          i_eps => mg_iveps)
 #if NDIM == 2
       do j = 1, nc
-         if (mg%smoother_type == smoother_gsrb) &
+         if (mg%smoother_type == mg_smoother_gsrb) &
               i0 = 2 - iand(ieor(redblack_cntr, j), 1)
 
          do i = i0, nc, di
@@ -90,7 +90,7 @@ contains
 #elif NDIM == 3
       do k = 1, nc
          do j = 1, nc
-            if (mg%smoother_type == smoother_gsrb) &
+            if (mg%smoother_type == mg_smoother_gsrb) &
                  i0 = 2 - iand(ieor(redblack_cntr, k+j), 1)
             do i = i0, nc, di
                a0     = cc(i, j, k, i_eps)
