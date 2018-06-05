@@ -62,6 +62,7 @@ contains
     integer, intent(in)       :: nc
     integer, intent(in)       :: redblack_cntr !< Iteration counter
     integer                   :: IJK, i0, di
+    logical                   :: redblack
     real(dp)                  :: idr2(2*NDIM), u(2*NDIM)
     real(dp)                  :: a0, a(2*NDIM), c(2*NDIM)
 
@@ -70,7 +71,8 @@ contains
     idr2(2:2*NDIM:2) = idr2(1:2*NDIM:2)
     i0  = 1
 
-    if (mg%smoother_type == mg_smoother_gsrb) then
+    redblack = (mg%smoother_type == mg_smoother_gsrb)
+    if (redblack) then
        di = 2
     else
        di = 1
@@ -82,7 +84,7 @@ contains
          i_eps => mg_iveps)
 #if NDIM == 2
       do j = 1, nc
-         if (mg%smoother_type == mg_smoother_gsrb) &
+         if (redblack) &
               i0 = 2 - iand(ieor(redblack_cntr, j), 1)
 
          do i = i0, nc, di
@@ -101,7 +103,7 @@ contains
 #elif NDIM == 3
       do k = 1, nc
          do j = 1, nc
-            if (mg%smoother_type == mg_smoother_gsrb) &
+            if (redblack) &
                  i0 = 2 - iand(ieor(redblack_cntr, k+j), 1)
             do i = i0, nc, di
                a0     = cc(i, j, k, i_eps)

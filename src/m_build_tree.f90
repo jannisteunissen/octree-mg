@@ -46,9 +46,11 @@ contains
     boxes_per_dim(:, 1) = domain_size / box_size
 
     do lvl = 1, mg_lvl_lo+1, -1
-       if (any(modulo(nx, 2) == 1 .or. &
-            mg%box_size_lvl(lvl) == mg%coarsest_grid .or. &
-            nx == mg%coarsest_grid)) exit
+       ! For a Gauss-Seidel (non red-black) smoother, we should avoid boxes
+       ! containing a single cell
+       if (any(modulo(nx, 2) == 1 .or. nx == mg%coarsest_grid .or. &
+            (mg%box_size_lvl(lvl) == mg%coarsest_grid .and. &
+            mg%smoother_type == mg_smoother_gs))) exit
 
        if (all(modulo(nx/mg%box_size_lvl(lvl), 2) == 0)) then
           mg%box_size_lvl(lvl-1) = mg%box_size_lvl(lvl)

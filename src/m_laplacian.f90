@@ -50,6 +50,7 @@ contains
     integer, intent(in)       :: redblack_cntr !< Iteration counter
     integer                   :: IJK, i0, di
     real(dp)                  :: idr2(NDIM), fac
+    logical                   :: redblack
 #if NDIM == 3
     real(dp), parameter       :: sixth = 1/6.0_dp
 #endif
@@ -58,7 +59,8 @@ contains
     fac = 0.5_dp / sum(idr2)
     i0  = 1
 
-    if (mg%smoother_type == mg_smoother_gsrb) then
+    redblack = (mg%smoother_type == mg_smoother_gsrb)
+    if (redblack) then
        di = 2
     else
        di = 1
@@ -69,7 +71,7 @@ contains
     associate (cc => mg%boxes(id)%cc, n => mg_iphi)
 #if NDIM == 2
       do j = 1, nc
-         if (mg%smoother_type == mg_smoother_gsrb) &
+         if (redblack) &
               i0 = 2 - iand(ieor(redblack_cntr, j), 1)
 
          do i = i0, nc, di
@@ -82,7 +84,7 @@ contains
 #elif NDIM == 3
       do k = 1, nc
          do j = 1, nc
-            if (mg%smoother_type == mg_smoother_gsrb) &
+            if (redblack) &
                  i0 = 2 - iand(ieor(redblack_cntr, k+j), 1)
             do i = i0, nc, di
                cc(i, j, k, n) = fac * ( &
@@ -228,6 +230,7 @@ contains
     integer, intent(in)       :: nc
     integer, intent(in)       :: redblack_cntr !< Iteration counter
     integer                   :: IJK, i0, di
+    logical                   :: redblack
     real(dp)                  :: idr2(NDIM), dr(NDIM), dr2(NDIM), fac
 #if NDIM == 3
     real(dp), parameter       :: sixth = 1/6.0_dp
@@ -242,7 +245,8 @@ contains
     r_inv  = 1/(mg%boxes(id)%r_min(1) + dr(1) * [(i-0.5_dp, i=1,nc)])
 
     i0  = 1
-    if (mg%smoother_type == mg_smoother_gsrb) then
+    redblack = (mg%smoother_type == mg_smoother_gsrb)
+    if (redblack) then
        di = 2
     else
        di = 1
@@ -253,7 +257,7 @@ contains
     associate (cc => mg%boxes(id)%cc, n => mg_iphi)
 #if NDIM == 2
       do j = 1, nc
-         if (mg%smoother_type == mg_smoother_gsrb) &
+         if (redblack) &
               i0 = 2 - iand(ieor(redblack_cntr, j), 1)
 
          do i = i0, nc, di
@@ -267,7 +271,7 @@ contains
 #elif NDIM == 3
       do k = 1, nc
          do j = 1, nc
-            if (mg%smoother_type == mg_smoother_gsrb) &
+            if (redblack) &
                  i0 = 2 - iand(ieor(redblack_cntr, k+j), 1)
             do i = i0, nc, di
                cc(i, j, k, n) = (idr2(1) * ( &
