@@ -4,7 +4,11 @@ m_communication.f90 m_prolong.f90 m_multigrid.f90 m_octree_mg.f90	\
 m_laplacian.f90 m_vlaplacian.f90 m_helmholtz.f90 m_vhelmholtz.f90	\
 m_diffusion.f90
 
+ifneq ($(NDIM), 1)
 OBJECTS += $(SRC_F90:%.f90=%.o) mod_multigrid_coupling.o
+else
+OBJECTS += mod_multigrid_coupling.o
+endif
 
 MY_FLAGS := -cpp -DNDIM=$(NDIM)
 
@@ -28,7 +32,9 @@ amrvac.o: mod_multigrid_coupling.mod
 amr_coarsen_refine.o: mod_multigrid_coupling.mod
 
 # Coupling dependency
+ifneq ($(NDIM), 1)
 mod_multigrid_coupling.o: m_octree_mg.mod
+endif
 
 # Other dependencies
 m_allocate_storage.o: m_data_structures.mod
@@ -42,7 +48,6 @@ m_diffusion.o: m_data_structures.mod
 m_diffusion.o: m_helmholtz.mod
 m_diffusion.o: m_multigrid.mod
 m_diffusion.o: m_vhelmholtz.mod
-m_fishpack.o: m_data_structures.mod
 m_ghost_cells.o: m_communication.mod
 m_ghost_cells.o: m_data_structures.mod
 m_helmholtz.o: m_data_structures.mod
