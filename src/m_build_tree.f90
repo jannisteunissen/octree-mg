@@ -37,13 +37,15 @@ contains
        mg%subtract_mean = .true.
     end if
 
-    nx                  = domain_size
-    mg%box_size         = box_size
-    mg%box_size_lvl(1)  = box_size
-    mg%first_normal_lvl = 1
-    mg%dr(:, 1)         = dx
-    boxes_per_dim(:, :) = 0
-    boxes_per_dim(:, 1) = domain_size / box_size
+    nx                       = domain_size
+    mg%box_size              = box_size
+    mg%box_size_lvl(1)       = box_size
+    mg%domain_size_lvl(:, 1) = domain_size
+    mg%first_normal_lvl      = 1
+    mg%dr(:, 1)              = dx
+    mg%r_min(:)              = r_min
+    boxes_per_dim(:, :)      = 0
+    boxes_per_dim(:, 1)      = domain_size / box_size
 
     do lvl = 1, mg_lvl_lo+1, -1
        ! For a Gauss-Seidel (non red-black) smoother, we should avoid boxes
@@ -61,8 +63,9 @@ contains
           boxes_per_dim(:, lvl-1) = boxes_per_dim(:, lvl)
        end if
 
-       mg%dr(:, lvl-1) = mg%dr(:, lvl) * 2
-       nx = nx / 2
+       mg%dr(:, lvl-1)              = mg%dr(:, lvl) * 2
+       nx                           = nx / 2
+       mg%domain_size_lvl(:, lvl-1) = nx
     end do
 
     mg%lowest_lvl = lvl
@@ -71,6 +74,7 @@ contains
     do lvl = 2, mg_lvl_hi
        mg%dr(:, lvl) = mg%dr(:, lvl-1) * 0.5_dp
        mg%box_size_lvl(lvl) = box_size
+       mg%domain_size_lvl(:, lvl) = 2 * mg%domain_size_lvl(:, lvl-1)
     end do
 
     n = sum(product(boxes_per_dim, dim=1)) + n_finer

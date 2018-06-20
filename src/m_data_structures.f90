@@ -226,8 +226,12 @@ module m_data_structures
      integer                  :: n_boxes          = 0
      !> Size of boxes per level (differs for coarsest levels)
      integer                  :: box_size_lvl(mg_lvl_lo:mg_lvl_hi)
+     !> Size of domain per level (if uniformly refined)
+     integer                  :: domain_size_lvl(NDIM, mg_lvl_lo:mg_lvl_hi)
      !> Grid spacing per level
      real(dp)                 :: dr(NDIM, mg_lvl_lo:mg_lvl_hi)
+     !> Minimum coordinates
+     real(dp)                 :: r_min(NDIM)
      !> List of all levels
      type(mg_lvl_t)              :: lvls(mg_lvl_lo:mg_lvl_hi)
      !> Array with all boxes in the tree. Only boxes owned by this task are
@@ -386,6 +390,18 @@ contains
     end if
   end function mg_get_child_offset
 
+  pure function mg_highest_uniform_lvl(mg) result(lvl)
+    type(mg_t), intent(in) :: mg
+    integer                :: lvl
+
+    do lvl = mg%first_normal_lvl, mg%highest_lvl-1
+       ! Exit if a grid is partially refined
+       if (size(mg%lvls(lvl)%leaves) /= 0 .and. &
+           size(mg%lvls(lvl)%parents) /= 0) exit
+    end do
+    ! If the loop did not exit, we get lvl equals mg%highest_lvl
+  end function mg_highest_uniform_lvl
+
   !> Get coordinates at the face of a box
   subroutine mg_get_face_coords(box, nb, nc, x)
     type(mg_box_t), intent(in) :: box
@@ -399,7 +415,7 @@ contains
     integer                    :: i, j
 #endif
     integer                    :: nb_dim, ixs(NDIM-1)
-    real(dp)                   :: dr(NDIM-1), rmin(NDIM)
+    real(dp)                   :: rmin(NDIM)
 
     ! Determine directions perpendicular to neighbor
     nb_dim = mg_neighb_dim(nb)

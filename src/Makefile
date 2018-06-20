@@ -7,7 +7,7 @@ SRCS := m_data_structures.f90 m_build_tree.f90 m_load_balance.f90	\
 m_ghost_cells.f90 m_allocate_storage.f90 m_mrgrnk.f90 m_restrict.f90	\
 m_communication.f90 m_prolong.f90 m_multigrid.f90 m_octree_mg.f90	\
 m_laplacian.f90 m_vlaplacian.f90 m_helmholtz.f90 m_vhelmholtz.f90	\
-m_diffusion.f90
+m_diffusion.f90 m_free_space.f90
 
 OBJS := $(SRCS:%.f90=%.o)
 LIB := libomg.a
@@ -25,6 +25,10 @@ $(LIB): $(OBJS)
 	$(RM) $@
 	$(AR) rcs $@ $^
 
+# TODO: include free space solver in source code
+m_free_space.o: INCDIRS += $(HOME)/opt/sw/free_space_fft
+
+# Dependencies
 m_allocate_storage.o: m_data_structures.mod
 m_allocate_storage.o: m_ghost_cells.mod
 m_allocate_storage.o: m_prolong.mod
@@ -36,7 +40,9 @@ m_diffusion.o: m_data_structures.mod
 m_diffusion.o: m_helmholtz.mod
 m_diffusion.o: m_multigrid.mod
 m_diffusion.o: m_vhelmholtz.mod
-m_fishpack.o: m_data_structures.mod
+m_free_space.o: m_data_structures.mod
+m_free_space.o: m_multigrid.mod
+m_free_space.o: m_restrict.mod
 m_ghost_cells.o: m_communication.mod
 m_ghost_cells.o: m_data_structures.mod
 m_helmholtz.o: m_data_structures.mod

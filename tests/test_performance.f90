@@ -1,5 +1,5 @@
 #include "../src/cpp_macros.h"
-program test_one_level
+program test_performance
   use mpi
   use m_octree_mg
 
@@ -89,4 +89,4 @@ contains
     end do
   end subroutine set_rhs
 
-end program test_one_level
+end program test_performance
