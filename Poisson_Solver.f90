@@ -67,6 +67,9 @@ module Poisson_Solver
 
   private
 
+  ! Set this to 0 to let processor 0 output some extra information
+  integer, public :: iproc_verbose = -1
+
   !calculate the allocation dimensions
   public :: PS_dim4allocation
   !routine that creates the kernel

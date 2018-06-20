@@ -68,13 +68,13 @@ subroutine createKernel(geocode,n01,n02,n03,hx,hy,hz,itype_scf,iproc,nproc,kerne
 
   hgrid=max(hx,hy,hz)
 
-  if (iproc==0) write(*,'(1x,a)')&
+  if (iproc==iproc_verbose) write(*,'(1x,a)')&
           '------------------------------------------------------------ Poisson Kernel Creation'
 
 
   if (geocode == 'P') then
      
-     if (iproc==0) write(*,'(1x,a)',advance='no')&
+     if (iproc==iproc_verbose) write(*,'(1x,a)',advance='no')&
           'Poisson solver for periodic BC, no kernel calculation...'
      
      call F_FFT_dimensions(n01,n02,n03,m1,m2,m3,n1,n2,n3,md1,md2,md3,nd1,nd2,nd3,nproc)
@@ -87,7 +87,7 @@ subroutine createKernel(geocode,n01,n02,n03,hx,hy,hz,itype_scf,iproc,nproc,kerne
 
   else if (geocode == 'S') then
      
-     if (iproc==0) write(*,'(1x,a)',advance='no')&
+     if (iproc==iproc_verbose) write(*,'(1x,a)',advance='no')&
           'Calculating Poisson solver kernel, surfaces BC...'
 
      !Build the Kernel
@@ -105,7 +105,7 @@ subroutine createKernel(geocode,n01,n02,n03,hx,hy,hz,itype_scf,iproc,nproc,kerne
 
   else if (geocode == 'F') then
 
-     if (iproc==0) write(*,'(1x,a)',advance='no')&
+     if (iproc==iproc_verbose) write(*,'(1x,a)',advance='no')&
           'Calculating Poisson solver kernel, free BC...'
 
      !Build the Kernel
@@ -124,12 +124,13 @@ subroutine createKernel(geocode,n01,n02,n03,hx,hy,hz,itype_scf,iproc,nproc,kerne
 
   else
      
-     if (iproc==0) write(*,'(1x,a,3a)')'createKernel, geocode not admitted',geocode
+     if (iproc==iproc_verbose) &
+          write(*,'(1x,a,3a)')'createKernel, geocode not admitted',geocode
 
      stop
   end if
 
-  if (iproc==0) then
+  if (iproc==iproc_verbose) then
      write(*,'(a)')'done.'
      write(*,'(1x,2(a,i0))')&
           'Memory occ. per proc. (Bytes):  Density=',md1*md3*md2/nproc*8,&
