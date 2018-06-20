@@ -50,7 +50,29 @@ program PoissonSolver
   integer :: i1,i2,i3,j1,j2,j3,i1_max,i2_max,i3_max,iproc,nproc,ierr,i3sd,ncomp
   integer :: n_cell,i_allocated,l1,nsp1,nsp2,nsp3,ixc,n3d,n3p,n3pi,i3xcsh,i3s
   logical :: alsoserial,onlykernel
-  
+  integer :: n_args
+
+  call MPI_INIT(ierr)
+  call MPI_COMM_RANK(MPI_COMM_WORLD,iproc,ierr)
+  call MPI_COMM_SIZE(MPI_COMM_WORLD,nproc,ierr)
+
+  n_args = command_argument_count()
+
+  if (n_args < 3 .or. n_args > 6) then
+     if (iproc == 0) then
+        print *, "Arguments: nx ny nz [ixc geocode datacode]"
+        print *, "nx, ny, nz: number of grid points"
+        print *, "ixc: control exchange correlation functional"
+        print *, "     default: ixc = 0 (disabled)"
+        print *, "geocode:  P - periodic, F - free, S - surface)"
+        print *, "     default: F (free)"
+        print *, "datacode:  G - global, D - distributed"
+        print *, "     default: G (global)"
+     end if
+     call MPI_FINALIZE(ierr)
+     stop
+  end if
+
   !Use arguments
   call getarg(1,chain)
   read(unit=chain,fmt=*) n01
@@ -58,12 +80,27 @@ program PoissonSolver
   read(unit=chain,fmt=*) n02
   call getarg(3,chain)
   read(unit=chain,fmt=*) n03
-  call getarg(4,chain)
-  read(unit=chain,fmt=*) ixc
-  call getarg(5,chain)
-  read(unit=chain,fmt=*) geocode
-  call getarg(6,chain)
-  read(unit=chain,fmt=*) datacode
+
+  if (n_args >= 4) then
+     call getarg(4,chain)
+     read(unit=chain,fmt=*) ixc
+  else
+     ixc = 0
+  end if
+
+  if (n_args >= 5) then
+     call getarg(5,chain)
+     read(unit=chain,fmt=*) geocode
+  else
+     geocode = 'F'
+  end if
+
+  if (n_args >= 6) then
+     call getarg(6,chain)
+     read(unit=chain,fmt=*) datacode
+  else
+     datacode = 'G'
+  end if
 
   !perform also the comparison wit the serial case
   alsoserial=.false.
@@ -71,14 +108,10 @@ program PoissonSolver
   !code for the Poisson Solver in the parallel case
   !datacode='G'
 
-  call MPI_INIT(ierr)
-  call MPI_COMM_RANK(MPI_COMM_WORLD,iproc,ierr)
-  call MPI_COMM_SIZE(MPI_COMM_WORLD,nproc,ierr)
-
   if (geocode == 'P') then
 
      if (iproc==0) print *,"PSolver, periodic BC: ",n01,n02,n03,'processes',nproc
-     
+
   else if (geocode == 'S') then
 
      if (iproc==0) print *,"PSolver for surfaces: ",n01,n02,n03,'processes',nproc
@@ -86,7 +119,7 @@ program PoissonSolver
   else if (geocode == 'F') then
 
      if (iproc==0) print *,"PSolver, free BC: ",n01,n02,n03,'processes',nproc
-     
+
   end if
 
   !initialize memory counting
@@ -197,11 +230,11 @@ program PoissonSolver
      if (.not. onlykernel) then
         !offset, used only for the periodic solver case
         if(ixc==0) offset=potential(1,1,1)!-pot_ion(1,1,1)
-        
+
         !apply the Poisson Solver (case with distributed potential
         call PSolver(geocode,'G',0,1,n01,n02,n03,ixc,hx,hy,hz,&
              rhopot,karray,pot_ion,eh,exc,vxc,offset,.true.,1)
-        
+
      end if
 
      i_all=-product(shape(karray))*kind(karray)
