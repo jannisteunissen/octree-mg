@@ -1,3 +1,27 @@
+Comments on modifications
+==================
+
+**This package was not written by me and all credit goes to the original authors
+(L. Genovese et al.).**
+
+I needed a free-space Poisson solver in 3D, and have downloaded this
+GPL-licensed solver from the [Computational Physics
+website](https://comphys.unibas.ch/software.htm) of the University of Basel,
+through this [link](https://comphys.unibas.ch/SOFTWARE/FELORAPO/solver.tgz). The
+solver is part of the [BigDFT code](http://bigdft.org).
+
+I've made a couple of small modifications, which are perhaps useful for others:
+
+* Simplify the makefile
+* Always require MPI for building
+* Build a static library, so that the solver can easily be embedded
+* By default, disable printed output (so the solver stays quiet)
+* Add usage instructions to PSolver example
+
+Requirements: gfortran (or another Fortran compiler) and MPI.
+
+The original README is copied below:
+
 README for PSolver
 ==================
 
