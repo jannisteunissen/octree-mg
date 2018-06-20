@@ -1,48 +1,24 @@
-#***h* Poisson_Solver/Makefile
-# NAME
-#   Makefile
-#
-# FUNCTION
-#    Make everything
-#
-# SOURCE
-#
-#switch between a parallel and a serial approach
+# Makefile updated and simplified by Jannis Teunissen
+F90 = mpif90
+F90FLAGS = -O2 -cpp
 
-#sequential treatment
-mpi_source = MPIfake.f90
-mpi_include = mpif.h
+# Create a static library
+LIBNAME := poisfree
+LIB := lib$(LIBNAME).a
 
-F95 = g95 -fbounds-check -O 
-F77 = g95 -fbounds-check -O 
+PROGRAMS := PSolver
 
-#parallel treatment
-#mpi_source = 
-#mpi_include = 
-
-#F95 = ompif90 -fbounds-check -O 
-#F77 = ompif90 -fbounds-check -O 
-
-all: PSolver
+all: $(PROGRAMS)
 
 clean:
-	\rm -f *.o ${PROGRAMS} *~ *.log *.aux fort.* mpif.h *.mod \
+	\rm -f *.o ${PROGRAMS} *~ *.log *.aux fort.* *.mod \
 	ABINIT-common/*.f90 ABINIT-common/*.o ABINIT-common/*.mod
 
 cleanall:
 	make clean
 	\rm -rf *.dat *.pdf gmon.out
 
-tar:
-	tar czvf solver.tgz $(SOURCES_ABINIT) $(SOURCES_F77) $(SOURCES_F90) $(INCLUDES) $(OTHERS)
-
-PROGRAMS = \
-	PSolver
-
-
-
-
-SOURCES_ABINIT = ABINIT-common/defs_basis.F90 \
+SOURCES_ABINIT := ABINIT-common/defs_basis.F90 \
         ABINIT-common/defs_datatypes.F90 \
         ABINIT-common/defs_xc.F90 \
         ABINIT-common/drivexc.F90 \
@@ -56,92 +32,38 @@ SOURCES_ABINIT = ABINIT-common/defs_basis.F90 \
         ABINIT-common/xclb.F90 \
         ABINIT-common/xcpbe.F90 \
         ABINIT-common/invcb.F90 \
-	ABINIT-common/size_dvxc.F90 
+	ABINIT-common/size_dvxc.F90
 
-SOURCES_F90 = \
-	Poisson_Solver.f90 \
-	PSolver.f90 \
-	timing.f90 \
-	$(mpi_source)
+SOURCES_F90 := Poisson_Solver.f90 timing.f90
 
+SOURCES_F77 := dcopy.f
 
-SOURCES_F77 = \
-	dcopy.f
+OBJECTS := $(SOURCES_ABINIT:.F90=.o) $(SOURCES_F90:.f90=.o) $(SOURCES_F77:.f=.o)
 
-INCLUDES = perfdata.inc \
-	lazy_100.inc \
-	lazy_16.inc \
-	lazy_24.inc \
-	lazy_40.inc \
-	lazy_60.inc \
-	lazy_14.inc \
-	lazy_20.inc \
-	lazy_30.inc \
-	lazy_50.inc \
-	lazy_8.inc
+# Rules for compiling object files
+%.o: %.f90
+	$(F90) $(F90FLAGS) -c $< -o $@
 
-SOURCES_MOD = PSolver_Main.f90 \
-	Build_Kernel.f90 \
-	PSolver_Base.f90 \
-	xcenergy.f90 \
-	3Dgradient.f90 \
-	fft3d.f90 \
-	scaling_function.f90
+%.o: %.f
+	$(F90) $(F90FLAGS) -c $< -o $@
 
-OTHERS = Makefile \
-	PSchk.f90 \
-	MPIfake.f90 \
-	bench.csh \
-	perfdata.t \
-	acc_F.20-100.ref \
-	acc_S-128.20-100.ref \
-	acc_P.20-100.ref \
-	README \
-	INSTALL \
-	COPYING \
-	TODO \
-	$(SOURCES_MOD)
+%.o: %.F90
+	$(F90) $(F90FLAGS) -c $< -o $@
 
-OBJECTS_ABINIT_PP = $(SOURCES_ABINIT:.F90=.f90)
+# Rule for compiling programs
+%: %.f90
+	$(F90) $(F90FLAGS) $< -o $@ -l $(LIBNAME) -L .
 
-$(OBJECTS_ABINIT_PP): %.f90: %.F90
-	cpp -P $< $@
+$(LIB): $(OBJECTS) Poisson_Solver.o
+	$(RM) $@
+	$(AR) rcs $@ $^
 
-OBJECTS_ABINIT = $(OBJECTS_ABINIT_PP:.f90=.o)
+# Dependencies
+$(PROGRAMS): $(LIB)
 
-OBJECTS_F90 = $(SOURCES_F90:.f90=.o) 
-
-OBJECTS_F77 = $(SOURCES_F77:.f=.o) 
-
-
-$(OBJECTS_F90): %.o: %.f90
-	$(F95) -c $< -o $@
-
-$(OBJECTS_F77): %.o: %.f
-	$(F95) -c $< -o $@
-
-
-$(OBJECTS_ABINIT): %.o: %.f90
-	$(F95) -c $< -o $@
-
-COMMON =  $(OBJECTS_ABINIT) \
-	$(OBJECTS_F90) \
-	dcopy.o
-
-PSolver: $(COMMON) $(INCLUDES) 
-	$(F95) -o $@ $(COMMON)
-
-PSolver.o : Poisson_Solver.o
-
-Poisson_Solver.o : $(mpi_include) $(SOURCES_MOD)
-
-mpif.h:
-	touch mpif.h &&\
-	 echo "integer :: MPI_SUM, MPI_COMM_WORLD" >> mpif.h &&\
-	 echo "integer :: MPI_DOUBLE_PRECISION" >> mpif.h &&\
-	 echo "integer :: MPI_MIN, MPI_MAX" >> mpif.h
-
-$(SOURCES_ABINIT:.f90=.o) : ABINIT-common/defs_basis.o
+# Avoid circular dependency
+$(filter-out ABINIT-common/defs_basis.o, $(SOURCES_ABINIT:.F90=.o)): \
+	ABINIT-common/defs_basis.o
 
 ABINIT-common/defs_datatypes.o: ABINIT-common/defs_basis.o
 
