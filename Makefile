@@ -3,7 +3,7 @@ F90 = mpif90
 F90FLAGS = -O2 -cpp
 
 # Create a static library
-LIBNAME := poisfree
+LIBNAME := pois3dfft
 LIB := lib$(LIBNAME).a
 
 PROGRAMS := PSolver
@@ -11,12 +11,7 @@ PROGRAMS := PSolver
 all: $(PROGRAMS)
 
 clean:
-	\rm -f *.o ${PROGRAMS} *~ *.log *.aux fort.* *.mod \
-	ABINIT-common/*.f90 ABINIT-common/*.o ABINIT-common/*.mod
-
-cleanall:
-	make clean
-	\rm -rf *.dat *.pdf gmon.out
+	$(RM) $(OBJECTS) $(PROGRAMS) $(LIB) *.mod
 
 SOURCES_ABINIT := ABINIT-common/defs_basis.F90 \
         ABINIT-common/defs_datatypes.F90 \
