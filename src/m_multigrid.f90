@@ -103,7 +103,7 @@ contains
 
     if (mg%subtract_mean) then
        ! For fully periodic solutions, the mean source term has to be zero
-       call subtract_mean(mg, mg_irhs)
+       call subtract_mean(mg, mg_irhs, .false.)
     end if
 
     do lvl = mg%lowest_lvl, mg%highest_lvl
@@ -152,7 +152,7 @@ contains
     if (mg%subtract_mean .and. .not. present(highest_lvl)) then
        ! Assume that this is a stand-alone call. For fully periodic solutions,
        ! ensure the mean source term is zero.
-       call subtract_mean(mg, mg_irhs)
+       call subtract_mean(mg, mg_irhs, .false.)
     end if
 
     min_lvl = mg%lowest_lvl
@@ -215,16 +215,17 @@ contains
 
     ! Subtract mean(phi) from phi
     if (mg%subtract_mean) then
-       call subtract_mean(mg, mg_iphi)
+       call subtract_mean(mg, mg_iphi, .true.)
     end if
 
     call mg_timer_end(mg%timers(timer_total))
   end subroutine mg_fas_vcycle
 
-  subroutine subtract_mean(mg, iv)
+  subroutine subtract_mean(mg, iv, include_ghostcells)
     use mpi
     type(mg_t), intent(inout) :: mg
     integer, intent(in)       :: iv
+    logical, intent(in)       :: include_ghostcells
     integer                   :: i, id, lvl, nc, ierr
     real(dp)                  :: sum_iv, mean_iv, volume
 
@@ -242,8 +243,13 @@ contains
 
        do i = 1, size(mg%lvls(lvl)%my_ids)
           id = mg%lvls(lvl)%my_ids(i)
-          mg%boxes(id)%cc(DTIMES(:), iv) = &
-               mg%boxes(id)%cc(DTIMES(:), iv) - mean_iv
+          if (include_ghostcells) then
+             mg%boxes(id)%cc(DTIMES(:), iv) = &
+                  mg%boxes(id)%cc(DTIMES(:), iv) - mean_iv
+          else
+             mg%boxes(id)%cc(DTIMES(1:nc), iv) = &
+                  mg%boxes(id)%cc(DTIMES(1:nc), iv) - mean_iv
+          end if
        end do
     end do
   end subroutine subtract_mean
@@ -346,9 +352,9 @@ contains
        call mg%box_op(mg, id, nc_c, mg_irhs)
 
        ! Add the fine grid residual to rhs
-       mg%boxes(id)%cc(DTIMES(:), mg_irhs) = &
-            mg%boxes(id)%cc(DTIMES(:), mg_irhs) + &
-            mg%boxes(id)%cc(DTIMES(:), mg_ires)
+       mg%boxes(id)%cc(DTIMES(1:nc_c), mg_irhs) = &
+            mg%boxes(id)%cc(DTIMES(1:nc_c), mg_irhs) + &
+            mg%boxes(id)%cc(DTIMES(1:nc_c), mg_ires)
 
        ! Story a copy of phi
        mg%boxes(id)%cc(DTIMES(:), mg_iold) = &
