@@ -9,6 +9,7 @@ module m_ghost_cells
   public :: mg_ghost_cell_buffer_size
   public :: mg_fill_ghost_cells
   public :: mg_fill_ghost_cells_lvl
+  public :: mg_phi_bc_store
 
 contains
 
@@ -59,6 +60,59 @@ contains
     n_send = maxval(mg%comm_ghostcell%n_send, dim=2)
     n_recv = maxval(mg%comm_ghostcell%n_recv, dim=2)
   end subroutine mg_ghost_cell_buffer_size
+
+  !> Store boundary conditions for the solution variable, this can speed up
+  !> calculations if the same boundary conditions are re-used.
+  subroutine mg_phi_bc_store(mg)
+    type(mg_t), intent(inout) :: mg
+    integer                   :: lvl, nc
+
+    nc = mg%box_size
+
+    do lvl = mg%lowest_lvl, mg%highest_lvl
+       nc = mg%box_size_lvl(lvl)
+       call mg_phi_bc_store_lvl(mg, lvl, nc)
+    end do
+
+    mg%phi_bc_data_stored = .true.
+  end subroutine mg_phi_bc_store
+
+  subroutine mg_phi_bc_store_lvl(mg, lvl, nc)
+    type(mg_t), intent(inout) :: mg
+    integer, intent(in)       :: lvl
+    integer, intent(in)       :: nc
+#if NDIM == 2
+    real(dp)                  :: bc(nc)
+#elif NDIM == 3
+    real(dp)                  :: bc(nc, nc)
+#endif
+    integer                   :: i, id, nb, nb_id, bc_type
+
+    do i = 1, size(mg%lvls(lvl)%my_ids)
+       id = mg%lvls(lvl)%my_ids(i)
+       do nb = 1, mg_num_neighbors
+          nb_id = mg%boxes(id)%neighbors(nb)
+          if (nb_id < mg_no_box) then
+             ! Physical boundary
+             if (associated(mg%bc(nb, mg_iphi)%boundary_cond)) then
+                call mg%bc(nb, mg_iphi)%boundary_cond(mg%boxes(id), nc, &
+                     mg_iphi, nb, bc_type, bc)
+             else
+                bc_type = mg%bc(nb, mg_iphi)%bc_type
+                bc      = mg%bc(nb, mg_iphi)%bc_value
+             end if
+
+             ! Store the boundary condition type. This is not globally set in
+             ! the tree, but all negative values are treated the same in
+             ! other parts of the code
+             mg%boxes(id)%neighbors(nb) = bc_type
+
+             ! Store ghost cell data in the right-hand side
+             call box_set_gc(mg%boxes(id), nb, nc, mg_irhs, bc)
+          end if
+       end do
+    end do
+  end subroutine mg_phi_bc_store_lvl
 
   !> Fill ghost cells at all grid levels
   subroutine mg_fill_ghost_cells(mg, iv)
@@ -205,15 +259,22 @@ contains
           call fill_refinement_bnd(mg, id, nb, nc, iv, dry_run)
        else if (.not. dry_run) then
           ! Physical boundary
-         if (associated(mg%bc(nb, iv)%boundary_cond)) then
-            call mg%bc(nb, iv)%boundary_cond(mg%boxes(id), nc, iv, &
-                 nb, bc_type, bc)
-            call box_set_gc(mg%boxes(id), nb, nc, iv, bc)
+          if (mg%phi_bc_data_stored .and. iv == mg_iphi) then
+             ! Copy the boundary conditions stored in the ghost cells of the
+             ! right-hand side
+             call box_get_gc(mg%boxes(id), nb, nc, mg_irhs, bc)
+             bc_type = nb_id
           else
-             bc_type = mg%bc(nb, iv)%bc_type
-             call box_set_gc_scalar(mg%boxes(id), nb, nc, iv, &
-                     mg%bc(nb, iv)%bc_value)
+             if (associated(mg%bc(nb, iv)%boundary_cond)) then
+                call mg%bc(nb, iv)%boundary_cond(mg%boxes(id), nc, iv, &
+                     nb, bc_type, bc)
+             else
+                bc_type = mg%bc(nb, iv)%bc_type
+                bc = mg%bc(nb, iv)%bc_value
+             end if
           end if
+
+          call box_set_gc(mg%boxes(id), nb, nc, iv, bc)
           call bc_to_gc(mg, id, nc, iv, nb, bc_type)
        end if
     end do
@@ -477,6 +538,42 @@ contains
     end do
 #endif
   end subroutine box_gc_for_fine_neighbor
+
+  subroutine box_get_gc(box, nb, nc, iv, gc)
+    type(mg_box_t), intent(in) :: box
+    integer, intent(in)        :: nb, nc, iv
+#if NDIM == 2
+    real(dp), intent(out)       :: gc(nc)
+#elif NDIM == 3
+    real(dp), intent(out)       :: gc(nc, nc)
+#endif
+
+    select case (nb)
+#if NDIM == 2
+    case (mg_neighb_lowx)
+       gc = box%cc(0, 1:nc, iv)
+    case (mg_neighb_highx)
+       gc = box%cc(nc+1, 1:nc, iv)
+    case (mg_neighb_lowy)
+       gc = box%cc(1:nc, 0, iv)
+    case (mg_neighb_highy)
+       gc = box%cc(1:nc, nc+1, iv)
+#elif NDIM == 3
+    case (mg_neighb_lowx)
+       gc = box%cc(0, 1:nc, 1:nc, iv)
+    case (mg_neighb_highx)
+       gc = box%cc(nc+1, 1:nc, 1:nc, iv)
+    case (mg_neighb_lowy)
+       gc = box%cc(1:nc, 0, 1:nc, iv)
+    case (mg_neighb_highy)
+       gc = box%cc(1:nc, nc+1, 1:nc, iv)
+    case (mg_neighb_lowz)
+       gc = box%cc(1:nc, 1:nc, 0, iv)
+    case (mg_neighb_highz)
+       gc = box%cc(1:nc, 1:nc, nc+1, iv)
+#endif
+    end select
+  end subroutine box_get_gc
 
   subroutine box_set_gc(box, nb, nc, iv, gc)
     type(mg_box_t), intent(inout) :: box

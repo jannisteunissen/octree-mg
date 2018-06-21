@@ -247,6 +247,9 @@ module m_data_structures
      !> Communication info for ghost cell filling
      type(mg_comm_t)             :: comm_ghostcell
 
+     !> Whether boundary condition data has been stored for mg solution
+     logical :: phi_bc_data_stored = .false.
+
      !> To store pre-defined boundary conditions per direction per variable
      type(mg_bc_t) :: bc(mg_num_neighbors, mg_max_num_vars)
 

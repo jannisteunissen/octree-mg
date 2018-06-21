@@ -41,8 +41,9 @@ contains
        deallocate(mg%lvls(lvl)%my_ref_bnds)
     end do
 
-    mg%is_allocated = .false.
-    mg%n_boxes      = 0
+    mg%is_allocated       = .false.
+    mg%n_boxes            = 0
+    mg%phi_bc_data_stored = .false.
   end subroutine mg_deallocate_storage
 
   !> Allocate communication buffers and local boxes for a tree that has already

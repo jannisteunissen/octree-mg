@@ -8,7 +8,7 @@ module m_free_space
 #if NDIM == 3
   type mg_free_bc_t
      logical               :: initialized = .false.
-     integer               :: fft_lvl
+     integer               :: fft_lvl = -1
      real(dp), allocatable :: rhs(:, :, :)
      real(dp), pointer     :: karray(:)
      real(dp)              :: inv_dr(2, mg_num_neighbors)
@@ -28,7 +28,7 @@ module m_free_space
 
 contains
 
-  subroutine mg_poisson_free_3d(mg, max_fft_frac)
+  subroutine mg_poisson_free_3d(mg, new_rhs, max_fft_frac)
     use mpi
     use poisson_solver
     use m_multigrid
@@ -36,6 +36,8 @@ contains
     use m_prolong
     use m_ghost_cells
     type(mg_t), intent(inout)   :: mg
+    !> Whether a new right-hand side is present
+    logical, intent(in)         :: new_rhs
     !> How much smaller the fft solve has to be than the full multigrid (0.0-1.0)
     real(dp), intent(in)        :: max_fft_frac
     integer                     :: fft_lvl, lvl, n, id, nx(3), nc
@@ -51,31 +53,50 @@ contains
     character(len=*), parameter :: datacode  = 'G'
     integer, parameter          :: itype_scf = 8
     integer, parameter          :: ixc       = 0
+    logical                     :: new_fft_grid
 
     ! Correction factor for the source term 1 / (4 * pi)
     real(dp), parameter :: rhs_fac = -1 / (4 * acos(-1.0_dp))
 
-    if (.not. free_bc%initialized) then
-       ! Determine highest fully refined grid level
-       do lvl = mg_highest_uniform_lvl(mg), mg%first_normal_lvl+1, -1
-          ! Determine how many boxes the level contains
-          n_boxes_lvl = size(mg%lvls(lvl)%ids)
+    if (.not. free_bc%initialized .and. .not. new_rhs) then
+       error stop "mg_poisson_free_3d: first call requires new_rhs = .true."
+    end if
 
-          ! If the level is 'small enough', exit
-          if (n_boxes_lvl <= ceiling(max_fft_frac * mg%n_boxes)) exit
-       end do
+    ! Determine highest fully refined grid level
+    do lvl = mg_highest_uniform_lvl(mg), mg%first_normal_lvl+1, -1
+       ! Determine how many boxes the level contains
+       n_boxes_lvl = size(mg%lvls(lvl)%ids)
 
-       fft_lvl         = lvl
-       free_bc%fft_lvl = lvl
+       ! If the level is 'small enough', exit
+       if (n_boxes_lvl <= ceiling(max_fft_frac * mg%n_boxes)) exit
+    end do
+
+    fft_lvl = lvl
+    new_fft_grid = (.not. free_bc%initialized .or. free_bc%fft_lvl /= fft_lvl)
+
+    ! Add a layer of ghost cells around the domain
+    nx(:) = mg%domain_size_lvl(:, fft_lvl) + 2
+    dr(:) = mg%dr(:, fft_lvl)
+
+    ! Ensure boundary conditions are set for multigrid solver
+    do n = 1, mg_num_neighbors
+       mg%bc(n, mg_iphi)%boundary_cond => ghost_cells_free_bc
+    end do
+
+    if (free_bc%initialized .and. new_fft_grid) then
+       deallocate(free_bc%karray)
+       deallocate(free_bc%rhs)
+       ! The boundary planes are automatically re-allocated
+       free_bc%initialized = .false.
+    end if
+
+    if (new_fft_grid) then
+       free_bc%fft_lvl = fft_lvl
 
        ! Restrict rhs to required level
        do lvl = mg%highest_lvl, fft_lvl+1, -1
           call mg_restrict_lvl(mg, mg_irhs, lvl)
        end do
-
-       ! Add a layer of ghost cells around the domain
-       nx(:) = mg%domain_size_lvl(:, fft_lvl) + 2
-       dr(:) = mg%dr(:, fft_lvl)
 
        ! Create kernel of Green's function
        call createKernel(geocode, nx(1), nx(3), nx(3), dr(1), dr(2), dr(3),  &
@@ -96,11 +117,9 @@ contains
           free_bc%r_min(:, n)  = free_bc%r_min(:, n-1)
        end do
 
-       ! Set boundary conditions for multigrid solver
-       do n = 1, mg_num_neighbors
-          mg%bc(n, mg_iphi)%boundary_cond => ghost_cells_free_bc
-       end do
+    end if
 
+    if (new_rhs) then
        allocate(tmp(nx(1), nx(2), nx(3)))
        tmp(:, :, :) = 0.0_dp
 
@@ -116,6 +135,7 @@ contains
        call mpi_allreduce(tmp, free_bc%rhs, product(shape(tmp)), MPI_DOUBLE, &
             MPI_SUM, mg%comm, ierr)
 
+       ! Use default load balancing for parallel fft
        i3sd  = 1
        ncomp = nx(3)
 
@@ -134,6 +154,9 @@ contains
          free_bc%bc_z0 = 0.5_dp * (rhs(:, :, 1) + rhs(:, :, 2))
          free_bc%bc_z1 = 0.5_dp * (rhs(:, :, nx(3)-1) + rhs(:, :, nx(3)))
        end associate
+
+       ! Store boundary conditions (so interpolation has to be performed only once)
+       call mg_phi_bc_store(mg)
 
        ! Use solution as an initial guess
        nc = mg%box_size_lvl(fft_lvl)
