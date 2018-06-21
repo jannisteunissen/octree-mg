@@ -3,9 +3,9 @@ F90FLAGS ?= -O2 -cpp
 
 PROGRAMS := PSolver
 
-include definitions.make
-
 all: $(PROGRAMS)
+
+include definitions.make
 
 clean:
 	$(RM) $(OBJECTS_POIS3D) $(PROGRAMS) $(LIBPOIS3DFFT) *.mod

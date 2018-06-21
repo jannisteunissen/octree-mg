@@ -22,3 +22,6 @@ defs_datatypes.o: defs_basis.o
 defs_xc.o: defs_datatypes.o
 
 drivexc.o: defs_basis.o defs_xc.o
+
+poisson_solver.o: psolver_main.f90 build_kernel.f90 psolver_base.f90 \
+	xcenergy.f90 3dgradient.f90 fft3d.f90 scaling_function.f90

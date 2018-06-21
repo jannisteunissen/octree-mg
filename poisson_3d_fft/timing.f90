@@ -7,8 +7,8 @@
 
 
 subroutine timing(iproc,category,action)
+  use mpi
   implicit none
-  include 'mpif.h'
   !Variables
   integer, intent(in) :: iproc
   character(len=14), intent(in) :: category
@@ -18,9 +18,12 @@ subroutine timing(iproc,category,action)
   integer, parameter :: ncat=7   ! define timimg categories
   integer :: i,ierr,ii
   !cputime routine gives a real
-  real :: total,total0,time,time0
+  real(kind=8) :: total,total0,time,time0
   real(kind=8) :: pc,total_pc
-  real(kind=8) :: flops(ncat),timesum(ncat+1),timemax(ncat+1),timemin(ncat+1)
+  real(kind=8) :: flops(ncat) = 0.0d0
+  real(kind=8) :: timesum(ncat+1) = 0.0d0
+  real(kind=8) :: timemax(ncat+1)
+  real(kind=8) :: timemin(ncat+1)
   character(len=14) :: filename
   save :: time0,init,timesum,total0,parallel
 

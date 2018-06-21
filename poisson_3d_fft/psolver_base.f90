@@ -8,9 +8,9 @@
 
 subroutine P_PoissonSolver(n1,n2,n3,nd1,nd2,nd3,md1,md2,md3,nproc,iproc,zf&
              ,scal,hx,hy,hz)
+  use mpi
   implicit none
   !to be preprocessed
-  include 'mpif.h'
   include 'perfdata.inc'
   !Arguments
   integer, intent(in) :: n1,n2,n3,nd1,nd2,nd3,md1,md2,md3,nproc,iproc
@@ -20,7 +20,7 @@ subroutine P_PoissonSolver(n1,n2,n3,nd1,nd2,nd3,md1,md2,md3,nproc,iproc,zf&
   !Maximum number of points for FFT (should be same number in fft3d routine)
   integer, parameter :: nfft_max=24000
   integer :: ncache,lzt,lot,ma,mb,nfft,ic1,ic2,ic3,Jp2stb,J2stb,Jp2stf,J2stf
-  integer :: j1,j2,j3,i1,i2,i3,i,j,inzee,ierr,i_all,i_stat
+  integer :: j2,j3,i1,i3,i,j,inzee,ierr,i_all,i_stat
   !work arrays for transpositions
   real(kind=8), dimension(:,:,:), allocatable :: zt
   !work arrays for MPI
@@ -804,7 +804,7 @@ subroutine multkernel(nd1,nd2,n1,n2,lot,nfft,jS,pot,zw)
   real(kind=8), dimension(nd1,nd2), intent(in) :: pot
   real(kind=8), dimension(2,lot,n2), intent(inout) :: zw
   !Local variables
-  integer :: j,j1,i2,j2,isign
+  integer :: j,j1,i2,j2
 
   !Body
   
@@ -896,8 +896,8 @@ end subroutine multkernel
 !!
 subroutine S_PoissonSolver(n1,n2,n3,nd1,nd2,nd3,md1,md2,md3,nproc,iproc,pot,zf&
              ,scal,hx,hy,hz)!,ehartree)
+  use mpi
   implicit none
-  include 'mpif.h'
   include 'perfdata.inc'
   !Arguments
   integer, intent(in) :: n1,n2,n3,nd1,nd2,nd3,md1,md2,md3,nproc,iproc
@@ -909,7 +909,7 @@ subroutine S_PoissonSolver(n1,n2,n3,nd1,nd2,nd3,md1,md2,md3,nproc,iproc,pot,zf&
   !Maximum number of points for FFT (should be same number in fft3d routine)
   integer, parameter :: nfft_max=24000
   integer :: ncache,lzt,lot,ma,mb,nfft,ic1,ic2,ic3,Jp2stb,J2stb,Jp2stf,J2stf
-  integer :: j1,j2,j3,i1,i2,i3,i,j,inzee,ierr,i_all,i_stat
+  integer :: j2,j3,i1,i3,i,j,inzee,ierr,i_all,i_stat
   real(kind=8) :: twopion!,ehartreetmp
   !work arrays for transpositions
   real(kind=8), dimension(:,:,:), allocatable :: zt
@@ -1719,8 +1719,8 @@ end subroutine unscramble_pack
 !!
 subroutine F_PoissonSolver(n1,n2,n3,nd1,nd2,nd3,md1,md2,md3,nproc,iproc,pot,zf&
              ,scal)!,hgrid)!,ehartree)
+  use mpi
   implicit none
-  include 'mpif.h'
   include 'perfdata.inc'
   !Arguments
   integer, intent(in) :: n1,n2,n3,nd1,nd2,nd3,md1,md2,md3,nproc,iproc
@@ -1732,7 +1732,7 @@ subroutine F_PoissonSolver(n1,n2,n3,nd1,nd2,nd3,md1,md2,md3,nproc,iproc,pot,zf&
   !Maximum number of points for FFT (should be same number in fft3d routine)
   integer, parameter :: nfft_max=24000
   integer :: ncache,lzt,lot,ma,mb,nfft,ic1,ic2,ic3,Jp2stb,J2stb,Jp2stf,J2stf
-  integer :: j1,j2,j3,i1,i2,i3,i,j,inzee,ierr,i_all,i_stat
+  integer :: j2,j3,i1,i3,i,j,inzee,ierr,i_all,i_stat
   real(kind=8) :: twopion!,ehartreetmp
   !work arrays for transpositions
   real(kind=8), dimension(:,:,:), allocatable :: zt

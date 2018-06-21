@@ -28,8 +28,8 @@ program PSchk
 
   use poisson_solver
 
+  use mpi
   implicit none
-  include 'mpif.h'
   !Length of the box
   real(kind=8), parameter :: a_gauss = 1.0d0,a2 = a_gauss**2
   real(kind=8), parameter :: acell = 10.d0
@@ -384,8 +384,8 @@ subroutine regroup_data(geocode,n01,n02,n03,hx,hy,hz,max_diff,diff_parser)
 end subroutine regroup_data
 
 subroutine compare(iproc,nproc,n01,n02,n03,potential,density,i1_max,i2_max,i3_max,max_diff)
+  use mpi
   implicit none
-  include 'mpif.h'
   integer, intent(in) :: iproc,nproc,n01,n02,n03
   real(kind=8), dimension(n01,n02,n03), intent(in) :: potential,density
   integer, intent(out) :: i1_max,i2_max,i3_max

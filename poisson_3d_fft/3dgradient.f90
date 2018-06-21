@@ -36,7 +36,7 @@ subroutine wb_correction(n1,n2,n3,n3grad,wbl,wbr,f_i,hx,hy,hz,nspden,&
  real(kind=8), dimension(n1,n2,n3,3,nspden), intent(in) :: f_i
  real(kind=8), dimension(n1,n2,n3,nspden), intent(inout) :: wb_vxc
  !Local variables
- integer :: i1,i2,i3,idir,ispden
+ integer :: i1,i2,i3,ispden
  !filters of finite difference derivative for order 4
  real(kind=8), parameter :: a1=0.8d0, a2=-0.2d0
  real(kind=8), parameter :: a3=0.038095238095238095238d0, a4=-0.0035714285714285714286d0
@@ -357,7 +357,7 @@ subroutine calc_gradient(n1,n2,n3,n3grad,deltaleft,deltaright,rhoinp,nspden,hx,h
  !filters of finite difference derivative for order 4
  real(kind=8), parameter :: a1=0.8d0, a2=-0.2d0
  real(kind=8), parameter :: a3=0.038095238095238095238d0, a4=-0.0035714285714285714286d0
- real(kind=8) :: derx,dery,derz,modsq
+ real(kind=8) :: derx,dery,derz
  real(kind=8), dimension(:,:,:), allocatable :: density
  !Body
 

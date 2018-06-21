@@ -142,12 +142,11 @@ integer,intent(in),optional :: exexch
 
 !Local variables-------------------------------
 !scalars
- integer :: i_all,ipts,ispden,optpbe,xclevel
+ integer :: i_all,optpbe,xclevel
  real(dp),parameter :: rsfac=0.6203504908994000e0_dp
  character(len=500) :: message
 !arrays
- real(dp) :: exctmp(2),rhotmp(2),vxctmp(2)
- real(dp),allocatable :: d2vxci(:),dvxci(:,:),exci_rpa(:),grho2_updn_fake(:,:)
+ real(dp),allocatable :: exci_rpa(:)
  real(dp),allocatable :: rhotot(:),rspts(:),vxci_rpa(:,:),zeta(:)
 !no_abirules
 #if defined HAVE_ETSF_XC

@@ -90,8 +90,8 @@
 !! 
 subroutine PSolver(geocode,datacode,iproc,nproc,n01,n02,n03,ixc,hx,hy,hz,&
      rhopot,karray,pot_ion,eh,exc,vxc,offset,sumpion,nspin)
+  use mpi
   implicit none
-  include 'mpif.h'
   character(len=1), intent(in) :: geocode
   character(len=1), intent(in) :: datacode
   logical, intent(in) :: sumpion
@@ -104,7 +104,7 @@ subroutine PSolver(geocode,datacode,iproc,nproc,n01,n02,n03,ixc,hx,hy,hz,&
   integer, parameter :: nordgr=4 !the order of the finite-difference gradient (fixed)
   integer :: m1,m2,m3,md1,md2,md3,n1,n2,n3,nd1,nd2,nd3
   integer :: i_all,i_stat,ierr,ind,ind2,ind3,ind4
-  integer :: i1,i2,i3,j2,istart,iend,i3start,jend,jproc,i3xcsh,is_step,i4,ind2nd
+  integer :: i1,i2,i3,j2,istart,iend,i3start,jend,jproc,i3xcsh,is_step,ind2nd
   integer :: nxc,nwbl,nwbr,nxt,nwb,nxcl,nxcr,nlim
   real(kind=8) :: ehartreeLOC,eexcuLOC,vexcuLOC
   real(kind=8) :: scal,newoffset,correction,pot,factor
@@ -510,17 +510,26 @@ subroutine PSolver(geocode,datacode,iproc,nproc,n01,n02,n03,ixc,hx,hy,hz,&
 
         call timing(iproc,'PSolv_comput  ','OF')
         call timing(iproc,'PSolv_commun  ','ON')
-        call MPI_ALLGATHERV(rhopot(1+n01*n02*istart),gather_arr(iproc,1),MPI_double_precision,&
+        ! Jannis: fixed buffer aliasing error by using MPI_IN_PLACE, here and below
+        ! call MPI_ALLGATHERV(rhopot(1+n01*n02*istart),gather_arr(iproc,1),MPI_double_precision,&
+        !      rhopot(1),gather_arr(0,1),gather_arr(0,2),MPI_double_precision,MPI_COMM_WORLD,ierr)
+        call MPI_ALLGATHERV(MPI_IN_PLACE,gather_arr(iproc,1),MPI_double_precision,&
              rhopot(1),gather_arr(0,1),gather_arr(0,2),MPI_double_precision,MPI_COMM_WORLD,ierr)
         !second spin
         if(nspin==2) then
-           call MPI_ALLGATHERV(rhopot(1+n01*n02*istart+n01*n02*n03),gather_arr(iproc,1),&
+           ! call MPI_ALLGATHERV(rhopot(1+n01*n02*istart+n01*n02*n03),gather_arr(iproc,1),&
+           !      MPI_double_precision,rhopot(n01*n02*n03+1),gather_arr(0,1),gather_arr(0,2),&
+           !      MPI_double_precision,MPI_COMM_WORLD,ierr)
+           call MPI_ALLGATHERV(MPI_IN_PLACE,gather_arr(iproc,1),&
                 MPI_double_precision,rhopot(n01*n02*n03+1),gather_arr(0,1),gather_arr(0,2),&
                 MPI_double_precision,MPI_COMM_WORLD,ierr)
         end if
         !if it is the case gather also the results of the XC potential
         if (ixc /=0 .and. .not. sumpion) then
-           call MPI_ALLGATHERV(pot_ion(1+n01*n02*istart),gather_arr(iproc,1),&
+           ! call MPI_ALLGATHERV(pot_ion(1+n01*n02*istart),gather_arr(iproc,1),&
+           !      MPI_double_precision,pot_ion,gather_arr(0,1),gather_arr(0,2),&
+           !      MPI_double_precision,MPI_COMM_WORLD,ierr)
+           call MPI_ALLGATHERV(MPI_IN_PLACE,gather_arr(iproc,1),&
                 MPI_double_precision,pot_ion,gather_arr(0,1),gather_arr(0,2),&
                 MPI_double_precision,MPI_COMM_WORLD,ierr)
         end if

@@ -132,7 +132,7 @@ subroutine xcpbe(exci,npts,nspden,option,order,rho_updn,vxci,ndvxci,ngr2,& !Mand
 ! The "accurate" value of mu is taken from the PBE code
 !scalars
  integer,save :: initialized=0
- integer :: debug,ipts,ispden
+ integer :: ipts,ispden
  real(dp),parameter :: alpha_zeta2=1.0_dp-1.0e-6_dp,alpha_zeta=1.0_dp-1.0e-6_dp
  real(dp),parameter :: b_wc=0.123456790123_dp,beta=0.066725_dp
  real(dp),parameter :: beta_inv=1.0_dp/beta,c_wc=0.00793746933516_dp
@@ -159,7 +159,7 @@ subroutine xcpbe(exci,npts,nspden,option,order,rho_updn,vxci,ndvxci,ngr2,& !Mand
  real(dp) :: d2vcrs_drs2,d2xx_drs2,d2xx_drsdtt,d2xx_drsdzeta,d2xx_dttdzeta
  real(dp) :: d2xx_dzeta2,d3ecrs0_drs3,daa_drs,daa_dzeta,dbb_drs,dbb_dzeta
  real(dp) :: dcc_dbb,dcc_drs,dcc_dzeta,decrs0_drs,decrs1_drs,decrs_drs
- real(dp) :: decrs_dzeta,delta,dfxdg,dfxdn,dfxdss,dfzeta4_dzeta,dgcrs_drs
+ real(dp) :: decrs_dzeta,dfxdg,dfxdn,dfxdss,dfzeta4_dzeta,dgcrs_drs
  real(dp) :: dhh_drs,dhh_dtt,dhh_dzeta,div_rr,divss,dmacrs_drs,dpade_drs
  real(dp) :: dpade_dtt,dpade_dxx,dpade_dzeta,dqq_drs,dqq_dtt,dqq_dzeta
  real(dp) :: drhohh_drho,drr_dqq,drr_drs,drr_dtt,drr_dzeta,drs_dn,dssdg,dssdn
@@ -167,14 +167,14 @@ subroutine xcpbe(exci,npts,nspden,option,order,rho_updn,vxci,ndvxci,ngr2,& !Mand
  real(dp) :: ec0_b2,ec0_b3,ec0_b4,ec0_den,ec0_f1,ec0_f2,ec0_log,ec0_q0,ec0_q1
  real(dp) :: ec0_q1p,ec0_q1pp,ec0_q1ppp,ec1_a1,ec1_aa,ec1_b1,ec1_b2,ec1_b3
  real(dp) :: ec1_b4,ec1_den,ec1_log,ec1_q0,ec1_q1,ec1_q1p,ec1_q1pp,ecrs,ecrs0
- real(dp) :: ecrs1,ex_gga,ex_lsd,exc,exp_pbe,expss,f_zeta,factfpp_zeta,factor
- real(dp) :: fp_zeta,fpp_zeta,fx,gamphi3inv,gcrs,grr,grrho2,hh,kappa,mac_a1
+ real(dp) :: ecrs1,ex_gga,ex_lsd,exc,exp_pbe,expss,f_zeta,factfpp_zeta
+ real(dp) :: fp_zeta,fpp_zeta,fx,gamphi3inv,gcrs,grrho2,hh,kappa,mac_a1
  real(dp) :: mac_aa,mac_b1,mac_b2,mac_b3,mac_b4,mac_den,mac_log,mac_q0,mac_q1
  real(dp) :: mac_q1p,mac_q1pp,macrs,mu_divkappa,p1_wc,p2_wc,pade,pade_den
  real(dp) :: phi3_zeta,phi_logder,phi_zeta,phi_zeta_inv,phip_zeta,phipp_zeta,qq
- real(dp) :: rho,rho_dn,rho_dnm,rho_dnp,rho_inv,rho_up,rho_upm,rho_upp,rhomot
+ real(dp) :: rho,rho_inv,rhomot
  real(dp) :: rhotmo6,rhotmot,rhoto6,rhotot,rhotot_inv,rr,rs,rsm1_2,sqr_rs
- real(dp) :: sqr_sqr_rs,ss,tt,vxcadd,xx,zeta,zeta4,zeta_mean,zetm_1_3,zetp_1_3
+ real(dp) :: sqr_sqr_rs,ss,tt,vxcadd,xx,zeta,zeta4,zetm_1_3,zetp_1_3
  character(len=500) :: message
 !arrays
  real(dp),allocatable :: rho_updnm1_3(:,:),rhoarr(:),rhom1_3(:),zetm(:)

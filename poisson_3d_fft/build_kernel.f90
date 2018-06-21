@@ -53,15 +53,15 @@
 !! SOURCE
 !!
 subroutine createKernel(geocode,n01,n02,n03,hx,hy,hz,itype_scf,iproc,nproc,kernel)
+  use mpi
   implicit none
-  include 'mpif.h'
   character(len=1), intent(in) :: geocode
   integer, intent(in) :: n01,n02,n03,itype_scf,iproc,nproc
   real(kind=8), intent(in) :: hx,hy,hz
   real(kind=8), pointer :: kernel(:)
   !local variables
   integer :: m1,m2,m3,n1,n2,n3,md1,md2,md3,nd1,nd2,nd3,i_stat
-  integer :: jproc,nlimd,nlimk,jhalf,jfd,jhd,jzd,jfk,jhk,jzk,npd,npk
+  integer :: jproc,nlimd,nlimk,jfd,jhd,jzd,jfk,jhk,jzk,npd,npk
   real(kind=8) :: hgrid
 
   call timing(iproc,'PSolvKernel   ','ON')
@@ -227,8 +227,8 @@ end subroutine createKernel
 !!
 subroutine Surfaces_Kernel(n1,n2,n3,m3,nker1,nker2,nker3,h1,h2,h3,itype_scf,karray,iproc,nproc)
   
+  use mpi
   implicit none
-  include 'mpif.h'
   include 'perfdata.inc'
   
   !Arguments
@@ -250,12 +250,12 @@ subroutine Surfaces_Kernel(n1,n2,n3,m3,nker1,nker2,nker3,h1,h2,h3,itype_scf,karr
   real(kind=8), dimension(:,:), allocatable :: cossinarr,btrig
   integer, dimension(:), allocatable :: after,now,before
   
-  real(kind=8) :: pi,dx,absci,mu0,mu1,kern,ratio,ponx,pony
-  real(kind=8) :: a,b,c,d,feR,feI,foR,foI,fR,fI,cp,sp,pion,x,factor,value,diff,max_diff
+  real(kind=8) :: pi,dx,mu1,ponx,pony
+  real(kind=8) :: a,b,c,d,feR,feI,foR,foI,fR,cp,sp,pion,x,value,diff
   integer :: n_scf,ncache,imu,ierr
   integer :: n_range,n_cell,num_of_mus,shift,istart,iend,ireim,jreim,j2st,j2nd,nact2
-  integer :: i,n_iter,i1,i2,i3,i_kern,i_stat,i_all,i1_max,i2_max,i3_max
-  integer :: i01,i02,i03,j1,j2,j3,ind1,ind2,jnd1,ic,inzee,nfft,ipolyord,jp2
+  integer :: i,i1,i2,i3,i_stat,i_all
+  integer :: j2,ind1,ind2,jnd1,ic,inzee,nfft,ipolyord,jp2
 
   !coefficients for the polynomial interpolation
   real(kind=8), dimension(9,8) :: cpol
@@ -754,8 +754,8 @@ subroutine calculates_green_opt_muzero(n,n_scf,intorder,xval,yval,c,hres,green)
   real(kind=8), dimension(intorder+1), intent(in) :: c
   real(kind=8), dimension(n), intent(out) :: green
   !local variables
-  integer :: izero,ivalue,i,iend,ikern,n_iter,nrec
-  real(kind=8) :: f,x,y,filter,gl0,gl1,gr0,gr1,c0,c1,fl,fr,x0,x1,ratio,mu0
+  integer :: izero,ivalue,i,iend,ikern
+  real(kind=8) :: x,y,filter,gl0,gl1,gr0,gr1,c0,c1
 
   !initialization of the branching value
   ikern=0
@@ -907,12 +907,12 @@ subroutine Free_Kernel(n01,n02,n03,nfft1,nfft2,nfft3,n1k,n2k,n3k,&
  real(kind=8), dimension(:,:,:), allocatable :: kp
 
 
- real(kind=8) :: ur_gauss,dr_gauss,acc_gauss,pgauss,kern,a_range,kern_tot
- real(kind=8) :: pi,factor,factor2,urange,dx,absci,p0gauss,weight,p0_cell,u1,u2,u3
- real(kind=8) :: a1,a2,a3,amax,ratio,hgrid,pref1,pref2,pref3,p01,p02,p03,kern1,kern2,kern3
+ real(kind=8) :: ur_gauss,dr_gauss,acc_gauss,pgauss,kern,a_range
+ real(kind=8) :: factor,factor2,dx,absci,p0gauss,p0_cell,u1,u2,u3
+ real(kind=8) :: a1,a2,a3,hgrid,pref1,pref2,pref3,p01,p02,p03,kern1,kern2,kern3
  integer :: n_scf,nker1,nker2,nker3
  integer :: i_gauss,n_range,n_cell,istart,iend,istart1
- integer :: i,j,n_iter,i_iter,ind,i1,i2,i3,i_kern,i_stat,i_all
+ integer :: i,n_iter,i1,i2,i3,i_kern,i_stat,i_all
  integer :: i01,i02,i03,n1h,n2h,n3h,nit1,nit2,nit3
 
  !grid spacing
@@ -1224,8 +1224,8 @@ end subroutine inserthalf
 !! SOURCE
 !!
 subroutine kernelfft(n1,n2,n3,nd1,nd2,nd3,nk1,nk2,nk3,nproc,iproc,zf,zr)
+  use mpi
   implicit none
-  include 'mpif.h'
   include 'perfdata.inc'
   !Arguments
   integer, intent(in) :: n1,n2,n3,nd1,nd2,nd3,nk1,nk2,nk3,nproc,iproc

@@ -103,7 +103,7 @@ subroutine xcspol(exc,npts,nspden,order,rspts,vxc,zeta,ndvxc,& !Mandatory argume
 !(a0=(3/4)(3/(2 Pi))^(2/3)) (note that b1=1 is fixed)
 !Differences, ferromagnetic - paramagnetic (delta params):da1,da2,da3,db1,db2,db3,db4
 !scalars
- integer :: debug,ipts
+ integer :: ipts
  real(dp),parameter :: a0p=.4581652932831429_dp,a1p=2.217058676663745_dp
  real(dp),parameter :: a2p=0.7405551735357053_dp,a3p=0.01968227878617998_dp
  real(dp),parameter :: alpha_zeta=one-1.0d-6,b1p=one,b2p=4.504130959426697_dp
@@ -116,9 +116,9 @@ subroutine xcspol(exc,npts,nspden,order,rspts,vxc,zeta,ndvxc,& !Mandatory argume
  real(dp),parameter :: rsfacm3=rsfac**(-3)
  real(dp) :: a0,a1,a2,a3,b1,b2,b3,b4,d1,d1m1,d2d1drs2,d2d1drsdf,d2excdf2
  real(dp) :: d2excdrs2,d2excdrsdf,d2excdz2,d2fxcdz2,d2n1drs2,d2n1drsdf,dd1df
- real(dp) :: dd1drs,delta,dexcdf,dexcdrs,dexcdz,dfxcdz,dn1df,dn1drs,dvxcdrs
- real(dp) :: dvxcpdrho,dvxcpdz,excipt,fact,fxc,n1,rho,rho_dn,rho_dnm,rho_dnp
- real(dp) :: rho_up,rho_upm,rho_upp,rhom1,rs,vxcp,zet,zeta_mean,zetm,zetm_third
+ real(dp) :: dd1drs,dexcdf,dexcdrs,dexcdz,dfxcdz,dn1df,dn1drs,dvxcdrs
+ real(dp) :: dvxcpdrho,dvxcpdz,excipt,fact,fxc,n1
+ real(dp) :: rhom1,rs,vxcp,zet,zetm,zetm_third
  real(dp) :: zetp,zetp_third
  character(len=500) :: message
 !no_abirules

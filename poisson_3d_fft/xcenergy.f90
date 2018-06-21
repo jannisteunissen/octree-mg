@@ -93,7 +93,7 @@ subroutine xc_energy(geocode,m1,m2,m3,md1,md2,md3,nxc,nwb,nxt,nwbl,nwbr,&
   real(kind=8), dimension(:,:,:), allocatable :: exci,d2vxci
   real(kind=8), dimension(:,:,:,:), allocatable :: vxci,dvxci,dvxcdgr
   real(kind=8), dimension(:,:,:,:,:), allocatable :: gradient
-  real(kind=8) :: elocal,vlocal,rho,pot,potion,hgrid,facpotion,sfactor
+  real(kind=8) :: elocal,vlocal,rho,potion,hgrid,sfactor
   integer :: npts,i_all,order,offset,i_stat,ispden
   integer :: i1,i2,i3,j1,j2,j3,jp2,jpp2,jppp2
   integer :: ndvxc,nvxcdgr,ngr2
@@ -523,7 +523,7 @@ subroutine vxcpostprocessing(n01,n02,n03,n3eff,wbl,wbr,nspden,nvxcdgr,gradient,h
   real(kind=8), dimension(n01,n02,n03,nvxcdgr), intent(in) :: dvxcdgr
   real(kind=8), dimension(n01,n02,n03,nspden), intent(inout) :: wb_vxc
   !Local variables
-  integer :: i1,i2,i3,dir_i,i_all,i_stat,ispden
+  integer :: i1,i2,i3,dir_i,i_all,i_stat
   real(kind=8) :: dnexcdgog,grad_i,rho_up,rho_down,rho_tot
   real(kind=8), dimension(:,:,:,:,:), allocatable :: f_i
 

@@ -84,7 +84,7 @@ subroutine xchcth(dvxcdgr,exci,grho2_updn,ixc,npts,nspden,&
 !Local variables-------------------------------
 !scalars
  integer,save :: initialized=0
- integer :: debug,ipts,ispden
+ integer :: ipts,ispden
  real(dp),parameter :: alpha_zeta2=one-1e-6_dp,alpha_zeta=one-1e-6_dp
  real(dp),parameter :: fsec_inv=one/1.709921_dp,gammacab=0.006_dp
  real(dp),parameter :: gammacsig=0.2_dp,gammax=0.004_dp
@@ -95,20 +95,20 @@ subroutine xchcth(dvxcdgr,exci,grho2_updn,ixc,npts,nspden,&
  real(dp) :: coeffss,cxsig0,cxsig1,cxsig2,cxsig3,cxsig4,d2ecrs0_drs2
  real(dp) :: d2ecrs1_drs2,d2ecrs_drs2,d2ecrs_drsdzeta,d2ecrs_dzeta2
  real(dp) :: d2fzeta4_dzeta2,d2gcrs_drs2,d2macrs_drs2,decrs0_drs,decrs1_drho
- real(dp) :: decrs1_drs,decrs_drs,decrs_dzeta,delta,dfzeta4_dzeta,dgcabdss
+ real(dp) :: decrs1_drs,decrs_drs,decrs_dzeta,dfzeta4_dzeta,dgcabdss
  real(dp) :: dgcrs_drs,dgcsigdss,dgxsigdss,divcab,divcsig,divx,dmacrs_drs
  real(dp) :: drhoecab_drhodn,drhoecab_drhoup,drhoecrs1_drhodn,drhoecrs1_drhoup
  real(dp) :: drsdrho,dssdg,dssdndg,dssdndrho,dssdrho,dssupdg,dssupdrho,ducabdss
  real(dp) :: ducsigdss,duxsigdss,ec0_a1,ec0_aa,ec0_b1,ec0_b2,ec0_b3,ec0_b4
  real(dp) :: ec0_den,ec0_log,ec0_q0,ec0_q1,ec0_q1p,ec0_q1pp,ec1_a1,ec1_aa
  real(dp) :: ec1_b1,ec1_b2,ec1_b3,ec1_b4,ec1_den,ec1_log,ec1_q0,ec1_q1,ec1_q1p
- real(dp) :: ec1_q1pp,ecrs,ecrs0,ecrs1,ex_lsd,exc,f_zeta,factfpp_zeta,factor
- real(dp) :: fp_zeta,fpp_zeta,gcab,gcrs,gcsig,grr,gxsig,mac_a1,mac_aa,mac_b1
+ real(dp) :: ec1_q1pp,ecrs,ecrs0,ecrs1,ex_lsd,exc,f_zeta,factfpp_zeta
+ real(dp) :: fp_zeta,fpp_zeta,gcab,gcrs,gcsig,gxsig,mac_a1,mac_aa,mac_b1
  real(dp) :: mac_b2,mac_b3,mac_b4,mac_den,mac_log,mac_q0,mac_q1,mac_q1p
- real(dp) :: mac_q1pp,macrs,rho,rho_dn,rho_dnm,rho_dnp,rho_inv,rho_up,rho_upm
- real(dp) :: rho_upp,rhoecab,rhoecrs1_dn,rhoecrs1_up,rhomo6,rhomot,rhoo6
+ real(dp) :: mac_q1pp,macrs,rho,rho_inv
+ real(dp) :: rhoecab,rhoecrs1_dn,rhoecrs1_up,rhomo6,rhomot,rhoo6
  real(dp) :: rhotmo6,rhotmot,rhoto6,rhotot,rhotot_inv,rs,rsm1_2,sqr_rs,ss,ss_dn
- real(dp) :: ss_up,ssavg,ucab,ucsig,uxsig,vxcadd,zeta,zeta4,zeta_mean,zetm_1_3
+ real(dp) :: ss_up,ssavg,ucab,ucsig,uxsig,vxcadd,zeta,zeta4,zetm_1_3
  real(dp) :: zetp_1_3
  character(len=500) :: message
 !arrays
