@@ -81,11 +81,11 @@ module Poisson_Solver
 
 contains
 
-  include 'PSolver_Main.f90'
-  include 'Build_Kernel.f90'
-  include 'PSolver_Base.f90'
+  include 'psolver_main.f90'
+  include 'build_kernel.f90'
+  include 'psolver_base.f90'
   include 'xcenergy.f90'
-  include '3Dgradient.f90'
+  include '3dgradient.f90'
   include 'fft3d.f90'
   include 'scaling_function.f90'
 

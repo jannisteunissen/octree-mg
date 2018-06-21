@@ -28,7 +28,7 @@
 !!
 program PoissonSolver
 
-  use Poisson_Solver
+  use poisson_solver
 
   implicit none
   include 'mpif.h'
