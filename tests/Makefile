@@ -4,10 +4,6 @@ LIBS = omg
 
 include ../makerules.make
 
-test_free_space_3d: INCDIRS += $(HOME)/opt/sw/free_space_fft
-test_free_space_3d: LIBDIRS += $(HOME)/opt/sw/free_space_fft
-test_free_space_3d: LIBS += poisfft
-
 .PHONY: all
 
 all: $(PROGS_2D) $(PROGS_3D)
@@ -17,10 +13,10 @@ clean:
 
 # Special rules to compile 2d/3d version of same program
 %_2d: %.f90
-	$(F90C) -o $@ $^ $(FFLAGS) $(addprefix -I,$(INCDIRS)) \
+	$(F90) -o $@ $^ $(F90FLAGS) $(addprefix -I,$(INCDIRS)) \
 	$(addprefix -L,$(LIBDIRS)) $(addprefix -l,$(LIBS))
 %_3d: %.f90
-	$(F90C) -o $@ $^ $(FFLAGS) $(addprefix -I,$(INCDIRS)) \
+	$(F90) -o $@ $^ $(F90FLAGS) $(addprefix -I,$(INCDIRS)) \
 	$(addprefix -L,$(LIBDIRS)) $(addprefix -l,$(LIBS))
 
 $(PROGS_2D): LIBDIRS+=../lib_2d

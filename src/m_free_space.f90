@@ -29,7 +29,7 @@ contains
 
   subroutine mg_poisson_free_3d(mg)
     use mpi
-    use Poisson_Solver
+    use poisson_solver
     use m_multigrid
     use m_restrict
     type(mg_t), intent(inout)   :: mg

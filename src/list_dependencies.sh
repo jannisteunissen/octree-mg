@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # Get all occurrences of use m_... in source files
-deps="$(grep -r -e "use m_" --include \*.f90)"
+deps="$(grep -r -e "^\s*use m_" --include \*.f90)"
 
 # Remove comments
 deps=$(echo "$deps" | sed 's/!.*$//')
@@ -21,7 +21,7 @@ deps=$(echo "$deps" | sed 's/ *: */:/')
 # Replace extension
 deps=$(echo "$deps" | sed 's/[.]f90/.o/')
 
-# Replace 'use m_xxx' by ' m_xxx.mod'
+# Replace 'use xxx' by ' xxx.mod'
 deps=$(echo "$deps" | sed 's/use \(.*\)$/ \1.mod/')
 
 # Sort lines and remove duplicates

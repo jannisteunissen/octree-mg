@@ -3,30 +3,14 @@ ifndef NDIM
 $(error NDIM is not set, type make in top or the lib folders)
 endif
 
-SRCS := m_data_structures.f90 m_build_tree.f90 m_load_balance.f90	\
-m_ghost_cells.f90 m_allocate_storage.f90 m_mrgrnk.f90 m_restrict.f90	\
-m_communication.f90 m_prolong.f90 m_multigrid.f90 m_octree_mg.f90	\
-m_laplacian.f90 m_vlaplacian.f90 m_helmholtz.f90 m_vhelmholtz.f90	\
-m_diffusion.f90 m_free_space.f90
+OBJECTS += m_data_structures.o m_build_tree.o m_load_balance.o m_ghost_cells.o	\
+m_allocate_storage.o m_mrgrnk.o m_restrict.o m_communication.o m_prolong.o	\
+m_multigrid.o m_octree_mg.o m_laplacian.o m_vlaplacian.o m_helmholtz.o		\
+m_vhelmholtz.o m_diffusion.o m_free_space.o
 
-OBJS := $(SRCS:%.f90=%.o)
-LIB := libomg.a
-
-include ../makerules.make
-
-.PHONY: all clean
-
-all: $(LIB)
-
-clean:
-	$(RM) $(OBJS) *.mod
-
-$(LIB): $(OBJS)
-	$(RM) $@
-	$(AR) rcs $@ $^
-
-# TODO: include free space solver in source code
-m_free_space.o: INCDIRS += $(HOME)/opt/sw/free_space_fft
+ifeq ($(NDIM), 3)
+m_free_space.o: poisson_solver.mod
+endif
 
 # Dependencies
 m_allocate_storage.o: m_data_structures.mod
@@ -60,6 +44,7 @@ m_octree_mg.o: m_allocate_storage.mod
 m_octree_mg.o: m_build_tree.mod
 m_octree_mg.o: m_communication.mod
 m_octree_mg.o: m_data_structures.mod
+m_octree_mg.o: m_free_space.mod
 m_octree_mg.o: m_ghost_cells.mod
 m_octree_mg.o: m_helmholtz.mod
 m_octree_mg.o: m_load_balance.mod
