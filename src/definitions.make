@@ -25,7 +25,9 @@ m_diffusion.o: m_helmholtz.mod
 m_diffusion.o: m_multigrid.mod
 m_diffusion.o: m_vhelmholtz.mod
 m_free_space.o: m_data_structures.mod
+m_free_space.o: m_ghost_cells.mod
 m_free_space.o: m_multigrid.mod
+m_free_space.o: m_prolong.mod
 m_free_space.o: m_restrict.mod
 m_ghost_cells.o: m_communication.mod
 m_ghost_cells.o: m_data_structures.mod

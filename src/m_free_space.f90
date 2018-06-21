@@ -8,6 +8,7 @@ module m_free_space
 #if NDIM == 3
   type mg_free_bc_t
      logical               :: initialized = .false.
+     integer               :: fft_lvl
      real(dp), allocatable :: rhs(:, :, :)
      real(dp), pointer     :: karray(:)
      real(dp)              :: inv_dr(2, mg_num_neighbors)
@@ -27,14 +28,18 @@ module m_free_space
 
 contains
 
-  subroutine mg_poisson_free_3d(mg)
+  subroutine mg_poisson_free_3d(mg, max_fft_frac)
     use mpi
     use poisson_solver
     use m_multigrid
     use m_restrict
+    use m_prolong
+    use m_ghost_cells
     type(mg_t), intent(inout)   :: mg
-    integer                     :: lvl, n, id, nx(3), nc
-    integer                     :: ix(3), ierr
+    !> How much smaller the fft solve has to be than the full multigrid (0.0-1.0)
+    real(dp), intent(in)        :: max_fft_frac
+    integer                     :: fft_lvl, lvl, n, id, nx(3), nc
+    integer                     :: ix(3), ierr, n_boxes_lvl
     real(dp)                    :: dr(3)
     real(dp)                    :: max_res
     real(dp), allocatable       :: tmp(:, :, :)
@@ -46,24 +51,39 @@ contains
     character(len=*), parameter :: datacode  = 'G'
     integer, parameter          :: itype_scf = 8
     integer, parameter          :: ixc       = 0
+
     ! Correction factor for the source term 1 / (4 * pi)
     real(dp), parameter :: rhs_fac = -1 / (4 * acos(-1.0_dp))
 
     if (.not. free_bc%initialized) then
-       ! Restrict rhs
-       call mg_restrict(mg, mg_irhs)
-
        ! Determine highest fully refined grid level
-       lvl = mg_highest_uniform_lvl(mg)
+       do lvl = mg_highest_uniform_lvl(mg), mg%first_normal_lvl+1, -1
+          ! Determine how many boxes the level contains
+          n_boxes_lvl = size(mg%lvls(lvl)%ids)
+
+          ! If the level is 'small enough', exit
+          if (n_boxes_lvl <= ceiling(max_fft_frac * mg%n_boxes)) exit
+       end do
+
+       fft_lvl         = lvl
+       free_bc%fft_lvl = lvl
+
+       ! Restrict rhs to required level
+       do lvl = mg%highest_lvl, fft_lvl+1, -1
+          call mg_restrict_lvl(mg, mg_irhs, lvl)
+       end do
 
        ! Add a layer of ghost cells around the domain
-       nx(:) = mg%domain_size_lvl(:, lvl) + 2
-       dr(:) = mg%dr(:, lvl)
+       nx(:) = mg%domain_size_lvl(:, fft_lvl) + 2
+       dr(:) = mg%dr(:, fft_lvl)
 
-       allocate(free_bc%rhs(nx(1), nx(2), nx(3)))
+       ! Create kernel of Green's function
        call createKernel(geocode, nx(1), nx(3), nx(3), dr(1), dr(2), dr(3),  &
             itype_scf, mg%my_rank, mg%n_cpu, free_bc%karray)
 
+       allocate(free_bc%rhs(nx(1), nx(2), nx(3)))
+
+       ! For interpolation of the boundary planes
        free_bc%inv_dr(:, mg_neighb_lowx) = 1 / dr(2:3)
        free_bc%r_min(:, mg_neighb_lowx)  = mg%r_min(2:3) - 0.5_dp * dr(2:3)
        free_bc%inv_dr(:, mg_neighb_lowy) = 1 / dr([1,3])
@@ -81,14 +101,13 @@ contains
           mg%bc(n, mg_iphi)%boundary_cond => ghost_cells_free_bc
        end do
 
-
        allocate(tmp(nx(1), nx(2), nx(3)))
        tmp(:, :, :) = 0.0_dp
 
        ! Store right-hand side
-       nc = mg%box_size_lvl(lvl)
-       do n = 1, size(mg%lvls(lvl)%my_ids)
-          id = mg%lvls(lvl)%my_ids(n)
+       nc = mg%box_size_lvl(fft_lvl)
+       do n = 1, size(mg%lvls(fft_lvl)%my_ids)
+          id = mg%lvls(fft_lvl)%my_ids(n)
           ix = (mg%boxes(id)%ix - 1) * nc + 1
           tmp(ix(1)+1:ix(1)+nc, ix(2)+1:ix(2)+nc, ix(3)+1:ix(3)+nc) = &
                rhs_fac * mg%boxes(id)%cc(1:nc, 1:nc, 1:nc, mg_irhs)
@@ -100,6 +119,7 @@ contains
        i3sd  = 1
        ncomp = nx(3)
 
+       ! Solve free-space Poisson's equation
        call PSolver(geocode, datacode, mg%my_rank, mg%n_cpu, &
             nx(1), nx(2), nx(3), ixc, dr(1), dr(2), dr(3), &
             free_bc%rhs(1, 1, i3sd), free_bc%karray, dummy, &
@@ -115,19 +135,36 @@ contains
          free_bc%bc_z1 = 0.5_dp * (rhs(:, :, nx(3)-1) + rhs(:, :, nx(3)))
        end associate
 
+       ! Use solution as an initial guess
+       nc = mg%box_size_lvl(fft_lvl)
+       do n = 1, size(mg%lvls(fft_lvl)%my_ids)
+          id = mg%lvls(fft_lvl)%my_ids(n)
+          ix = (mg%boxes(id)%ix - 1) * nc + 1
+          mg%boxes(id)%cc(0:nc+1, 0:nc+1, 0:nc+1, mg_iphi) = &
+               free_bc%rhs(ix(1):ix(1)+nc+1, ix(2):ix(2)+nc+1, &
+               ix(3):ix(3)+nc+1)
+       end do
+
+       ! Restrict FFT solution
+       do lvl = fft_lvl, mg%lowest_lvl+1, -1
+          call mg_restrict_lvl(mg, mg_iphi, lvl)
+       end do
+
+       ! Prolong FFT solution
+       do lvl = fft_lvl, mg%highest_lvl-1
+          call mg_prolong(mg, lvl, mg_iphi, mg_iphi, mg%box_prolong, .false.)
+          ! We can already use the boundary conditions from the FFT solution
+          call mg_fill_ghost_cells_lvl(mg, lvl+1, mg_iphi)
+       end do
+
        free_bc%initialized = .true.
     end if
 
-    ! Solve Poisson equation with free space boundary conditions
-    call mg_fas_fmg(mg, .true., max_res=max_res)
-
-    nc = mg%box_size_lvl(lvl)
-    do n = 1, size(mg%lvls(lvl)%my_ids)
-       id = mg%lvls(lvl)%my_ids(n)
-       ix = (mg%boxes(id)%ix - 1) * nc + 1
-       mg%boxes(id)%cc(1:nc, 1:nc, 1:nc, mg_iphi) = &
-            free_bc%rhs(ix(1)+1:ix(1)+nc, ix(2)+1:ix(2)+nc, ix(3)+1:ix(3)+nc)
-    end do
+    ! Avoid multigrid solver if we already have the full solution
+    if (free_bc%fft_lvl < mg%highest_lvl) then
+       ! Solve Poisson equation with free space boundary conditions
+       call mg_fas_fmg(mg, .true., max_res=max_res)
+    end if
 
   end subroutine mg_poisson_free_3d
 
