@@ -6,15 +6,25 @@ program test_performance
 
   implicit none
 
+  real(dp), parameter :: gauss_ampl    = 1.0d0
+  real(dp), parameter :: gauss_r0(3)   = [0.5d0, 0.5d0, 0.5d0]
+  real(dp), parameter :: gauss_sigma   = 0.15d0
+  real(dp), parameter :: pi            = acos(-1.0_dp)
+  real(dp), parameter :: domain_len(3) = [1.0_dp, 1.0_dp, 1.0_dp]
+
+  ! Fraction of unknowns the fft solver can use (compared to total number of
+  ! multigrid unknowns)
+  real(dp), parameter :: fft_frac    = 0.1_dp
+
   integer             :: box_size
   integer             :: domain_size(NDIM)
   real(dp)            :: dr(NDIM), r_min(NDIM) = 0.0_dp
-  logical             :: periodic(NDIM)  = .false.
-  integer             :: n_finer         = 0
-  real(dp), parameter :: pi              = acos(-1.0_dp)
+  logical             :: periodic(NDIM)        = .false.
+  integer             :: n_finer               = 0
   character(len=40)   :: arg_string
   integer             :: n, ierr, n_args, n_its
-  real(dp)            :: t0, t1
+  real(dp)            :: t0, t1, max_res
+  integer             :: i_sol
   type(mg_t)          :: mg
 
   n_args = command_argument_count()
@@ -33,14 +43,14 @@ program test_performance
   call get_command_argument(NDIM+2, arg_string)
   read(arg_string, *) n_its
 
-  dr =  1.0_dp / domain_size
+  dr = domain_len / domain_size
+
+  mg%n_extra_vars = 1
+  i_sol = mg_num_vars + 1
 
   mg%geometry_type = mg_cartesian
   mg%operator_type = mg_laplacian
   mg%smoother_type = mg_smoother_gsrb
-
-  ! mg%bc(:, mg_iphi)%bc_type = mg_bc_dirichlet
-  ! mg%bc(:, mg_iphi)%bc_value = 0.0_dp
 
   call mg_set_methods(mg)
   call mg_comm_init(mg)
@@ -48,13 +58,13 @@ program test_performance
        periodic, n_finer)
   call mg_load_balance(mg)
   call mg_allocate_storage(mg)
-  call set_rhs(mg)
+  call set_rhs_and_solution(mg)
 
   t0 = mpi_wtime()
-  ! do n = 1, n_its
-  ! call mg_fas_fmg(mg, n > 1)
-  call mg_poisson_free_3d(mg)
-  ! end do
+  do n = 1, n_its
+     call mg_poisson_free_3d(mg, n == 1, fft_frac, .true., max_res)
+     call print_error(mg, n, max_res)
+  end do
   t1 = mpi_wtime()
 
   if (mg%my_rank == 0) then
@@ -75,8 +85,31 @@ program test_performance
 
 contains
 
-  subroutine set_rhs(mg)
+  elemental function solution(x, y, z) result(val)
+    real(dp), intent(in) :: x, y, z
+    real(dp)             :: val, rnorm
+    real(dp), parameter  :: fac = 1/(4 * pi)
+
+    rnorm = norm2([ x, y, z ] - gauss_r0)
+    if (rnorm < sqrt(epsilon(1.0d0))) then
+       val = 2 * fac * gauss_ampl / (sqrt(pi) * gauss_sigma)
+    else
+       val = fac * gauss_ampl * erf(rnorm / gauss_sigma) / rnorm
+    end if
+  end function solution
+
+  elemental function rhs(x, y, z) result(val)
+    real(dp), intent(in) :: x, y, z
+    real(dp)             :: val, r(NDIM)
+
+    r = ([ x, y, z ] - gauss_r0) / gauss_sigma
+    val = -gauss_ampl / (gauss_sigma**3 * pi * sqrt(pi)) * &
+         exp(-sum(r**2))
+  end function rhs
+
+  subroutine set_rhs_and_solution(mg)
     type(mg_t), intent(inout) :: mg
+    real(dp)                  :: r(3)
     integer                   :: n, id, lvl, nc, IJK
 
     do lvl = mg%lowest_lvl, mg%highest_lvl
@@ -84,10 +117,38 @@ contains
        do n = 1, size(mg%lvls(lvl)%my_ids)
           id = mg%lvls(lvl)%my_ids(n)
           do KJI_DO(1, nc)
-             mg%boxes(id)%cc(IJK, mg_irhs) = 1.0_dp
+             r = mg%boxes(id)%r_min + ([IJK] - 0.5_dp) * mg%dr(:, lvl)
+             mg%boxes(id)%cc(IJK, mg_irhs) = rhs(r(1), r(2), r(3))
+             mg%boxes(id)%cc(IJK, i_sol) = solution(r(1), r(2), r(3))
           end do; CLOSE_DO
        end do
     end do
-  end subroutine set_rhs
+  end subroutine set_rhs_and_solution
+
+  subroutine print_error(mg, it, max_res)
+    type(mg_t), intent(inout) :: mg
+    integer, intent(in)       :: it
+    real(dp), intent(in)      :: max_res
+    integer                   :: n, nc, id, lvl, IJK, ierr
+    real(dp)                  :: sol, val, err, max_err
+
+    err = 0.0_dp
+
+    do lvl = mg%highest_lvl, mg%highest_lvl
+       nc = mg%box_size_lvl(lvl)
+       do n = 1, size(mg%lvls(lvl)%my_ids)
+          id = mg%lvls(lvl)%my_ids(n)
+          do KJI_DO(1, nc)
+             sol = mg%boxes(id)%cc(IJK, i_sol)
+             val = mg%boxes(id)%cc(IJK, mg_iphi)
+             err = max(err, abs(val-sol))
+          end do; CLOSE_DO
+       end do
+    end do
+
+    call mpi_reduce(err, max_err, 1, MPI_DOUBLE, MPI_MAX, 0, &
+         mpi_comm_world, ierr)
+    if (mg%my_rank == 0) print *, it, "max err/res", max_err, max_res
+  end subroutine print_error
 
 end program test_performance

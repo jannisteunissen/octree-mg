@@ -28,7 +28,10 @@ module m_free_space
 
 contains
 
-  subroutine mg_poisson_free_3d(mg, new_rhs, max_fft_frac)
+  !> Solve a free-space Poisson problem in 3D, making use of a FFT solver (on a
+  !> coarser grid) to get the boundary conditions. Each call performs an
+  !> additional FMG or V-cycle, depending on the argument fmgcycle.
+  subroutine mg_poisson_free_3d(mg, new_rhs, max_fft_frac, fmgcycle, max_res)
     use mpi
     use poisson_solver
     use m_multigrid
@@ -40,10 +43,11 @@ contains
     logical, intent(in)         :: new_rhs
     !> How much smaller the fft solve has to be than the full multigrid (0.0-1.0)
     real(dp), intent(in)        :: max_fft_frac
+    logical, intent(in) :: fmgcycle !< If false, perform a v-cycle instead of FMG
+    real(dp), intent(out), optional :: max_res
     integer                     :: fft_lvl, lvl, n, id, nx(3), nc
     integer                     :: ix(3), ierr, n_boxes_lvl
     real(dp)                    :: dr(3)
-    real(dp)                    :: max_res
     real(dp), allocatable       :: tmp(:, :, :)
     real(dp)                    :: dummy(1)
     real(dp), parameter         :: offset    = 0.0_dp
@@ -61,6 +65,12 @@ contains
     if (.not. free_bc%initialized .and. .not. new_rhs) then
        error stop "mg_poisson_free_3d: first call requires new_rhs = .true."
     end if
+
+    if (mg%geometry_type /= mg_cartesian) &
+         error stop "mg_poisson_free_3d: Cartesian 3D geometry required"
+
+    if (mg%operator_type /= mg_laplacian) &
+         error stop "mg_poisson_free_3d: laplacian operator required"
 
     ! Determine highest fully refined grid level
     do lvl = mg_highest_uniform_lvl(mg), mg%first_normal_lvl+1, -1
@@ -186,7 +196,11 @@ contains
     ! Avoid multigrid solver if we already have the full solution
     if (free_bc%fft_lvl < mg%highest_lvl) then
        ! Solve Poisson equation with free space boundary conditions
-       call mg_fas_fmg(mg, .true., max_res=max_res)
+       if (fmgcycle) then
+          call mg_fas_fmg(mg, .true., max_res)
+       else
+          call mg_fas_vcycle(mg, max_res=max_res)
+       end if
     end if
 
   end subroutine mg_poisson_free_3d
