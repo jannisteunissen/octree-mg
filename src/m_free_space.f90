@@ -38,26 +38,29 @@ contains
     use m_restrict
     use m_prolong
     use m_ghost_cells
-    type(mg_t), intent(inout)   :: mg
+    type(mg_t), intent(inout)       :: mg
     !> Whether a new right-hand side is present
-    logical, intent(in)         :: new_rhs
+    logical, intent(in)             :: new_rhs
     !> How much smaller the fft solve has to be than the full multigrid (0.0-1.0)
-    real(dp), intent(in)        :: max_fft_frac
-    logical, intent(in) :: fmgcycle !< If false, perform a v-cycle instead of FMG
+    real(dp), intent(in)            :: max_fft_frac
+    !> If false, perform a v-cycle instead of FMG
+    logical, intent(in)             :: fmgcycle
+    !> If present, compute and output the maximum residual
     real(dp), intent(out), optional :: max_res
-    integer                     :: fft_lvl, lvl, n, id, nx(3), nc
-    integer                     :: ix(3), ierr, n_boxes_lvl
-    real(dp)                    :: dr(3)
-    real(dp), allocatable       :: tmp(:, :, :)
-    real(dp)                    :: dummy(1)
-    real(dp), parameter         :: offset    = 0.0_dp
-    real(dp)                    :: ehartree, eexcu, vexcu
-    integer                     :: i3sd, ncomp
-    character(len=*), parameter :: geocode   = 'F'
-    character(len=*), parameter :: datacode  = 'G'
-    integer, parameter          :: itype_scf = 8
-    integer, parameter          :: ixc       = 0
-    logical                     :: new_fft_grid
+    integer                         :: fft_lvl, lvl, n, id, nx(3), nc
+    integer                         :: ix(3), ierr
+    integer(i8)                     :: n_unknowns_lvl, n_unknowns_total
+    real(dp)                        :: dr(3)
+    real(dp), allocatable           :: tmp(:, :, :)
+    real(dp)                        :: dummy(1)
+    real(dp), parameter             :: offset    = 0.0_dp
+    real(dp)                        :: ehartree, eexcu, vexcu
+    integer                         :: i3sd, ncomp
+    character(len=*), parameter     :: geocode   = 'F'
+    character(len=*), parameter     :: datacode  = 'G'
+    integer, parameter              :: itype_scf = 8
+    integer, parameter              :: ixc       = 0
+    logical                         :: new_fft_grid
 
     ! Correction factor for the source term 1 / (4 * pi)
     real(dp), parameter :: rhs_fac = -1 / (4 * acos(-1.0_dp))
@@ -72,13 +75,16 @@ contains
     if (mg%operator_type /= mg_laplacian) &
          error stop "mg_poisson_free_3d: laplacian operator required"
 
+    ! Determine total number of unknowns (on leaves)
+    n_unknowns_total = mg_number_of_unknowns(mg)
+
     ! Determine highest fully refined grid level
-    do lvl = mg_highest_uniform_lvl(mg), mg%first_normal_lvl+1, -1
+    do lvl = mg_highest_uniform_lvl(mg), mg%lowest_lvl+1, -1
        ! Determine how many boxes the level contains
-       n_boxes_lvl = size(mg%lvls(lvl)%ids)
+       n_unknowns_lvl = size(mg%lvls(lvl)%ids) * int(mg%box_size**3, i8)
 
        ! If the level is 'small enough', exit
-       if (n_boxes_lvl <= ceiling(max_fft_frac * mg%n_boxes)) exit
+       if (n_unknowns_lvl <= max_fft_frac * n_unknowns_total) exit
     end do
 
     fft_lvl = lvl

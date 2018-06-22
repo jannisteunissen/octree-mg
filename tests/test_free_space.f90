@@ -8,13 +8,14 @@ program test_performance
 
   real(dp), parameter :: gauss_ampl    = 1.0d0
   real(dp), parameter :: gauss_r0(3)   = [0.5d0, 0.5d0, 0.5d0]
-  real(dp), parameter :: gauss_sigma   = 0.15d0
+  real(dp), parameter :: gauss_sigma   = 0.1d0
   real(dp), parameter :: pi            = acos(-1.0_dp)
   real(dp), parameter :: domain_len(3) = [1.0_dp, 1.0_dp, 1.0_dp]
+  integer, parameter  :: n_its         = 5
 
   ! Fraction of unknowns the fft solver can use (compared to total number of
   ! multigrid unknowns)
-  real(dp), parameter :: fft_frac    = 0.1_dp
+  real(dp)            :: fft_frac = 0.15_dp
 
   integer             :: box_size
   integer             :: domain_size(NDIM)
@@ -22,14 +23,14 @@ program test_performance
   logical             :: periodic(NDIM)        = .false.
   integer             :: n_finer               = 0
   character(len=40)   :: arg_string
-  integer             :: n, ierr, n_args, n_its
+  integer             :: n, ierr, n_args
   real(dp)            :: t0, t1, max_res
   integer             :: i_sol
   type(mg_t)          :: mg
 
   n_args = command_argument_count()
-  if (n_args /= NDIM+2) then
-     error stop "Usage: ./test_uniform_grid box_size nx ny [nz] n_its"
+  if (n_args < NDIM+1) then
+     error stop "Usage: ./test_uniform_grid box_size nx ny nz [fft_frac]"
   end if
 
   call get_command_argument(1, arg_string)
@@ -40,8 +41,10 @@ program test_performance
      read(arg_string, *) domain_size(n)
   end do
 
-  call get_command_argument(NDIM+2, arg_string)
-  read(arg_string, *) n_its
+  if (n_args > NDIM+1) then
+     call get_command_argument(NDIM+2, arg_string)
+     read(arg_string, *) fft_frac
+  end if
 
   dr = domain_len / domain_size
 
@@ -68,6 +71,7 @@ program test_performance
   t1 = mpi_wtime()
 
   if (mg%my_rank == 0) then
+     print *, "fft_frac         ", fft_frac
      print *, "n_cpu            ", mg%n_cpu
      print *, "problem_size     ", domain_size
      print *, "box_size         ", box_size
@@ -130,25 +134,31 @@ contains
     integer, intent(in)       :: it
     real(dp), intent(in)      :: max_res
     integer                   :: n, nc, id, lvl, IJK, ierr
-    real(dp)                  :: sol, val, err, max_err
+    real(dp)                  :: sol, val, err, max_err, err2_sum
 
-    err = 0.0_dp
+    max_err  = 0.0_dp
+    err2_sum = 0.0_dp
 
     do lvl = mg%highest_lvl, mg%highest_lvl
        nc = mg%box_size_lvl(lvl)
        do n = 1, size(mg%lvls(lvl)%my_ids)
           id = mg%lvls(lvl)%my_ids(n)
           do KJI_DO(1, nc)
-             sol = mg%boxes(id)%cc(IJK, i_sol)
-             val = mg%boxes(id)%cc(IJK, mg_iphi)
-             err = max(err, abs(val-sol))
+             sol      = mg%boxes(id)%cc(IJK, i_sol)
+             val      = mg%boxes(id)%cc(IJK, mg_iphi)
+             err      = abs(val-sol)
+             max_err  = max(max_err, err)
+             err2_sum = err2_sum + err**2
           end do; CLOSE_DO
        end do
     end do
 
-    call mpi_reduce(err, max_err, 1, MPI_DOUBLE, MPI_MAX, 0, &
+    call mpi_allreduce(MPI_IN_PLACE, max_err, 1, MPI_DOUBLE, MPI_MAX, &
          mpi_comm_world, ierr)
-    if (mg%my_rank == 0) print *, it, "max err/res", max_err, max_res
+    call mpi_allreduce(MPI_IN_PLACE, err2_sum, 1, MPI_DOUBLE, MPI_SUM, &
+         mpi_comm_world, ierr)
+    if (mg%my_rank == 0) print *, it, "max err/err2/res", &
+         max_err, sqrt(err2_sum/mg_number_of_unknowns(mg)), max_res
   end subroutine print_error
 
 end program test_performance

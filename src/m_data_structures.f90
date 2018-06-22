@@ -7,6 +7,9 @@ module m_data_structures
   !> Type of reals
   integer, parameter :: dp = kind(0.0d0)
 
+  !> Type for 64-bit integers
+  integer, parameter :: i8 = selected_int_kind(18)
+
   !> Indicates a standard Laplacian
   integer, parameter :: mg_laplacian = 1
 
@@ -404,6 +407,19 @@ contains
     end do
     ! If the loop did not exit, we get lvl equals mg%highest_lvl
   end function mg_highest_uniform_lvl
+
+  !> Determine total number of unknowns (on leaves)
+  function mg_number_of_unknowns(mg) result(n_unknowns)
+    type(mg_t), intent(in) :: mg
+    integer                :: lvl
+    integer(i8)            :: n_unknowns
+
+    n_unknowns = 0
+    do lvl = mg%first_normal_lvl, mg%highest_lvl
+       n_unknowns = n_unknowns + size(mg%lvls(lvl)%leaves)
+    end do
+    n_unknowns = n_unknowns * int(mg%box_size**3, i8)
+  end function mg_number_of_unknowns
 
   !> Get coordinates at the face of a box
   subroutine mg_get_face_coords(box, nb, nc, x)
