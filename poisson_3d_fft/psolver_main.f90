@@ -514,14 +514,14 @@ subroutine PSolver(geocode,datacode,iproc,nproc,n01,n02,n03,ixc,hx,hy,hz,&
         ! call MPI_ALLGATHERV(rhopot(1+n01*n02*istart),gather_arr(iproc,1),MPI_double_precision,&
         !      rhopot(1),gather_arr(0,1),gather_arr(0,2),MPI_double_precision,MPI_COMM_WORLD,ierr)
         call MPI_ALLGATHERV(MPI_IN_PLACE,gather_arr(iproc,1),MPI_double_precision,&
-             rhopot(1),gather_arr(0,1),gather_arr(0,2),MPI_double_precision,MPI_COMM_WORLD,ierr)
+             rhopot(1),gather_arr(:,1),gather_arr(:,2),MPI_double_precision,MPI_COMM_WORLD,ierr)
         !second spin
         if(nspin==2) then
            ! call MPI_ALLGATHERV(rhopot(1+n01*n02*istart+n01*n02*n03),gather_arr(iproc,1),&
            !      MPI_double_precision,rhopot(n01*n02*n03+1),gather_arr(0,1),gather_arr(0,2),&
            !      MPI_double_precision,MPI_COMM_WORLD,ierr)
            call MPI_ALLGATHERV(MPI_IN_PLACE,gather_arr(iproc,1),&
-                MPI_double_precision,rhopot(n01*n02*n03+1),gather_arr(0,1),gather_arr(0,2),&
+                MPI_double_precision,rhopot(n01*n02*n03+1),gather_arr(:,1),gather_arr(:,2),&
                 MPI_double_precision,MPI_COMM_WORLD,ierr)
         end if
         !if it is the case gather also the results of the XC potential
@@ -530,7 +530,7 @@ subroutine PSolver(geocode,datacode,iproc,nproc,n01,n02,n03,ixc,hx,hy,hz,&
            !      MPI_double_precision,pot_ion,gather_arr(0,1),gather_arr(0,2),&
            !      MPI_double_precision,MPI_COMM_WORLD,ierr)
            call MPI_ALLGATHERV(MPI_IN_PLACE,gather_arr(iproc,1),&
-                MPI_double_precision,pot_ion,gather_arr(0,1),gather_arr(0,2),&
+                MPI_double_precision,pot_ion,gather_arr(:,1),gather_arr(:,2),&
                 MPI_double_precision,MPI_COMM_WORLD,ierr)
         end if
         call timing(iproc,'PSolv_commun  ','OF')
