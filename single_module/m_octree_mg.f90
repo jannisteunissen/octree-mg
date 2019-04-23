@@ -1,4 +1,6 @@
-! Single module generated from the octree-mg sources
+! Single module generated from the octree-mg sources.
+! This file can be easier to include in existing projects.
+! Note: the free space Poisson solver is not included here.
 ! It is best to make changes in the original repository at
 ! https://github.com/jannisteunissen/octree-mg
 !
@@ -6,8 +8,8 @@
 ! ./to_single_module.sh
 !
 ! It can be compiled with e.g.:
-! mpif90 -c m_octree_mg_single.f90 -cpp -DNDIM=2 [other options]
-! mpif90 -c m_octree_mg_single.f90 -cpp -DNDIM=3 [other options]
+! mpif90 -c m_octree_mg.f90 -cpp -DNDIM=2 [other options]
+! mpif90 -c m_octree_mg.f90 -cpp -DNDIM=3 [other options]
 
 #if NDIM == 1
 #define KJI_DO(lo,hi) i=lo,hi
@@ -29,7 +31,7 @@
 #define DTIMES(TXT) TXT, TXT, TXT
 #endif
 
-module m_octree_mg_single
+module m_octree_mg
   use mpi
   implicit none
   private
@@ -4500,4 +4502,4 @@ contains
       Return
       !
    End Subroutine I_mrgrnk
-end module m_octree_mg_single
+end module m_octree_mg
