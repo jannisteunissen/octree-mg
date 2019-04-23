@@ -2,152 +2,155 @@
 module m_data_structures
 
   implicit none
-  public
+  private
 
   !> Type of reals
-  integer, parameter :: dp = kind(0.0d0)
+  integer, parameter, public :: dp = kind(0.0d0)
 
   !> Type for 64-bit integers
-  integer, parameter :: i8 = selected_int_kind(18)
+  integer, parameter, public :: i8 = selected_int_kind(18)
 
   !> Indicates a standard Laplacian
-  integer, parameter :: mg_laplacian = 1
+  integer, parameter, public :: mg_laplacian = 1
 
   !> Indicates a variable-coefficient Laplacian
-  integer, parameter :: mg_vlaplacian = 2
+  integer, parameter, public :: mg_vlaplacian = 2
 
   !> Indicates a constant-coefficient Helmholtz equation
-  integer, parameter :: mg_helmholtz = 3
+  integer, parameter, public :: mg_helmholtz = 3
 
   !> Indicates a variable-coefficient Helmholtz equation
-  integer, parameter :: mg_vhelmholtz = 4
+  integer, parameter, public :: mg_vhelmholtz = 4
 
-  integer, parameter :: mg_cartesian   = 1 !< Cartesian coordinate system
-  integer, parameter :: mg_cylindrical = 2 !< Cylindrical coordinate system
-  integer, parameter :: mg_spherical   = 3 !< Spherical coordinate system
+  !> Cartesian coordinate system
+  integer, parameter, public :: mg_cartesian   = 1
+  !> Cylindrical coordinate system
+  integer, parameter, public :: mg_cylindrical = 2
+  !> Spherical coordinate system
+  integer, parameter, public :: mg_spherical   = 3
 
-  integer, parameter :: mg_smoother_gs     = 1
-  integer, parameter :: mg_smoother_gsrb   = 2
-  integer, parameter :: mg_smoother_jacobi = 3
+  integer, parameter, public :: mg_smoother_gs     = 1
+  integer, parameter, public :: mg_smoother_gsrb   = 2
+  integer, parameter, public :: mg_smoother_jacobi = 3
 
   !> Problem dimension
-  integer, parameter :: mg_ndim = NDIM
+  integer, parameter, public :: mg_ndim = NDIM
 
   !> Number of predefined multigrid variables
-  integer, parameter :: mg_num_vars = 4
+  integer, parameter, public :: mg_num_vars = 4
   !> Maximum number of variables
-  integer, parameter :: mg_max_num_vars = 10
+  integer, parameter, public :: mg_max_num_vars = 10
   !> Index of solution
-  integer, parameter :: mg_iphi = 1
+  integer, parameter, public :: mg_iphi = 1
   !> Index of right-hand side
-  integer, parameter :: mg_irhs = 2
+  integer, parameter, public :: mg_irhs = 2
   !> Index of previous solution (used for correction)
-  integer, parameter :: mg_iold = 3
+  integer, parameter, public :: mg_iold = 3
   !> Index of residual
-  integer, parameter :: mg_ires = 4
+  integer, parameter, public :: mg_ires = 4
 
   !> Index of the variable coefficient (at cell centers)
-  integer, parameter :: mg_iveps = 5
+  integer, parameter, public :: mg_iveps = 5
 
   !> Minimum allowed grid level
-  integer, parameter :: mg_lvl_lo = -20
+  integer, parameter, public :: mg_lvl_lo = -20
   !> Maximum allowed grid level
-  integer, parameter :: mg_lvl_hi = 20
+  integer, parameter, public :: mg_lvl_hi = 20
 
   !> Value to indicate a Dirichlet boundary condition
-  integer, parameter :: mg_bc_dirichlet = -10
+  integer, parameter, public :: mg_bc_dirichlet = -10
 
   !> Value to indicate a Neumann boundary condition
-  integer, parameter :: mg_bc_neumann = -11
+  integer, parameter, public :: mg_bc_neumann = -11
 
   !> Value to indicate a continuous boundary condition
-  integer, parameter :: mg_bc_continuous = -12
+  integer, parameter, public :: mg_bc_continuous = -12
 
   !> Special value that indicates there is no box
-  integer, parameter :: mg_no_box = 0
+  integer, parameter, public :: mg_no_box = 0
   !> Special value that indicates there is a physical boundary
-  integer, parameter :: mg_physical_boundary = -1
+  integer, parameter, public :: mg_physical_boundary = -1
 
   !> Maximum number of timers to use
-  integer, parameter :: mg_max_timers = 20
+  integer, parameter, public :: mg_max_timers = 20
 
 #if NDIM == 2
   ! Numbering of children (same location as **corners**)
-  integer, parameter :: mg_num_children = 4
+  integer, parameter, public :: mg_num_children = 4
 
   ! Index offset for each child
-  integer, parameter :: mg_child_dix(2, 4) = reshape([0,0,1,0,0,1,1,1], [2,4])
+  integer, parameter, public :: mg_child_dix(2, 4) = reshape([0,0,1,0,0,1,1,1], [2,4])
   ! Reverse child index in each direction
-  integer, parameter :: mg_child_rev(4, 2) = reshape([2,1,4,3,3,4,1,2], [4,2])
+  integer, parameter, public :: mg_child_rev(4, 2) = reshape([2,1,4,3,3,4,1,2], [4,2])
   ! Children adjacent to a neighbor
-  integer, parameter :: mg_child_adj_nb(2, 4) = reshape([1,3,2,4,1,2,3,4], [2,4])
+  integer, parameter, public :: mg_child_adj_nb(2, 4) = reshape([1,3,2,4,1,2,3,4], [2,4])
   ! Which children have a low index per dimension
-  logical, parameter :: mg_child_low(2, 4) = reshape([.true., .true., &
+  logical, parameter, public :: mg_child_low(2, 4) = reshape([.true., .true., &
        .false., .true., .true., .false., .false., .false.], [2, 4])
 
   ! Neighbor topology information
-  integer, parameter :: mg_num_neighbors = 4
-  integer, parameter :: mg_neighb_lowx = 1
-  integer, parameter :: mg_neighb_highx = 2
-  integer, parameter :: mg_neighb_lowy = 3
-  integer, parameter :: mg_neighb_highy = 4
+  integer, parameter, public :: mg_num_neighbors = 4
+  integer, parameter, public :: mg_neighb_lowx = 1
+  integer, parameter, public :: mg_neighb_highx = 2
+  integer, parameter, public :: mg_neighb_lowy = 3
+  integer, parameter, public :: mg_neighb_highy = 4
 
   ! Index offsets of neighbors
-  integer, parameter :: mg_neighb_dix(2, 4) = reshape([-1,0,1,0,0,-1,0,1], [2,4])
+  integer, parameter, public :: mg_neighb_dix(2, 4) = reshape([-1,0,1,0,0,-1,0,1], [2,4])
   ! Which neighbors have a lower index
-  logical, parameter :: mg_neighb_low(4) = [.true., .false., .true., .false.]
+  logical, parameter, public :: mg_neighb_low(4) = [.true., .false., .true., .false.]
   ! Opposite of nb_low, but now as -1,1 integers
-  integer, parameter :: mg_neighb_high_pm(4) = [-1, 1, -1, 1]
+  integer, parameter, public :: mg_neighb_high_pm(4) = [-1, 1, -1, 1]
 
   ! Reverse neighbors
-  integer, parameter :: mg_neighb_rev(4) = [2, 1, 4, 3]
+  integer, parameter, public :: mg_neighb_rev(4) = [2, 1, 4, 3]
   ! Direction (dimension) for a neighbor
-  integer, parameter :: mg_neighb_dim(4) = [1, 1, 2, 2]
+  integer, parameter, public :: mg_neighb_dim(4) = [1, 1, 2, 2]
 #elif NDIM == 3
     ! Numbering of children (same location as **corners**)
-  integer, parameter :: mg_num_children = 8
+  integer, parameter, public :: mg_num_children = 8
 
   ! Index offset for each child
-  integer, parameter :: mg_child_dix(3, 8) = reshape( &
+  integer, parameter, public :: mg_child_dix(3, 8) = reshape( &
        [0,0,0, 1,0,0, 0,1,0, 1,1,0, &
        0,0,1, 1,0,1, 0,1,1, 1,1,1], [3,8])
   ! Reverse child index in each direction
-  integer, parameter :: mg_child_rev(8, 3) = reshape( &
+  integer, parameter, public :: mg_child_rev(8, 3) = reshape( &
        [2,1,4,3,6,5,8,7, 3,4,1,2,7,8,5,6, 5,6,7,8,1,2,3,4], [8,3])
   ! Children adjacent to a neighbor
-  integer, parameter :: mg_child_adj_nb(4, 6) = reshape( &
+  integer, parameter, public :: mg_child_adj_nb(4, 6) = reshape( &
        [1,3,5,7, 2,4,6,8, 1,2,5,6, 3,4,7,8, 1,2,3,4, 5,6,7,8], [4,6])
   ! Which children have a low index per dimension
-  logical, parameter :: mg_child_low(3, 8) = reshape([ &
+  logical, parameter, public :: mg_child_low(3, 8) = reshape([ &
        .true., .true., .true., .false., .true., .true., &
        .true., .false., .true., .false., .false., .true., &
        .true., .true., .false., .false., .true., .false., &
        .true., .false., .false., .false., .false., .false.], [3, 8])
 
   ! Neighbor topology information
-  integer, parameter :: mg_num_neighbors = 6
-  integer, parameter :: mg_neighb_lowx = 1
-  integer, parameter :: mg_neighb_highx = 2
-  integer, parameter :: mg_neighb_lowy = 3
-  integer, parameter :: mg_neighb_highy = 4
-  integer, parameter :: mg_neighb_lowz = 5
-  integer, parameter :: mg_neighb_highz = 6
+  integer, parameter, public :: mg_num_neighbors = 6
+  integer, parameter, public :: mg_neighb_lowx = 1
+  integer, parameter, public :: mg_neighb_highx = 2
+  integer, parameter, public :: mg_neighb_lowy = 3
+  integer, parameter, public :: mg_neighb_highy = 4
+  integer, parameter, public :: mg_neighb_lowz = 5
+  integer, parameter, public :: mg_neighb_highz = 6
   ! Index offsets of neighbors
-  integer, parameter :: mg_neighb_dix(3, 6) = reshape( &
+  integer, parameter, public :: mg_neighb_dix(3, 6) = reshape( &
        [-1,0,0, 1,0,0, 0,-1,0, 0,1,0, 0,0,-1, 0,0,1], [3,6])
   ! Which neighbors have a lower index
-  logical, parameter :: mg_neighb_low(6) = &
+  logical, parameter, public :: mg_neighb_low(6) = &
        [.true., .false., .true., .false., .true., .false.]
   ! Opposite of nb_low, but now as -1,1 integers
-  integer, parameter :: mg_neighb_high_pm(6) = [-1, 1, -1, 1, -1, 1]
+  integer, parameter, public :: mg_neighb_high_pm(6) = [-1, 1, -1, 1, -1, 1]
   ! Reverse neighbors
-  integer, parameter :: mg_neighb_rev(6) = [2, 1, 4, 3, 6, 5]
+  integer, parameter, public :: mg_neighb_rev(6) = [2, 1, 4, 3, 6, 5]
   ! Direction (dimension) for a neighbor
-  integer, parameter :: mg_neighb_dim(6) = [1, 1, 2, 2, 3, 3]
+  integer, parameter, public :: mg_neighb_dim(6) = [1, 1, 2, 2, 3, 3]
 #endif
 
   !> Lists of blocks per refinement level
-  type mg_lvl_t
+  type, public :: mg_lvl_t
      integer, allocatable :: leaves(:)
      integer, allocatable :: parents(:)
      integer, allocatable :: ref_bnds(:)
@@ -159,7 +162,7 @@ module m_data_structures
   end type mg_lvl_t
 
   !> Box data structure
-  type mg_box_t
+  type, public :: mg_box_t
      integer  :: rank              !< Which process owns this box
      integer  :: id                !< Box id (index in boxes(:) array)
      integer  :: lvl               !< Refinement level
@@ -174,7 +177,7 @@ module m_data_structures
   end type mg_box_t
 
   !> Buffer type (one is used for each pair of communicating processes)
-  type mg_buf_t
+  type, public :: mg_buf_t
      integer               :: i_send !< Index in send array
      integer               :: i_recv
      integer               :: i_ix
@@ -183,12 +186,12 @@ module m_data_structures
      real(dp), allocatable :: recv(:)
   end type mg_buf_t
 
-  type mg_comm_t
+  type, public :: mg_comm_t
      integer, allocatable :: n_send(:, :)
      integer, allocatable :: n_recv(:, :)
   end type mg_comm_t
 
-  type mg_bc_t
+  type, public :: mg_bc_t
      integer  :: bc_type  = mg_bc_dirichlet !< Type of boundary condition
      real(dp) :: bc_value = 0.0_dp       !< Value (for e.g. Dirichlet or Neumann)
      !> To set user-defined boundary conditions (overrides bc(:))
@@ -197,13 +200,13 @@ module m_data_structures
      procedure(mg_subr_rb), pointer, nopass :: refinement_bnd => null()
   end type mg_bc_t
 
-  type mg_timer_t
+  type, public :: mg_timer_t
      character(len=20) :: name
      real(dp)          :: t = 0.0_dp
      real(dp)          :: t0
   end type mg_timer_t
 
-  type mg_t
+  type, public :: mg_t
      !> Whether the multigrid tree structure has been created
      logical                  :: tree_created     = .false.
      !> Whether storage has been allocated for boxes
@@ -355,6 +358,23 @@ module m_data_structures
        real(dp), intent(out)     :: fine(DTIMES(nc)) !< Prolonged values
      end subroutine mg_box_prolong
   end interface
+
+  ! Public methods
+  public :: mg_subr_bc
+  public :: mg_subr_rb
+  public :: mg_box_op
+  public :: mg_box_gsrb
+  public :: mg_box_prolong
+  public :: mg_has_children
+  public :: mg_ix_to_ichild
+  public :: mg_get_child_offset
+  public :: mg_highest_uniform_lvl
+  public :: mg_number_of_unknowns
+  public :: mg_get_face_coords
+  public :: mg_add_timer
+  public :: mg_timer_start
+  public :: mg_timer_end
+  public :: mg_timers_show
 
 contains
 
