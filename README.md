@@ -10,6 +10,10 @@ adaptive-mesh-refinement (AMR) frameworks that employ quadtree/octree grids.
 
 Type `make` in the top folder, and run the programs in the `tests` folder.
 
+## Including the library in other projects
+
+You can either include a full copy of `octree-mg` using e.g. git submodules of subtrees, or include it as a single Fortran module, see the folder `single_module`.
+
 ## Features
 
 * MPI parallelization
