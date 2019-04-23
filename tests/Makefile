@@ -26,8 +26,3 @@ $(PROGS_3D): ../lib_3d/libomg.a
 %_3d: %.f90
 	$(F90) -o $@ $^ -cpp -DNDIM=3 $(F90FLAGS) $(addprefix -I,$(INCDIRS)) \
 	$(addprefix -L,$(LIBDIRS)) $(addprefix -l,$(LIBS))
-
-
-
-
-
