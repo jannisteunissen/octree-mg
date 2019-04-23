@@ -5,5 +5,4 @@
 /tests/test_free_space_3d
 /single_module/m_octree_mg.mod
 /single_module/m_octree_mg.o
-/single_module/test_uniform_grid.f90
 /single_module/test_uniform_grid_3d
