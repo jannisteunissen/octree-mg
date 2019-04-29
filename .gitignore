@@ -6,3 +6,8 @@
 /single_module/m_octree_mg.mod
 /single_module/m_octree_mg.o
 /single_module/test_uniform_grid_3d
+/single_module/m_octree_mg_2d.mod
+/single_module/m_octree_mg_2d.o
+/single_module/m_octree_mg_3d.mod
+/single_module/m_octree_mg_3d.o
+/single_module/test_uniform_grid_2d

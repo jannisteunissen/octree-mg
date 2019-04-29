@@ -13,6 +13,8 @@ modules="../src/m_data_structures.f90 ../src/m_allocate_storage.f90
 
 # Name of the new modules
 module_xd="m_octree_mg.f90"
+module_2d="m_octree_mg_2d.f90"
+module_3d="m_octree_mg_3d.f90"
 newline=$'\n'
 header=""
 code=""
@@ -52,19 +54,22 @@ code=$(echo "$code" | sed 's/^ *use .*$//')
 # Merge blank lines
 code=$(echo "$code" | cat -s)
 
-
 # Write to the new module
 echo '! Single module generated from the octree-mg sources.
 ! This file can be easier to include in existing projects.
-! Note: the free space Poisson solver is not included here.
-! It is best to make changes in the original repository at
-! https://github.com/jannisteunissen/octree-mg
 !
-! This file can be generated as follows:
-! ./to_single_module.sh
+! Notes:
+! 1. The module name is here extended by _2d or _3d
+! 2. the free space Poisson solver is not included here.
+! 3. It is best to make changes in the original repository at
+!    https://github.com/jannisteunissen/octree-mg
+! 4. This file can be generated as follows:
+!    cd octree-mg/single_module
+!    ./to_single_module.sh
 !
-! It can be compiled with e.g.:
-! mpif90 -c m_octree_mg.f90 -cpp -DNDIM=2 [other options]
+! The modules can be compiled with:
+! mpif90 -c m_octree_mg_2d.f90 [other options]
+! mpif90 -c m_octree_mg_3d.f90 [other options]
 ! mpif90 -c m_octree_mg.f90 -cpp -DNDIM=3 [other options]
 ' > "$module_xd"
 
@@ -73,7 +78,11 @@ cat "../src/cpp_macros.h" >> "$module_xd"
 
 # Beginning of the module
 echo '
-module m_octree_mg
+#if NDIM == 2
+module m_octree_mg_2d
+#elif NDIM == 3
+module m_octree_mg_3d
+#endif
   use mpi
   implicit none
   private' >> "$module_xd"
@@ -87,5 +96,17 @@ echo "contains" >> "$module_xd"
 echo "$code" >> "$module_xd"
 
 # Close the module
-echo "end module m_octree_mg" >> "$module_xd"
+echo '
+#if NDIM == 2
+end module m_octree_mg_2d
+#elif NDIM == 3
+end module m_octree_mg_3d
+#endif' >> "$module_xd"
 echo "Generated $module_xd"
+
+# Generate 2D and 3D versions
+gfortran -E -cpp -DNDIM=2 "$module_xd" -o "$module_2d"
+echo "Generated $module_2d"
+
+gfortran -E -cpp -DNDIM=3 "$module_xd" -o "$module_3d"
+echo "Generated $module_3d"

@@ -1,7 +1,11 @@
 #include "../src/cpp_macros.h"
 program test_one_level
   use mpi
-  use m_octree_mg
+#if NDIM == 2
+  use m_octree_mg_2d
+#elif NDIM == 3
+  use m_octree_mg_3d
+#endif
 
   implicit none
 

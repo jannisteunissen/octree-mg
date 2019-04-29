@@ -1,3 +1,7 @@
+# 1 "m_octree_mg.f90"
+# 1 "<built-in>"
+# 1 "<command-line>"
+# 1 "m_octree_mg.f90"
 ! Single module generated from the octree-mg sources.
 ! This file can be easier to include in existing projects.
 !
@@ -15,31 +19,13 @@
 ! mpif90 -c m_octree_mg_3d.f90 [other options]
 ! mpif90 -c m_octree_mg.f90 -cpp -DNDIM=3 [other options]
 
-#if NDIM == 1
-#define KJI_DO(lo,hi) i=lo,hi
-#define KJI_DO_VEC(hi) do i=1,hi(1)
-#define CLOSE_DO
-#define IJK i
-#define DTIMES(TXT) TXT
-#elif NDIM == 2
-#define KJI_DO(lo,hi) j=lo,hi; do i=lo,hi
-#define KJI_DO_VEC(hi) j=1,hi(2); do i=1,hi(1)
-#define CLOSE_DO end do
-#define IJK i, j
-#define DTIMES(TXT) TXT, TXT
-#elif NDIM == 3
-#define KJI_DO(lo,hi) j=lo,hi; do i=lo,hi; do k=lo,hi
-#define KJI_DO_VEC(hi) k=1,hi(3); do j=1,hi(2); do i=1,hi(1)
-#define CLOSE_DO end do; end do
-#define IJK i, j, k
-#define DTIMES(TXT) TXT, TXT, TXT
-#endif
+# 37 "m_octree_mg.f90"
 
-#if NDIM == 2
-module m_octree_mg_2d
-#elif NDIM == 3
+
+
+
 module m_octree_mg_3d
-#endif
+
   use mpi
   implicit none
   private
@@ -76,7 +62,7 @@ module m_octree_mg_3d
   integer, parameter, public :: mg_smoother_jacobi = 3
 
   !> Problem dimension
-  integer, parameter, public :: mg_ndim = NDIM
+  integer, parameter, public :: mg_ndim = 3
 
   !> Number of predefined multigrid variables
   integer, parameter, public :: mg_num_vars = 4
@@ -116,39 +102,7 @@ module m_octree_mg_3d
   !> Maximum number of timers to use
   integer, parameter, public :: mg_max_timers = 20
 
-#if NDIM == 2
-  ! Numbering of children (same location as **corners**)
-  integer, parameter, public :: mg_num_children = 4
-
-  ! Index offset for each child
-  integer, parameter, public :: mg_child_dix(2, 4) = reshape([0,0,1,0,0,1,1,1], [2,4])
-  ! Reverse child index in each direction
-  integer, parameter, public :: mg_child_rev(4, 2) = reshape([2,1,4,3,3,4,1,2], [4,2])
-  ! Children adjacent to a neighbor
-  integer, parameter, public :: mg_child_adj_nb(2, 4) = reshape([1,3,2,4,1,2,3,4], [2,4])
-  ! Which children have a low index per dimension
-  logical, parameter, public :: mg_child_low(2, 4) = reshape([.true., .true., &
-       .false., .true., .true., .false., .false., .false.], [2, 4])
-
-  ! Neighbor topology information
-  integer, parameter, public :: mg_num_neighbors = 4
-  integer, parameter, public :: mg_neighb_lowx = 1
-  integer, parameter, public :: mg_neighb_highx = 2
-  integer, parameter, public :: mg_neighb_lowy = 3
-  integer, parameter, public :: mg_neighb_highy = 4
-
-  ! Index offsets of neighbors
-  integer, parameter, public :: mg_neighb_dix(2, 4) = reshape([-1,0,1,0,0,-1,0,1], [2,4])
-  ! Which neighbors have a lower index
-  logical, parameter, public :: mg_neighb_low(4) = [.true., .false., .true., .false.]
-  ! Opposite of nb_low, but now as -1,1 integers
-  integer, parameter, public :: mg_neighb_high_pm(4) = [-1, 1, -1, 1]
-
-  ! Reverse neighbors
-  integer, parameter, public :: mg_neighb_rev(4) = [2, 1, 4, 3]
-  ! Direction (dimension) for a neighbor
-  integer, parameter, public :: mg_neighb_dim(4) = [1, 1, 2, 2]
-#elif NDIM == 3
+# 152 "m_octree_mg.f90"
     ! Numbering of children (same location as **corners**)
   integer, parameter, public :: mg_num_children = 8
 
@@ -189,7 +143,7 @@ module m_octree_mg_3d
   integer, parameter, public :: mg_neighb_rev(6) = [2, 1, 4, 3, 6, 5]
   ! Direction (dimension) for a neighbor
   integer, parameter, public :: mg_neighb_dim(6) = [1, 1, 2, 2, 3, 3]
-#endif
+
 
   !> Lists of blocks per refinement level
   type, public :: mg_lvl_t
@@ -208,14 +162,14 @@ module m_octree_mg_3d
      integer  :: rank              !< Which process owns this box
      integer  :: id                !< Box id (index in boxes(:) array)
      integer  :: lvl               !< Refinement level
-     integer  :: ix(NDIM)          !< Spatial index
+     integer  :: ix(3)          !< Spatial index
      integer  :: parent            !< Id of parent
-     integer  :: children(2**NDIM) !< Ids of children
-     integer  :: neighbors(2*NDIM) !< Ids of neighbors
-     real(dp) :: r_min(NDIM)       !< Minimum coordinate
-     real(dp) :: dr(NDIM)          !< Grid spacing
+     integer  :: children(2**3) !< Ids of children
+     integer  :: neighbors(2*3) !< Ids of neighbors
+     real(dp) :: r_min(3)       !< Minimum coordinate
+     real(dp) :: dr(3)          !< Grid spacing
      !> Cell-centered data
-     real(dp), allocatable :: cc(DTIMES(:), :)
+     real(dp), allocatable :: cc(:, :, :, :)
   end type mg_box_t
 
   !> Buffer type (one is used for each pair of communicating processes)
@@ -275,11 +229,11 @@ module m_octree_mg_3d
      !> Size of boxes per level (differs for coarsest levels)
      integer                  :: box_size_lvl(mg_lvl_lo:mg_lvl_hi)
      !> Size of domain per level (if uniformly refined)
-     integer                  :: domain_size_lvl(NDIM, mg_lvl_lo:mg_lvl_hi)
+     integer                  :: domain_size_lvl(3, mg_lvl_lo:mg_lvl_hi)
      !> Grid spacing per level
-     real(dp)                 :: dr(NDIM, mg_lvl_lo:mg_lvl_hi)
+     real(dp)                 :: dr(3, mg_lvl_lo:mg_lvl_hi)
      !> Minimum coordinates
-     real(dp)                 :: r_min(NDIM)
+     real(dp)                 :: r_min(3)
      !> List of all levels
      type(mg_lvl_t)              :: lvls(mg_lvl_lo:mg_lvl_hi)
      !> Array with all boxes in the tree. Only boxes owned by this task are
@@ -318,7 +272,7 @@ module m_octree_mg_3d
      integer  :: n_cycle_up          = 2
      !> Maximum number of cycles on the coarse grid
      integer  :: max_coarse_cycles   = 1000
-     integer  :: coarsest_grid(NDIM) = 2
+     integer  :: coarsest_grid(3) = 2
      !> Stop coarse grid when max. residual is smaller than this
      real(dp) :: residual_coarse_abs = 1e-8_dp
      !> Stop coarse grid when residual has been reduced by this factor
@@ -349,11 +303,11 @@ module m_octree_mg_3d
        integer, intent(in)     :: nb      !< Direction
        integer, intent(out)    :: bc_type !< Type of b.c.
        !> Boundary values
-#if NDIM == 2
-       real(dp), intent(out)   :: bc(nc)
-#elif NDIM == 3
+
+
+
        real(dp), intent(out)   :: bc(nc, nc)
-#endif
+
      end subroutine mg_subr_bc
 
      !> To fill ghost cells near refinement boundaries
@@ -364,11 +318,11 @@ module m_octree_mg_3d
        integer, intent(in)        :: iv !< Index of variable
        integer, intent(in)        :: nb !< Direction
        !> Coarse data
-#if NDIM == 2
-       real(dp), intent(in)       :: cgc(nc)
-#elif NDIM == 3
+
+
+
        real(dp), intent(in)       :: cgc(nc, nc)
-#endif
+
      end subroutine mg_subr_rb
 
      !> Subroutine that performs A * cc(..., i_in) = cc(..., i_out)
@@ -394,10 +348,10 @@ module m_octree_mg_3d
        import
        type(mg_t), intent(inout) :: mg
        integer, intent(in)       :: p_id             !< Id of parent
-       integer, intent(in)       :: dix(NDIM)        !< Offset of child in parent grid
+       integer, intent(in)       :: dix(3)        !< Offset of child in parent grid
        integer, intent(in)       :: nc               !< Child grid size
        integer, intent(in)       :: iv               !< Prolong from this variable
-       real(dp), intent(out)     :: fine(DTIMES(nc)) !< Prolonged values
+       real(dp), intent(out)     :: fine(nc, nc, nc) !< Prolonged values
      end subroutine mg_box_prolong
   end interface
 
@@ -553,14 +507,14 @@ contains
   !> Compute the 'child index' for a box with spatial index ix. With 'child
   !> index' we mean the index in the children(:) array of its parent.
   integer function mg_ix_to_ichild(ix)
-    integer, intent(in) :: ix(NDIM) !< Spatial index of the box
+    integer, intent(in) :: ix(3) !< Spatial index of the box
     ! The index can range from 1 (all ix odd) and 2**$D (all ix even)
-#if NDIM == 2
-    mg_ix_to_ichild = 4 - 2 * iand(ix(2), 1) - iand(ix(1), 1)
-#elif NDIM == 3
+
+
+
     mg_ix_to_ichild = 8 - 4 * iand(ix(3), 1) - &
          2 * iand(ix(2), 1) - iand(ix(1), 1)
-#endif
+
   end function mg_ix_to_ichild
 
   !> Get the offset of a box with respect to its parent (e.g. in 2d, there can
@@ -569,7 +523,7 @@ contains
   pure function mg_get_child_offset(mg, id) result(ix_offset)
     type(mg_t), intent(in) :: mg
     integer, intent(in)    :: id
-    integer                :: ix_offset(NDIM)
+    integer                :: ix_offset(3)
 
     if (mg%boxes(id)%lvl <= mg%first_normal_lvl) then
        ix_offset(:) = 0
@@ -609,19 +563,19 @@ contains
     type(mg_box_t), intent(in) :: box
     integer, intent(in)        :: nb
     integer, intent(in)        :: nc
-#if NDIM == 2
-    real(dp), intent(out)      :: x(nc, 2)
-    integer                    :: i
-#elif NDIM == 3
+
+
+
+
     real(dp), intent(out)      :: x(nc, nc, 3)
     integer                    :: i, j
-#endif
-    integer                    :: nb_dim, ixs(NDIM-1)
-    real(dp)                   :: rmin(NDIM)
+
+    integer                    :: nb_dim, ixs(3-1)
+    real(dp)                   :: rmin(3)
 
     ! Determine directions perpendicular to neighbor
     nb_dim = mg_neighb_dim(nb)
-    ixs                     = [(i, i = 1, NDIM-1)]
+    ixs                     = [(i, i = 1, 3-1)]
     ixs(nb_dim:) = ixs(nb_dim:) + 1
 
     rmin = box%r_min
@@ -629,19 +583,19 @@ contains
        rmin(nb_dim) = rmin(nb_dim) + box%dr(nb_dim) * nc
     end if
 
-#if NDIM == 2
-    do i = 1, nc
-       x(i, :) = rmin
-       x(i, ixs(1)) = x(i, ixs(1)) + (i-0.5d0) * box%dr(ixs(1))
-    end do
-#elif NDIM == 3
+
+
+
+
+
+
     do j = 1, nc
        do i = 1, nc
           x(i, j, :) = rmin
           x(i, j, ixs) = x(i, j, ixs) + ([i, j] - 0.5d0) * box%dr(ixs)
        end do
     end do
-#endif
+
   end subroutine mg_get_face_coords
 
   integer function mg_add_timer(mg, name)
@@ -745,11 +699,11 @@ contains
        nc = mg%box_size_lvl(lvl)
        do i = 1, size(mg%lvls(lvl)%my_ids)
           id = mg%lvls(lvl)%my_ids(i)
-          allocate(mg%boxes(id)%cc(DTIMES(0:nc+1), &
+          allocate(mg%boxes(id)%cc(0:nc+1, 0:nc+1, 0:nc+1, &
                mg_num_vars + mg%n_extra_vars))
 
           ! Set all initial values to zero
-          mg%boxes(id)%cc(DTIMES(:), :) = 0.0_dp
+          mg%boxes(id)%cc(:, :, :, :) = 0.0_dp
        end do
     end do
 
@@ -879,9 +833,9 @@ contains
        nc = mg%box_size_lvl(lvl)
        do i = 1, size(mg%lvls(lvl)%my_leaves)
           id = mg%lvls(lvl)%my_leaves(i)
-          mg%boxes(id)%cc(DTIMES(1:nc), mg_irhs) = &
-               f1 * mg%boxes(id)%cc(DTIMES(1:nc), mg_iphi) + &
-               f2 * mg%boxes(id)%cc(DTIMES(1:nc), mg_irhs)
+          mg%boxes(id)%cc(1:nc, 1:nc, 1:nc, mg_irhs) = &
+               f1 * mg%boxes(id)%cc(1:nc, 1:nc, 1:nc, mg_iphi) + &
+               f2 * mg%boxes(id)%cc(1:nc, 1:nc, 1:nc, mg_irhs)
        end do
     end do
   end subroutine set_rhs
@@ -903,17 +857,7 @@ contains
        case default
           error stop "laplacian_set_methods: unsupported smoother type"
        end select
-#if NDIM == 2
-    case (mg_cylindrical)
-       mg%box_op => box_clpl
-
-       select case (mg%smoother_type)
-       case (mg_smoother_gs, mg_smoother_gsrb)
-          mg%box_smoother => box_gs_clpl
-       case default
-          error stop "laplacian_set_methods: unsupported smoother type"
-       end select
-#endif
+# 917 "m_octree_mg.f90"
     case default
        error stop "laplacian_set_methods: unsupported geometry"
     end select
@@ -926,12 +870,12 @@ contains
     integer, intent(in)       :: id
     integer, intent(in)       :: nc
     integer, intent(in)       :: redblack_cntr !< Iteration counter
-    integer                   :: IJK, i0, di
-    real(dp)                  :: idr2(NDIM), fac
+    integer                   :: i, j, k, i0, di
+    real(dp)                  :: idr2(3), fac
     logical                   :: redblack
-#if NDIM == 3
+
     real(dp), parameter       :: sixth = 1/6.0_dp
-#endif
+
 
     idr2 = 1/mg%dr(:, mg%boxes(id)%lvl)**2
     fac = 0.5_dp / sum(idr2)
@@ -947,19 +891,7 @@ contains
     ! The parity of redblack_cntr determines which cells we use. If
     ! redblack_cntr is even, we use the even cells and vice versa.
     associate (cc => mg%boxes(id)%cc, n => mg_iphi)
-#if NDIM == 2
-      do j = 1, nc
-         if (redblack) &
-              i0 = 2 - iand(ieor(redblack_cntr, j), 1)
-
-         do i = i0, nc, di
-            cc(i, j, n) = fac * ( &
-                 idr2(1) * (cc(i+1, j, n) + cc(i-1, j, n)) + &
-                 idr2(2) * (cc(i, j+1, n) + cc(i, j-1, n)) - &
-                 cc(i, j, mg_irhs))
-         end do
-      end do
-#elif NDIM == 3
+# 963 "m_octree_mg.f90"
       do k = 1, nc
          do j = 1, nc
             if (redblack) &
@@ -973,7 +905,7 @@ contains
             end do
          end do
       end do
-#endif
+
     end associate
   end subroutine box_gs_lpl
 
@@ -983,26 +915,26 @@ contains
 !     integer, intent(in)       :: id
 !     integer, intent(in)       :: nc
 !     integer, intent(in)       :: cntr !< Not used
-!     integer                   :: IJK
+!     integer                   :: i, j, k
 !     real(dp), parameter       :: w     = 2.0_dp / 3
-!     real(dp)                  :: tmp(DTIMES(0:nc+1))
+!     real(dp)                  :: tmp(0:nc+1, 0:nc+1, 0:nc+1)
 !     real(dp)                  :: dr2
-! #if NDIM == 3
+! #if 3 == 3
 !     real(dp), parameter       :: sixth = 1/6.0_dp
 ! #endif
 
 !     dr2   = mg%dr(mg%boxes(id)%lvl)**2
 
 !     associate (box => mg%boxes(id))
-!       tmp = box%cc(DTIMES(:), mg_iphi)
-!       do KJI_DO(1, nc)
-! #if NDIM == 2
+!       tmp = box%cc(:, :, :, mg_iphi)
+!       do j=1, nc; do i=1, nc; do k=1, nc
+! #if 3 == 2
 !          box%cc(i, j, mg_iphi) = (1-w) * box%cc(i, j, mg_iphi) + &
 !               0.25_dp * w * ( &
 !               tmp(i+1, j) + tmp(i-1, j) + &
 !               tmp(i, j+1) + tmp(i, j-1) - &
 !               dr2 * box%cc(i, j, mg_irhs))
-! #elif NDIM == 3
+! #elif 3 == 3
 !          box%cc(i, j, k, mg_iphi) = (1-w) * &
 !               box%cc(i, j, k, mg_iphi) + &
 !               sixth * w * ( &
@@ -1011,7 +943,7 @@ contains
 !               tmp(i, j, k+1) + tmp(i, j, k-1) - &
 !               dr2 * box%cc(i, j, k, mg_irhs))
 ! #endif
-!       end do; CLOSE_DO
+!       end do; end do; end do
 !     end associate
 !   end subroutine box_jacobi_lpl
 
@@ -1021,21 +953,13 @@ contains
     integer, intent(in)       :: id
     integer, intent(in)       :: nc
     integer, intent(in)       :: i_out !< Index of variable to store Laplacian in
-    integer                   :: IJK
-    real(dp)                  :: idr2(NDIM)
+    integer                   :: i, j, k
+    real(dp)                  :: idr2(3)
 
     idr2 = 1 / mg%dr(:, mg%boxes(id)%lvl)**2
 
     associate (cc => mg%boxes(id)%cc, n => mg_iphi)
-#if NDIM == 2
-      do j = 1, nc
-         do i = 1, nc
-            cc(i, j, i_out) = &
-                 idr2(1) * (cc(i-1, j, n) + cc(i+1, j, n) - 2 * cc(i, j, n)) + &
-                 idr2(2) * (cc(i, j-1, n) + cc(i, j+1, n) - 2 * cc(i, j, n))
-         end do
-      end do
-#elif NDIM == 3
+# 1039 "m_octree_mg.f90"
       do k = 1, nc
          do j = 1, nc
             do i = 1, nc
@@ -1049,86 +973,11 @@ contains
             end do
          end do
       end do
-#endif
+
     end associate
   end subroutine box_lpl
 
-#if NDIM == 2
-  !> Perform Laplacian operator on a box in cylindrical geometry, using (r,z)
-  !> and (r,phi,z) coordinates in 2D/3D.
-  subroutine box_clpl(mg, id, nc, i_out)
-    type(mg_t), intent(inout) :: mg
-    integer, intent(in)       :: id
-    integer, intent(in)       :: nc
-    integer, intent(in)       :: i_out !< Index of variable to store Laplacian in
-    integer                   :: IJK
-    real(dp)                  :: dr(NDIM), idr2(NDIM)
-    real(dp)                  :: r_face(nc+1), r_inv(nc)
-
-    dr     = mg%dr(:, mg%boxes(id)%lvl)
-    idr2   = 1 / dr**2
-    r_face = mg%boxes(id)%r_min(1) + dr(1) * [(i, i=0,nc)]
-    r_inv  = 1/(mg%boxes(id)%r_min(1) + dr(1) * [(i-0.5_dp, i=1,nc)])
-
-    associate (cc => mg%boxes(id)%cc, n => mg_iphi)
-      do j = 1, nc
-         do i = 1, nc
-            cc(i, j, i_out) = idr2(1) * (&
-                 r_face(i) * r_inv(i) * cc(i-1, j, n) + &
-                 r_face(i+1) * r_inv(i) * cc(i+1, j, n) &
-                 - 2 * cc(i, j, n)) &
-                 + idr2(2) * (cc(i, j-1, n) +  cc(i, j+1, n) - 2 * cc(i, j, n))
-         end do
-      end do
-    end associate
-  end subroutine box_clpl
-
-  !> Perform Gauss-Seidel relaxation on box for a Laplacian operator in
-  !> cylindrical geometry. TODO: in 3D this does not converge well, maybe it
-  !> will for a stretched grid.
-  subroutine box_gs_clpl(mg, id, nc, redblack_cntr)
-    type(mg_t), intent(inout) :: mg
-    integer, intent(in)       :: id
-    integer, intent(in)       :: nc
-    integer, intent(in)       :: redblack_cntr !< Iteration counter
-    integer                   :: IJK, i0, di
-    logical                   :: redblack
-    real(dp)                  :: idr2(NDIM), dr(NDIM), dr2(NDIM), fac
-    real(dp)                  :: r_face(nc+1), r_inv(nc)
-
-    dr     = mg%dr(:, mg%boxes(id)%lvl)
-    dr2    = dr**2
-    idr2   = 1/dr**2
-    fac    = 0.5_dp / sum(idr2)
-    r_face = mg%boxes(id)%r_min(1) + dr(1) * [(i, i=0,nc)]
-    r_inv  = 1/(mg%boxes(id)%r_min(1) + dr(1) * [(i-0.5_dp, i=1,nc)])
-
-    i0  = 1
-    redblack = (mg%smoother_type == mg_smoother_gsrb)
-    if (redblack) then
-       di = 2
-    else
-       di = 1
-    end if
-
-    ! The parity of redblack_cntr determines which cells we use. If
-    ! redblack_cntr is even, we use the even cells and vice versa.
-    associate (cc => mg%boxes(id)%cc, n => mg_iphi)
-      do j = 1, nc
-         if (redblack) &
-              i0 = 2 - iand(ieor(redblack_cntr, j), 1)
-
-         do i = i0, nc, di
-            cc(i, j, n) = fac * (idr2(1) * &
-                 (r_face(i+1) * r_inv(i) * cc(i+1, j, n) + &
-                 r_face(i) * r_inv(i) * cc(i-1, j, n)) + &
-                 idr2(2) * (cc(i, j+1, n) + cc(i, j-1, n)) &
-                 - cc(i, j, mg_irhs))
-         end do
-      end do
-    end associate
-  end subroutine box_gs_clpl
-#endif
+# 1132 "m_octree_mg.f90"
 
   !! File ../src/m_vhelmholtz.f90
 
@@ -1177,14 +1026,14 @@ contains
     integer, intent(in)       :: id
     integer, intent(in)       :: nc
     integer, intent(in)       :: redblack_cntr !< Iteration counter
-    integer                   :: IJK, i0, di
+    integer                   :: i, j, k, i0, di
     logical                   :: redblack
-    real(dp)                  :: idr2(2*NDIM), u(2*NDIM)
-    real(dp)                  :: a0, a(2*NDIM), c(2*NDIM)
+    real(dp)                  :: idr2(2*3), u(2*3)
+    real(dp)                  :: a0, a(2*3), c(2*3)
 
     ! Duplicate 1/dr^2 array to multiply neighbor values
-    idr2(1:2*NDIM:2) = 1/mg%dr(:, mg%boxes(id)%lvl)**2
-    idr2(2:2*NDIM:2) = idr2(1:2*NDIM:2)
+    idr2(1:2*3:2) = 1/mg%dr(:, mg%boxes(id)%lvl)**2
+    idr2(2:2*3:2) = idr2(1:2*3:2)
     i0  = 1
 
     redblack = (mg%smoother_type == mg_smoother_gsrb)
@@ -1198,25 +1047,7 @@ contains
     ! redblack_cntr is even, we use the even cells and vice versa.
     associate (cc => mg%boxes(id)%cc, n => mg_iphi, &
          i_eps => mg_iveps)
-#if NDIM == 2
-      do j = 1, nc
-         if (redblack) &
-              i0 = 2 - iand(ieor(redblack_cntr, j), 1)
-
-         do i = i0, nc, di
-            a0     = cc(i, j, i_eps)
-            u(1:2) = cc(i-1:i+1:2, j, n)
-            a(1:2) = cc(i-1:i+1:2, j, i_eps)
-            u(3:4) = cc(i, j-1:j+1:2, n)
-            a(3:4) = cc(i, j-1:j+1:2, i_eps)
-            c(:)   = 2 * a0 * a(:) / (a0 + a(:)) * idr2
-
-            cc(i, j, n) = &
-                 (sum(c(:) * u(:)) - cc(i, j, mg_irhs)) / &
-                 (sum(c(:)) + vhelmholtz_lambda)
-         end do
-      end do
-#elif NDIM == 3
+# 1220 "m_octree_mg.f90"
       do k = 1, nc
          do j = 1, nc
             if (redblack) &
@@ -1237,7 +1068,7 @@ contains
             end do
          end do
       end do
-#endif
+
     end associate
   end subroutine box_gs_vhelmh
 
@@ -1247,31 +1078,16 @@ contains
     integer, intent(in)       :: id
     integer, intent(in)       :: nc
     integer, intent(in)       :: i_out !< Index of variable to store Helmholtz in
-    integer                   :: IJK
-    real(dp)                  :: idr2(2*NDIM), a0, u0, u(2*NDIM), a(2*NDIM)
+    integer                   :: i, j, k
+    real(dp)                  :: idr2(2*3), a0, u0, u(2*3), a(2*3)
 
     ! Duplicate 1/dr^2 array to multiply neighbor values
-    idr2(1:2*NDIM:2) = 1/mg%dr(:, mg%boxes(id)%lvl)**2
-    idr2(2:2*NDIM:2) = idr2(1:2*NDIM:2)
+    idr2(1:2*3:2) = 1/mg%dr(:, mg%boxes(id)%lvl)**2
+    idr2(2:2*3:2) = idr2(1:2*3:2)
 
     associate (cc => mg%boxes(id)%cc, n => mg_iphi, &
          i_eps => mg_iveps)
-#if NDIM == 2
-      do j = 1, nc
-         do i = 1, nc
-            a0     = cc(i, j, i_eps)
-            a(1:2) = cc(i-1:i+1:2, j, i_eps)
-            a(3:4) = cc(i, j-1:j+1:2, i_eps)
-            u0     = cc(i, j, n)
-            u(1:2) = cc(i-1:i+1:2, j, n)
-            u(3:4) = cc(i, j-1:j+1:2, n)
-
-            cc(i, j, i_out) = sum(2 * idr2 * &
-                 a0*a(:)/(a0 + a(:)) * (u(:) - u0)) - &
-                 vhelmholtz_lambda * u0
-         end do
-      end do
-#elif NDIM == 3
+# 1275 "m_octree_mg.f90"
       do k = 1, nc
          do j = 1, nc
             do i = 1, nc
@@ -1290,7 +1106,7 @@ contains
             end do
          end do
       end do
-#endif
+
     end associate
   end subroutine box_vhelmh
 
@@ -1299,15 +1115,15 @@ contains
   subroutine mg_build_rectangle(mg, domain_size, box_size, dx, r_min, &
        periodic, n_finer)
     type(mg_t), intent(inout) :: mg
-    integer, intent(in)       :: domain_size(NDIM)
+    integer, intent(in)       :: domain_size(3)
     integer, intent(in)       :: box_size
-    real(dp), intent(in)      :: dx(NDIM)
-    real(dp), intent(in)      :: r_min(NDIM)
-    logical, intent(in)       :: periodic(NDIM)
+    real(dp), intent(in)      :: dx(3)
+    real(dp), intent(in)      :: r_min(3)
+    logical, intent(in)       :: periodic(3)
     integer, intent(in)       :: n_finer
-    integer                   :: IJK, lvl, n, id, nx(NDIM)
-    integer                   :: boxes_per_dim(NDIM, mg_lvl_lo:1)
-    integer                   :: periodic_offset(NDIM)
+    integer                   :: i, j, k, lvl, n, id, nx(3)
+    integer                   :: boxes_per_dim(3, mg_lvl_lo:1)
+    integer                   :: periodic_offset(3)
 
     if (modulo(box_size, 2) /= 0) &
          error stop "box_size should be even"
@@ -1363,21 +1179,21 @@ contains
 
     ! Create lowest level
     nx = boxes_per_dim(:, mg%lowest_lvl)
-#if NDIM == 2
-    periodic_offset = [nx(1)-1, (nx(2)-1)*nx(1)]
-#elif NDIM == 3
+
+
+
     periodic_offset = [nx(1)-1, (nx(2)-1)*nx(1), &
          (nx(3)-1) * nx(2) * nx(1)]
-#endif
 
-    do KJI_DO_VEC(nx)
+
+    do k=1,nx(3); do j=1,nx(2); do i=1,nx(1)
        mg%n_boxes = mg%n_boxes + 1
        n          = mg%n_boxes
 
        mg%boxes(n)%rank        = 0
        mg%boxes(n)%id          = n
        mg%boxes(n)%lvl         = mg%lowest_lvl
-       mg%boxes(n)%ix(:)       = [IJK]
+       mg%boxes(n)%ix(:)       = [i, j, k]
        mg%boxes(n)%r_min(:)    = r_min + (mg%boxes(n)%ix(:) - 1) * &
             mg%box_size_lvl(mg%lowest_lvl) * mg%dr(:, mg%lowest_lvl)
        mg%boxes(n)%dr(:)       = mg%dr(:, mg%lowest_lvl)
@@ -1385,32 +1201,32 @@ contains
        mg%boxes(n)%children(:) = mg_no_box
 
        ! Set default neighbors
-#if NDIM == 2
-       mg%boxes(n)%neighbors(:) = [n-1, n+1, n-nx(1), n+nx(1)]
-#elif NDIM == 3
+
+
+
        mg%boxes(n)%neighbors(:) = [n-1, n+1, n-nx(1), n+nx(1), &
             n-nx(1)*nx(2), n+nx(1)*nx(2)]
-#endif
+
 
        ! Handle boundaries
-       where ([IJK] == 1 .and. .not. periodic)
+       where ([i, j, k] == 1 .and. .not. periodic)
           mg%boxes(n)%neighbors(1:mg_num_neighbors:2) = &
                mg_physical_boundary
        end where
-       where ([IJK] == 1 .and. periodic)
+       where ([i, j, k] == 1 .and. periodic)
           mg%boxes(n)%neighbors(1:mg_num_neighbors:2) = &
                n + periodic_offset
        end where
 
-       where ([IJK] == nx .and. .not. periodic)
+       where ([i, j, k] == nx .and. .not. periodic)
           mg%boxes(n)%neighbors(2:mg_num_neighbors:2) = &
                mg_physical_boundary
        end where
-       where ([IJK] == nx .and. periodic)
+       where ([i, j, k] == nx .and. periodic)
           mg%boxes(n)%neighbors(2:mg_num_neighbors:2) = &
                n - periodic_offset
        end where
-    end do; CLOSE_DO
+    end do; end do; end do
 
     mg%lvls(mg%lowest_lvl)%ids = [(n, n=1, mg%n_boxes)]
 
@@ -1605,9 +1421,9 @@ contains
   subroutine mg_add_children(mg, id)
     type(mg_t), intent(inout) :: mg
     integer, intent(in)       :: id !< Id of box that gets children
-    integer                   :: lvl, i, nb, child_nb(2**(NDIM-1))
+    integer                   :: lvl, i, nb, child_nb(2**(3-1))
     integer                   :: c_ids(mg_num_children)
-    integer                   :: c_id, c_ix_base(NDIM)
+    integer                   :: c_id, c_ix_base(3)
 
     c_ids                 = [(mg%n_boxes+i, i=1,mg_num_children)]
     mg%n_boxes            = mg%n_boxes + mg_num_children
@@ -1826,14 +1642,14 @@ contains
     integer, intent(in)       :: id
     integer, intent(in)       :: nc
     integer, intent(in)       :: redblack_cntr !< Iteration counter
-    integer                   :: IJK, i0, di
+    integer                   :: i, j, k, i0, di
     logical                   :: redblack
-    real(dp)                  :: idr2(2*NDIM), u(2*NDIM)
-    real(dp)                  :: a0, a(2*NDIM), c(2*NDIM)
+    real(dp)                  :: idr2(2*3), u(2*3)
+    real(dp)                  :: a0, a(2*3), c(2*3)
 
     ! Duplicate 1/dr^2 array to multiply neighbor values
-    idr2(1:2*NDIM:2) = 1/mg%dr(:, mg%boxes(id)%lvl)**2
-    idr2(2:2*NDIM:2) = idr2(1:2*NDIM:2)
+    idr2(1:2*3:2) = 1/mg%dr(:, mg%boxes(id)%lvl)**2
+    idr2(2:2*3:2) = idr2(1:2*3:2)
     i0  = 1
 
     redblack = (mg%smoother_type == mg_smoother_gsrb)
@@ -1847,24 +1663,7 @@ contains
     ! redblack_cntr is even, we use the even cells and vice versa.
     associate (cc => mg%boxes(id)%cc, n => mg_iphi, &
          i_eps => mg_iveps)
-#if NDIM == 2
-      do j = 1, nc
-         if (redblack) &
-              i0 = 2 - iand(ieor(redblack_cntr, j), 1)
-
-         do i = i0, nc, di
-            a0     = cc(i, j, i_eps)
-            u(1:2) = cc(i-1:i+1:2, j, n)
-            a(1:2) = cc(i-1:i+1:2, j, i_eps)
-            u(3:4) = cc(i, j-1:j+1:2, n)
-            a(3:4) = cc(i, j-1:j+1:2, i_eps)
-            c(:)   = 2 * a0 * a(:) / (a0 + a(:)) * idr2
-
-            cc(i, j, n) = &
-                 (sum(c(:) * u(:)) - cc(i, j, mg_irhs)) / sum(c(:))
-         end do
-      end do
-#elif NDIM == 3
+# 1868 "m_octree_mg.f90"
       do k = 1, nc
          do j = 1, nc
             if (redblack) &
@@ -1884,7 +1683,7 @@ contains
             end do
          end do
       end do
-#endif
+
     end associate
   end subroutine box_gs_vlpl
 
@@ -1894,30 +1693,16 @@ contains
     integer, intent(in)       :: id
     integer, intent(in)       :: nc
     integer, intent(in)       :: i_out !< Index of variable to store Laplacian in
-    integer                   :: IJK
-    real(dp)                  :: idr2(2*NDIM), a0, u0, u(2*NDIM), a(2*NDIM)
+    integer                   :: i, j, k
+    real(dp)                  :: idr2(2*3), a0, u0, u(2*3), a(2*3)
 
     ! Duplicate 1/dr^2 array to multiply neighbor values
-    idr2(1:2*NDIM:2) = 1/mg%dr(:, mg%boxes(id)%lvl)**2
-    idr2(2:2*NDIM:2) = idr2(1:2*NDIM:2)
+    idr2(1:2*3:2) = 1/mg%dr(:, mg%boxes(id)%lvl)**2
+    idr2(2:2*3:2) = idr2(1:2*3:2)
 
     associate (cc => mg%boxes(id)%cc, n => mg_iphi, &
          i_eps => mg_iveps)
-#if NDIM == 2
-      do j = 1, nc
-         do i = 1, nc
-            a0     = cc(i, j, i_eps)
-            a(1:2) = cc(i-1:i+1:2, j, i_eps)
-            a(3:4) = cc(i, j-1:j+1:2, i_eps)
-            u0     = cc(i, j, n)
-            u(1:2) = cc(i-1:i+1:2, j, n)
-            u(3:4) = cc(i, j-1:j+1:2, n)
-
-            cc(i, j, i_out) = sum(2 * idr2 * &
-                 a0*a(:)/(a0 + a(:)) * (u(:) - u0))
-         end do
-      end do
-#elif NDIM == 3
+# 1921 "m_octree_mg.f90"
       do k = 1, nc
          do j = 1, nc
             do i = 1, nc
@@ -1935,7 +1720,7 @@ contains
             end do
          end do
       end do
-#endif
+
     end associate
   end subroutine box_vlpl
 
@@ -1945,17 +1730,17 @@ contains
 !   subroutine vlpl_prolong(mg, p_id, dix, nc, iv, fine)
 !     type(mg_t), intent(inout) :: mg
 !     integer, intent(in)       :: p_id             !< Id of parent
-!     integer, intent(in)       :: dix(NDIM)        !< Offset of child in parent grid
+!     integer, intent(in)       :: dix(3)        !< Offset of child in parent grid
 !     integer, intent(in)       :: nc               !< Child grid size
 !     integer, intent(in)       :: iv               !< Prolong from this variable
-!     real(dp), intent(out)     :: fine(DTIMES(nc)) !< Prolonged values
+!     real(dp), intent(out)     :: fine(nc, nc, nc) !< Prolonged values
 
-!     integer  :: IJK, hnc
-! #if NDIM == 2
+!     integer  :: i, j, k, hnc
+! #if 3 == 2
 !     integer  :: ic, jc
 !     real(dp) :: f0, flx, fhx, fly, fhy
 !     real(dp) :: c0, clx, chx, cly, chy
-! #elif NDIM == 3
+! #elif 3 == 3
 !     integer  :: ic, jc, kc
 !     real(dp) :: f0, flx, fhx, fly, fhy, flz, fhz
 !     real(dp) :: c0, clx, chx, cly, chy, clz, chz
@@ -1965,7 +1750,7 @@ contains
 
 !     associate (crs => mg%boxes(p_id)%cc, &
 !          i_eps => mg_iveps)
-! #if NDIM == 2
+! #if 3 == 2
 !       do j = 1, hnc
 !          jc = j + dix(2)
 !          do i = 1, hnc
@@ -1993,7 +1778,7 @@ contains
 !                  (c0 + chx + chy)
 !          end do
 !       end do
-! #elif NDIM == 3
+! #elif 3 == 3
 !       do k = 1, hnc
 !          kc = k + dix(3)
 !          do j = 1, hnc
@@ -2134,7 +1919,7 @@ contains
     allocate(mg%comm_ghostcell%n_recv(0:mg%n_cpu-1, &
          mg%first_normal_lvl:mg%highest_lvl))
 
-    dsize = mg%box_size**(NDIM-1)
+    dsize = mg%box_size**(3-1)
 
     do lvl = mg%first_normal_lvl, mg%highest_lvl
        nc               = mg%box_size_lvl(lvl)
@@ -2189,11 +1974,11 @@ contains
     type(mg_t), intent(inout) :: mg
     integer, intent(in)       :: lvl
     integer, intent(in)       :: nc
-#if NDIM == 2
-    real(dp)                  :: bc(nc)
-#elif NDIM == 3
+
+
+
     real(dp)                  :: bc(nc, nc)
-#endif
+
     integer                   :: i, id, nb, nb_id, bc_type
 
     do i = 1, size(mg%lvls(lvl)%my_ids)
@@ -2249,7 +2034,7 @@ contains
     nc               = mg%box_size_lvl(lvl)
 
     if (lvl >= mg%first_normal_lvl) then
-       dsize            = nc**(NDIM-1)
+       dsize            = nc**(3-1)
        mg%buf(:)%i_send = 0
        mg%buf(:)%i_recv = 0
        mg%buf(:)%i_ix   = 0
@@ -2309,7 +2094,7 @@ contains
     integer, intent(in)       :: nc
     integer, intent(in)       :: iv
     logical, intent(in)       :: dry_run
-    integer                   :: nb, nb_id, c_ids(2**(NDIM-1))
+    integer                   :: nb, nb_id, c_ids(2**(3-1))
     integer                   :: n, c_id, c_rank
 
     do nb = 1, mg_num_neighbors
@@ -2341,11 +2126,11 @@ contains
     integer, intent(in)       :: nc
     integer, intent(in)       :: iv
     logical, intent(in)       :: dry_run
-#if NDIM == 2
-    real(dp)                  :: bc(nc)
-#elif NDIM == 3
+
+
+
     real(dp)                  :: bc(nc, nc)
-#endif
+
     integer                   :: nb, nb_id, nb_rank, bc_type
 
     do nb = 1, mg_num_neighbors
@@ -2395,15 +2180,15 @@ contains
     integer, intent(in)       :: iv
     integer, intent(in)       :: nb
     logical, intent(in)       :: dry_run
-#if NDIM == 2
-    real(dp)                  :: gc(nc)
-#elif NDIM == 3
+
+
+
     real(dp)                  :: gc(nc, nc)
-#endif
-    integer                   :: p_id, p_nb_id, ix_offset(NDIM)
+
+    integer                   :: p_id, p_nb_id, ix_offset(3)
     integer                   :: i, dsize, p_nb_rank
 
-    dsize     = nc**(NDIM-1)
+    dsize     = nc**(3-1)
     p_id      = mg%boxes(id)%parent
     p_nb_id   = mg%boxes(p_id)%neighbors(nb)
     p_nb_rank = mg%boxes(p_nb_id)%rank
@@ -2435,11 +2220,11 @@ contains
     integer, intent(in)           :: nb
     integer, intent(in)           :: nc
     integer, intent(in)           :: iv
-#if NDIM == 2
-    real(dp)                      :: gc(nc)
-#elif NDIM == 3
+
+
+
     real(dp)                      :: gc(nc, nc)
-#endif
+
 
     call box_gc_for_neighbor(box_nb, mg_neighb_rev(nb), nc, iv, gc)
     call box_set_gc(box, nb, nc, iv, gc)
@@ -2455,14 +2240,14 @@ contains
     integer, intent(in)        :: nb
     logical, intent(in)        :: dry_run
     integer                    :: i, dsize
-#if NDIM == 2
-    real(dp)                   :: gc(nc)
-#elif NDIM == 3
+
+
+
     real(dp)                   :: gc(nc, nc)
-#endif
+
 
     i     = mg%buf(nb_rank)%i_send
-    dsize = nc**(NDIM-1)
+    dsize = nc**(3-1)
 
     if (.not. dry_run) then
        call box_gc_for_neighbor(box, nb, nc, iv, gc)
@@ -2489,15 +2274,15 @@ contains
     integer, intent(in)        :: fine_rank
     integer, intent(in)        :: nb
     logical, intent(in)        :: dry_run
-    integer                    :: i, dsize, ix_offset(NDIM)
-#if NDIM == 2
-    real(dp)                   :: gc(nc)
-#elif NDIM == 3
+    integer                    :: i, dsize, ix_offset(3)
+
+
+
     real(dp)                   :: gc(nc, nc)
-#endif
+
 
     i     = mg%buf(fine_rank)%i_send
-    dsize = nc**(NDIM-1)
+    dsize = nc**(3-1)
 
     if (.not. dry_run) then
        ix_offset = mg_get_child_offset(mg, fine_id)
@@ -2526,14 +2311,14 @@ contains
     integer, intent(in)        :: iv
     logical, intent(in)        :: dry_run
     integer                    :: i, dsize
-#if NDIM == 2
-    real(dp)                   :: gc(nc)
-#elif NDIM == 3
+
+
+
     real(dp)                   :: gc(nc, nc)
-#endif
+
 
     i     = mg%buf(nb_rank)%i_recv
-    dsize = nc**(NDIM-1)
+    dsize = nc**(3-1)
 
     if (.not. dry_run) then
        gc = reshape(mg%buf(nb_rank)%recv(i+1:i+dsize), shape(gc))
@@ -2546,23 +2331,14 @@ contains
   subroutine box_gc_for_neighbor(box, nb, nc, iv, gc)
     type(mg_box_t), intent(in) :: box
     integer, intent(in)     :: nb, nc, iv
-#if NDIM == 2
-    real(dp), intent(out)   :: gc(nc)
-#elif NDIM == 3
+
+
+
     real(dp), intent(out)   :: gc(nc, nc)
-#endif
+
 
     select case (nb)
-#if NDIM == 2
-    case (mg_neighb_lowx)
-       gc = box%cc(1, 1:nc, iv)
-    case (mg_neighb_highx)
-       gc = box%cc(nc, 1:nc, iv)
-    case (mg_neighb_lowy)
-       gc = box%cc(1:nc, 1, iv)
-    case (mg_neighb_highy)
-       gc = box%cc(1:nc, nc, iv)
-#elif NDIM == 3
+# 2566 "m_octree_mg.f90"
     case (mg_neighb_lowx)
        gc = box%cc(1, 1:nc, 1:nc, iv)
     case (mg_neighb_highx)
@@ -2575,7 +2351,7 @@ contains
        gc = box%cc(1:nc, 1:nc, 1, iv)
     case (mg_neighb_highz)
        gc = box%cc(1:nc, 1:nc, nc, iv)
-#endif
+
     end select
   end subroutine box_gc_for_neighbor
 
@@ -2583,33 +2359,24 @@ contains
   subroutine box_gc_for_fine_neighbor(box, nb, di, nc, iv, gc)
     type(mg_box_t), intent(in) :: box
     integer, intent(in)     :: nb       !< Direction of fine neighbor
-    integer, intent(in)     :: di(NDIM) !< Index offset of fine neighbor
+    integer, intent(in)     :: di(3) !< Index offset of fine neighbor
     integer, intent(in)     :: nc, iv
-#if NDIM == 2
-    real(dp), intent(out)   :: gc(nc)
-    real(dp)                :: tmp(0:nc/2+1)
-    integer                 :: i, hnc
-#elif NDIM == 3
+
+
+
+
+
     real(dp), intent(out)   :: gc(nc, nc)
     real(dp)                :: tmp(0:nc/2+1, 0:nc/2+1)
     integer                 :: i, j, hnc
-#endif
-    real(dp)                :: grad(NDIM-1)
+
+    real(dp)                :: grad(3-1)
 
     hnc = nc/2
 
     ! First fill a temporary array with data next to the fine grid
     select case (nb)
-#if NDIM == 2
-    case (mg_neighb_lowx)
-       tmp = box%cc(1, di(2):di(2)+hnc+1, iv)
-    case (mg_neighb_highx)
-       tmp = box%cc(nc, di(2):di(2)+hnc+1, iv)
-    case (mg_neighb_lowy)
-       tmp = box%cc(di(1):di(1)+hnc+1, 1, iv)
-    case (mg_neighb_highy)
-       tmp = box%cc(di(1):di(1)+hnc+1, nc, iv)
-#elif NDIM == 3
+# 2613 "m_octree_mg.f90"
     case (mg_neighb_lowx)
        tmp = box%cc(1, di(2):di(2)+hnc+1, di(3):di(3)+hnc+1, iv)
     case (mg_neighb_highx)
@@ -2622,18 +2389,18 @@ contains
        tmp = box%cc(di(1):di(1)+hnc+1, di(2):di(2)+hnc+1, 1, iv)
     case (mg_neighb_highz)
        tmp = box%cc(di(1):di(1)+hnc+1, di(2):di(2)+hnc+1, nc, iv)
-#endif
+
     end select
 
     ! Now interpolate the coarse grid data to obtain values 'straight' next to
     ! the fine grid points
-#if NDIM == 2
-    do i = 1, hnc
-       grad(1) = 0.125_dp * (tmp(i+1) - tmp(i-1))
-       gc(2*i-1) = tmp(i) - grad(1)
-       gc(2*i) = tmp(i) + grad(1)
-    end do
-#elif NDIM == 3
+
+
+
+
+
+
+
     do j = 1, hnc
        do i = 1, hnc
           grad(1)          = 0.125_dp * (tmp(i+1, j) - tmp(i-1, j))
@@ -2644,29 +2411,20 @@ contains
           gc(2*i, 2*j)     = tmp(i, j) + grad(1) + grad(2)
        end do
     end do
-#endif
+
   end subroutine box_gc_for_fine_neighbor
 
   subroutine box_get_gc(box, nb, nc, iv, gc)
     type(mg_box_t), intent(in) :: box
     integer, intent(in)        :: nb, nc, iv
-#if NDIM == 2
-    real(dp), intent(out)       :: gc(nc)
-#elif NDIM == 3
+
+
+
     real(dp), intent(out)       :: gc(nc, nc)
-#endif
+
 
     select case (nb)
-#if NDIM == 2
-    case (mg_neighb_lowx)
-       gc = box%cc(0, 1:nc, iv)
-    case (mg_neighb_highx)
-       gc = box%cc(nc+1, 1:nc, iv)
-    case (mg_neighb_lowy)
-       gc = box%cc(1:nc, 0, iv)
-    case (mg_neighb_highy)
-       gc = box%cc(1:nc, nc+1, iv)
-#elif NDIM == 3
+# 2670 "m_octree_mg.f90"
     case (mg_neighb_lowx)
        gc = box%cc(0, 1:nc, 1:nc, iv)
     case (mg_neighb_highx)
@@ -2679,30 +2437,21 @@ contains
        gc = box%cc(1:nc, 1:nc, 0, iv)
     case (mg_neighb_highz)
        gc = box%cc(1:nc, 1:nc, nc+1, iv)
-#endif
+
     end select
   end subroutine box_get_gc
 
   subroutine box_set_gc(box, nb, nc, iv, gc)
     type(mg_box_t), intent(inout) :: box
     integer, intent(in)        :: nb, nc, iv
-#if NDIM == 2
-    real(dp), intent(in)       :: gc(nc)
-#elif NDIM == 3
+
+
+
     real(dp), intent(in)       :: gc(nc, nc)
-#endif
+
 
     select case (nb)
-#if NDIM == 2
-    case (mg_neighb_lowx)
-       box%cc(0, 1:nc, iv)    = gc
-    case (mg_neighb_highx)
-       box%cc(nc+1, 1:nc, iv) = gc
-    case (mg_neighb_lowy)
-       box%cc(1:nc, 0, iv)    = gc
-    case (mg_neighb_highy)
-       box%cc(1:nc, nc+1, iv) = gc
-#elif NDIM == 3
+# 2706 "m_octree_mg.f90"
     case (mg_neighb_lowx)
        box%cc(0, 1:nc, 1:nc, iv)    = gc
     case (mg_neighb_highx)
@@ -2715,7 +2464,7 @@ contains
        box%cc(1:nc, 1:nc, 0, iv)    = gc
     case (mg_neighb_highz)
        box%cc(1:nc, 1:nc, nc+1, iv) = gc
-#endif
+
     end select
   end subroutine box_set_gc
 
@@ -2755,28 +2504,7 @@ contains
     end select
 
     select case (nb)
-#if NDIM == 2
-    case (mg_neighb_lowx)
-       mg%boxes(id)%cc(0, 1:nc, iv) = &
-            c0 * mg%boxes(id)%cc(0, 1:nc, iv) + &
-            c1 * mg%boxes(id)%cc(1, 1:nc, iv) + &
-            c2 * mg%boxes(id)%cc(2, 1:nc, iv)
-    case (mg_neighb_highx)
-       mg%boxes(id)%cc(nc+1, 1:nc, iv) = &
-            c0 * mg%boxes(id)%cc(nc+1, 1:nc, iv) + &
-            c1 * mg%boxes(id)%cc(nc, 1:nc, iv) + &
-            c2 * mg%boxes(id)%cc(nc-1, 1:nc, iv)
-    case (mg_neighb_lowy)
-       mg%boxes(id)%cc(1:nc, 0, iv) = &
-            c0 * mg%boxes(id)%cc(1:nc, 0, iv) + &
-            c1 * mg%boxes(id)%cc(1:nc, 1, iv) + &
-            c2 * mg%boxes(id)%cc(1:nc, 2, iv)
-    case (mg_neighb_highy)
-       mg%boxes(id)%cc(1:nc, nc+1, iv) = &
-            c0 * mg%boxes(id)%cc(1:nc, nc+1, iv) + &
-            c1 * mg%boxes(id)%cc(1:nc, nc, iv) + &
-            c2 * mg%boxes(id)%cc(1:nc, nc-1, iv)
-#elif NDIM == 3
+# 2780 "m_octree_mg.f90"
     case (mg_neighb_lowx)
        mg%boxes(id)%cc(0, 1:nc, 1:nc, iv) = &
             c0 * mg%boxes(id)%cc(0, 1:nc, 1:nc, iv) + &
@@ -2807,7 +2535,7 @@ contains
             c0 * mg%boxes(id)%cc(1:nc, 1:nc, nc+1, iv) + &
             c1 * mg%boxes(id)%cc(1:nc, 1:nc, nc, iv) + &
             c2 * mg%boxes(id)%cc(1:nc, 1:nc, nc-1, iv)
-#endif
+
     end select
   end subroutine bc_to_gc
 
@@ -2818,15 +2546,15 @@ contains
     integer, intent(in)       :: iv
     integer, intent(in)       :: nb !< Ghost cell direction
     !> Interpolated coarse grid ghost cell data (but not yet in the nb direction)
-#if NDIM == 2
-    real(dp), intent(in)      :: gc(nc)
-#elif NDIM == 3
+
+
+
     real(dp), intent(in)      :: gc(nc, nc)
-#endif
-    integer                   :: IJK, ix, dix, di, dj
-#if NDIM == 3
+
+    integer                   :: i, j, k, ix, dix, di, dj
+
     integer                   :: dk
-#endif
+
 
     if (mg_neighb_low(nb)) then
        ix = 1
@@ -2837,27 +2565,7 @@ contains
     end if
 
     select case (mg_neighb_dim(nb))
-#if NDIM == 2
-    case (1)
-       i = ix
-       di = dix
-
-       do j = 1, nc
-          dj = -1 + 2 * iand(j, 1)
-          box%cc(i-di, j, iv) = 0.5_dp * gc(j) &
-               + 0.75_dp * box%cc(i, j, iv) &
-               - 0.25_dp * box%cc(i+di, j, iv)
-       end do
-    case (2)
-       j = ix
-       dj = dix
-       do i = 1, nc
-          di = -1 + 2 * iand(i, 1)
-          box%cc(i, j-dj, iv) = 0.5_dp * gc(i) &
-               + 0.75_dp * box%cc(i, j, iv) &
-               - 0.25_dp * box%cc(i, j+dj, iv)
-       end do
-#elif NDIM == 3
+# 2861 "m_octree_mg.f90"
     case (1)
        i = ix
        di = dix
@@ -2894,7 +2602,7 @@ contains
                   - 0.25_dp * box%cc(i, j, k+dk, iv)
           end do
        end do
-#endif
+
     end select
 
   end subroutine sides_rb
@@ -2931,7 +2639,7 @@ contains
 
     ! Send fine grid points, because this is more flexible than sending coarse
     ! grid points (e.g., when multiple variables are used for interpolation)
-    dsize = (mg%box_size)**NDIM
+    dsize = (mg%box_size)**3
     n_send = maxval(mg%comm_prolong%n_send, dim=2)
     n_recv = maxval(mg%comm_prolong%n_recv, dim=2)
   end subroutine mg_prolong_buffer_size
@@ -2952,7 +2660,7 @@ contains
 
     ! Below the first normal level, all boxes are on the same CPU
     if (lvl >= mg%first_normal_lvl-1) then
-       dsize            = mg%box_size**NDIM
+       dsize            = mg%box_size**3
        mg%buf(:)%i_send = 0
        mg%buf(:)%i_ix   = 0
 
@@ -2981,11 +2689,11 @@ contains
     integer, intent(in)       :: nc
     integer, intent(in)       :: iv
     procedure(mg_box_prolong) :: method
-    integer                   :: i, dix(NDIM)
+    integer                   :: i, dix(3)
     integer                   :: i_c, c_id, c_rank, dsize
-    real(dp)                  :: tmp(DTIMES(nc))
+    real(dp)                  :: tmp(nc, nc, nc)
 
-    dsize = nc**NDIM
+    dsize = nc**3
 
     do i_c = 1, mg_num_children
        c_id = mg%boxes(id)%children(i_c)
@@ -3016,8 +2724,8 @@ contains
     integer, intent(in)       :: iv_to !< Prolong to this variable
     logical, intent(in)       :: add   !< If true, add to current values
     procedure(mg_box_prolong) :: method
-    integer                   :: hnc, p_id, p_rank, i, dix(NDIM), dsize
-    real(dp)                  :: tmp(DTIMES(nc))
+    integer                   :: hnc, p_id, p_rank, i, dix(3), dsize
+    real(dp)                  :: tmp(nc, nc, nc)
 
     hnc    = nc/2
     p_id   = mg%boxes(id)%parent
@@ -3027,17 +2735,17 @@ contains
        dix    = mg_get_child_offset(mg, id)
        call method(mg, p_id, dix, nc, iv, tmp)
     else
-       dsize  = nc**NDIM
+       dsize  = nc**3
        i = mg%buf(p_rank)%i_recv
-       tmp = reshape(mg%buf(p_rank)%recv(i+1:i+dsize), [DTIMES(nc)])
+       tmp = reshape(mg%buf(p_rank)%recv(i+1:i+dsize), [nc, nc, nc])
        mg%buf(p_rank)%i_recv = mg%buf(p_rank)%i_recv + dsize
     end if
 
     if (add) then
-       mg%boxes(id)%cc(DTIMES(1:nc), iv_to) = &
-            mg%boxes(id)%cc(DTIMES(1:nc), iv_to) + tmp
+       mg%boxes(id)%cc(1:nc, 1:nc, 1:nc, iv_to) = &
+            mg%boxes(id)%cc(1:nc, 1:nc, 1:nc, iv_to) + tmp
     else
-       mg%boxes(id)%cc(DTIMES(1:nc), iv_to) = tmp
+       mg%boxes(id)%cc(1:nc, 1:nc, 1:nc, iv_to) = tmp
     end if
 
   end subroutine prolong_onto
@@ -3046,42 +2754,24 @@ contains
   subroutine mg_prolong_sparse(mg, p_id, dix, nc, iv, fine)
     type(mg_t), intent(inout) :: mg
     integer, intent(in)       :: p_id             !< Id of parent
-    integer, intent(in)       :: dix(NDIM)        !< Offset of child in parent grid
+    integer, intent(in)       :: dix(3)        !< Offset of child in parent grid
     integer, intent(in)       :: nc               !< Child grid size
     integer, intent(in)       :: iv               !< Prolong from this variable
-    real(dp), intent(out)     :: fine(DTIMES(nc)) !< Prolonged values
+    real(dp), intent(out)     :: fine(nc, nc, nc) !< Prolonged values
 
-    integer  :: IJK, hnc
-#if NDIM == 2
-    integer  :: ic, jc
-    real(dp) :: f0, flx, fhx, fly, fhy
-#elif NDIM == 3
+    integer  :: i, j, k, hnc
+
+
+
+
     integer  :: ic, jc, kc
     real(dp) :: f0, flx, fhx, fly, fhy, flz, fhz
-#endif
+
 
     hnc = nc/2
 
     associate (crs => mg%boxes(p_id)%cc)
-#if NDIM == 2
-      do j = 1, hnc
-         jc = j + dix(2)
-         do i = 1, hnc
-            ic = i + dix(1)
-
-            f0  = 0.5_dp * crs(ic, jc, iv)
-            flx = 0.25_dp * crs(ic-1, jc, iv)
-            fhx = 0.25_dp * crs(ic+1, jc, iv)
-            fly = 0.25_dp * crs(ic, jc-1, iv)
-            fhy = 0.25_dp * crs(ic, jc+1, iv)
-
-            fine(2*i-1, 2*j-1) = f0 + flx + fly
-            fine(2*i  , 2*j-1) = f0 + fhx + fly
-            fine(2*i-1, 2*j)   = f0 + flx + fhy
-            fine(2*i  , 2*j)   = f0 + fhx + fhy
-         end do
-      end do
-#elif NDIM == 3
+# 3085 "m_octree_mg.f90"
       do k = 1, hnc
          kc = k + dix(3)
          do j = 1, hnc
@@ -3108,7 +2798,7 @@ contains
             end do
          end do
       end do
-#endif
+
     end associate
   end subroutine mg_prolong_sparse
 
@@ -3148,12 +2838,12 @@ contains
     integer, intent(in)       :: id
     integer, intent(in)       :: nc
     integer, intent(in)       :: redblack_cntr !< Iteration counter
-    integer                   :: IJK, i0, di
-    real(dp)                  :: idr2(NDIM), fac
+    integer                   :: i, j, k, i0, di
+    real(dp)                  :: idr2(3), fac
     logical                   :: redblack
-#if NDIM == 3
+
     real(dp), parameter       :: sixth = 1/6.0_dp
-#endif
+
 
     idr2 = 1/mg%dr(:, mg%boxes(id)%lvl)**2
     fac = 1.0_dp / (2 * sum(idr2) + helmholtz_lambda)
@@ -3169,19 +2859,7 @@ contains
     ! The parity of redblack_cntr determines which cells we use. If
     ! redblack_cntr is even, we use the even cells and vice versa.
     associate (cc => mg%boxes(id)%cc, n => mg_iphi)
-#if NDIM == 2
-      do j = 1, nc
-         if (redblack) &
-              i0 = 2 - iand(ieor(redblack_cntr, j), 1)
-
-         do i = i0, nc, di
-            cc(i, j, n) = fac * ( &
-                 idr2(1) * (cc(i+1, j, n) + cc(i-1, j, n)) + &
-                 idr2(2) * (cc(i, j+1, n) + cc(i, j-1, n)) - &
-                 cc(i, j, mg_irhs))
-         end do
-      end do
-#elif NDIM == 3
+# 3185 "m_octree_mg.f90"
       do k = 1, nc
          do j = 1, nc
             if (redblack) &
@@ -3195,7 +2873,7 @@ contains
             end do
          end do
       end do
-#endif
+
     end associate
   end subroutine box_gs_helmh
 
@@ -3205,22 +2883,13 @@ contains
     integer, intent(in)       :: id
     integer, intent(in)       :: nc
     integer, intent(in)       :: i_out !< Index of variable to store Helmholtz in
-    integer                   :: IJK
-    real(dp)                  :: idr2(NDIM)
+    integer                   :: i, j, k
+    real(dp)                  :: idr2(3)
 
     idr2 = 1 / mg%dr(:, mg%boxes(id)%lvl)**2
 
     associate (cc => mg%boxes(id)%cc, n => mg_iphi)
-#if NDIM == 2
-      do j = 1, nc
-         do i = 1, nc
-            cc(i, j, i_out) = &
-                 idr2(1) * (cc(i-1, j, n) + cc(i+1, j, n) - 2 * cc(i, j, n)) + &
-                 idr2(2) * (cc(i, j-1, n) + cc(i, j+1, n) - 2 * cc(i, j, n)) - &
-                 helmholtz_lambda * cc(i, j, n)
-         end do
-      end do
-#elif NDIM == 3
+# 3224 "m_octree_mg.f90"
       do k = 1, nc
          do j = 1, nc
             do i = 1, nc
@@ -3235,7 +2904,7 @@ contains
             end do
          end do
       end do
-#endif
+
     end associate
   end subroutine box_helmh
 
@@ -3303,7 +2972,7 @@ contains
        do lvl = mg%highest_lvl, mg%lowest_lvl, -1
           do i = 1, size(mg%lvls(lvl)%my_ids)
              id = mg%lvls(lvl)%my_ids(i)
-             mg%boxes(id)%cc(DTIMES(:), mg_iphi) = 0.0_dp
+             mg%boxes(id)%cc(:, :, :, mg_iphi) = 0.0_dp
           end do
        end do
     end if
@@ -3325,8 +2994,8 @@ contains
        ! Store phi_old
        do i = 1, size(mg%lvls(lvl)%my_ids)
           id = mg%lvls(lvl)%my_ids(i)
-          mg%boxes(id)%cc(DTIMES(:), mg_iold) = &
-            mg%boxes(id)%cc(DTIMES(:), mg_iphi)
+          mg%boxes(id)%cc(:, :, :, mg_iold) = &
+            mg%boxes(id)%cc(:, :, :, mg_iphi)
        end do
 
        if (lvl > mg%lowest_lvl) then
@@ -3450,7 +3119,7 @@ contains
          mpi_double, mpi_sum, mg%comm, ierr)
 
     ! Divide by total grid volume to get mean
-    volume = nc**NDIM * product(mg%dr(:, 1)) * size(mg%lvls(1)%ids)
+    volume = nc**3 * product(mg%dr(:, 1)) * size(mg%lvls(1)%ids)
     mean_iv = mean_iv / volume
 
     do lvl = mg%lowest_lvl, mg%highest_lvl
@@ -3459,11 +3128,11 @@ contains
        do i = 1, size(mg%lvls(lvl)%my_ids)
           id = mg%lvls(lvl)%my_ids(i)
           if (include_ghostcells) then
-             mg%boxes(id)%cc(DTIMES(:), iv) = &
-                  mg%boxes(id)%cc(DTIMES(:), iv) - mean_iv
+             mg%boxes(id)%cc(:, :, :, iv) = &
+                  mg%boxes(id)%cc(:, :, :, iv) - mean_iv
           else
-             mg%boxes(id)%cc(DTIMES(1:nc), iv) = &
-                  mg%boxes(id)%cc(DTIMES(1:nc), iv) - mean_iv
+             mg%boxes(id)%cc(1:nc, 1:nc, 1:nc, iv) = &
+                  mg%boxes(id)%cc(1:nc, 1:nc, 1:nc, iv) - mean_iv
           end if
        end do
     end do
@@ -3482,7 +3151,7 @@ contains
        do i = 1, size(mg%lvls(lvl)%my_leaves)
           id = mg%lvls(lvl)%my_leaves(i)
           get_sum = get_sum + w * &
-               sum(mg%boxes(id)%cc(DTIMES(1:nc), iv))
+               sum(mg%boxes(id)%cc(1:nc, 1:nc, 1:nc, iv))
        end do
     end do
   end function get_sum
@@ -3499,7 +3168,7 @@ contains
     do i = 1, size(mg%lvls(lvl)%my_ids)
        id = mg%lvls(lvl)%my_ids(i)
        call residual_box(mg, id, nc)
-       res = maxval(abs(mg%boxes(id)%cc(DTIMES(1:nc), mg_ires)))
+       res = maxval(abs(mg%boxes(id)%cc(1:nc, 1:nc, 1:nc, mg_ires)))
        max_residual_lvl = max(max_residual_lvl, res)
     end do
   end function max_residual_lvl
@@ -3508,9 +3177,9 @@ contains
   !     use m_fishpack
   !     type(mg_t), intent(inout) :: mg
 
-  !     real(dp) :: rhs(DTIMES(mg%box_size))
-  !     real(dp) :: rmin(NDIM), rmax(NDIM)
-  !     integer  :: nc, nx(NDIM), my_boxes, total_boxes
+  !     real(dp) :: rhs(mg%box_size, mg%box_size, mg%box_size)
+  !     real(dp) :: rmin(3), rmax(3)
+  !     integer  :: nc, nx(3), my_boxes, total_boxes
 
   !     my_boxes    = size(mg%lvls(1)%my_ids)
   !     total_boxes = size(mg%lvls(1)%ids)
@@ -3518,17 +3187,17 @@ contains
 
   !     if (my_boxes == total_boxes) then
   !        nx(:) = nc
-  !        rmin  = [DTIMES(0.0_dp)]
-  !        rmax  = mg%dr(1) * [DTIMES(nc)]
-  !        rhs   = mg%boxes(1)%cc(DTIMES(1:nc), mg_irhs)
+  !        rmin  = [0.0_dp, 0.0_dp, 0.0_dp]
+  !        rmax  = mg%dr(1) * [nc, nc, nc]
+  !        rhs   = mg%boxes(1)%cc(1:nc, 1:nc, 1:nc, mg_irhs)
 
-  ! #if NDIM == 2
+  ! #if 3 == 2
   !        call fishpack_2d(nx, rhs, mg%bc, rmin, rmax)
-  ! #elif NDIM == 3
+  ! #elif 3 == 3
   !        call fishpack_3d(nx, rhs, mg%bc, rmin, rmax)
   ! #endif
 
-  !        mg%boxes(1)%cc(DTIMES(1:nc), mg_iphi) = rhs
+  !        mg%boxes(1)%cc(1:nc, 1:nc, 1:nc, mg_iphi) = rhs
   !     else if (my_boxes > 0) then
   !        error stop "Boxes at level 1 at different processors"
   !     end if
@@ -3567,13 +3236,13 @@ contains
        call mg%box_op(mg, id, nc_c, mg_irhs)
 
        ! Add the fine grid residual to rhs
-       mg%boxes(id)%cc(DTIMES(1:nc_c), mg_irhs) = &
-            mg%boxes(id)%cc(DTIMES(1:nc_c), mg_irhs) + &
-            mg%boxes(id)%cc(DTIMES(1:nc_c), mg_ires)
+       mg%boxes(id)%cc(1:nc_c, 1:nc_c, 1:nc_c, mg_irhs) = &
+            mg%boxes(id)%cc(1:nc_c, 1:nc_c, 1:nc_c, mg_irhs) + &
+            mg%boxes(id)%cc(1:nc_c, 1:nc_c, 1:nc_c, mg_ires)
 
        ! Story a copy of phi
-       mg%boxes(id)%cc(DTIMES(:), mg_iold) = &
-            mg%boxes(id)%cc(DTIMES(:), mg_iphi)
+       mg%boxes(id)%cc(:, :, :, mg_iold) = &
+            mg%boxes(id)%cc(:, :, :, mg_iphi)
     end do
   end subroutine update_coarse
 
@@ -3587,9 +3256,9 @@ contains
        id = mg%lvls(lvl)%my_parents(i)
 
        ! Store the correction in mg_ires
-       mg%boxes(id)%cc(DTIMES(:), mg_ires) = &
-            mg%boxes(id)%cc(DTIMES(:), mg_iphi) - &
-            mg%boxes(id)%cc(DTIMES(:), mg_iold)
+       mg%boxes(id)%cc(:, :, :, mg_ires) = &
+            mg%boxes(id)%cc(:, :, :, mg_iphi) - &
+            mg%boxes(id)%cc(:, :, :, mg_iold)
     end do
 
     call mg_prolong(mg, lvl, mg_ires, mg_iphi, mg%box_prolong, add=.true.)
@@ -3624,9 +3293,9 @@ contains
 
     call mg%box_op(mg, id, nc, mg_ires)
 
-    mg%boxes(id)%cc(DTIMES(1:nc), mg_ires) = &
-         mg%boxes(id)%cc(DTIMES(1:nc), mg_irhs) &
-         - mg%boxes(id)%cc(DTIMES(1:nc), mg_ires)
+    mg%boxes(id)%cc(1:nc, 1:nc, 1:nc, mg_ires) = &
+         mg%boxes(id)%cc(1:nc, 1:nc, 1:nc, mg_irhs) &
+         - mg%boxes(id)%cc(1:nc, 1:nc, 1:nc, mg_ires)
   end subroutine residual_box
 
   !> Apply operator to the tree and store in variable i_out
@@ -3702,7 +3371,7 @@ contains
     mg%comm_restrict%n_send = n_out
     mg%comm_restrict%n_recv = n_in
 
-    dsize  = (mg%box_size/2)**NDIM
+    dsize  = (mg%box_size/2)**3
     n_send = maxval(n_out, dim=2)
     n_recv = maxval(n_in, dim=2)
   end subroutine mg_restrict_buffer_size
@@ -3731,7 +3400,7 @@ contains
     nc = mg%box_size_lvl(lvl)
 
     if (lvl >= mg%first_normal_lvl) then
-       dsize = (nc/2)**NDIM
+       dsize = (nc/2)**3
 
        mg%buf(:)%i_send = 0
        mg%buf(:)%i_ix   = 0
@@ -3756,22 +3425,15 @@ contains
     type(mg_t), intent(inout) :: mg
     integer, intent(in)          :: id
     integer, intent(in)          :: iv
-    integer                      :: IJK, n, hnc, p_id, p_rank
-    real(dp) :: tmp(DTIMES(mg%box_size/2))
+    integer                      :: i, j, k, n, hnc, p_id, p_rank
+    real(dp) :: tmp(mg%box_size/2, mg%box_size/2, mg%box_size/2)
 
     hnc    = mg%box_size/2
     p_id   = mg%boxes(id)%parent
     p_rank = mg%boxes(p_id)%rank
 
     if (p_rank /= mg%my_rank) then
-#if NDIM == 2
-       do j = 1, hnc
-          do i = 1, hnc
-             tmp(i, j) = 0.25_dp * &
-                  sum(mg%boxes(id)%cc(2*i-1:2*i, 2*j-1:2*j, iv))
-          end do
-       end do
-#elif NDIM == 3
+# 3775 "m_octree_mg.f90"
        do k = 1, hnc
           do j = 1, hnc
              do i = 1, hnc
@@ -3780,7 +3442,7 @@ contains
              end do
           end do
        end do
-#endif
+
 
        ! Buffer
        n = size(tmp)
@@ -3801,11 +3463,11 @@ contains
     integer, intent(in)       :: id
     integer, intent(in)       :: nc
     integer, intent(in)       :: iv
-    integer                   :: IJK, hnc, dsize, i_c, c_id
-    integer                   :: c_rank, dix(NDIM)
+    integer                   :: i, j, k, hnc, dsize, i_c, c_id
+    integer                   :: c_rank, dix(3)
 
     hnc   = nc/2
-    dsize = hnc**NDIM
+    dsize = hnc**3
 
     do i_c = 1, mg_num_children
        c_id   = mg%boxes(id)%children(i_c)
@@ -3814,27 +3476,27 @@ contains
        dix    = mg_get_child_offset(mg, c_id)
 
        if (c_rank == mg%my_rank) then
-          do KJI_DO(1, hnc)
-#if NDIM == 2
-             mg%boxes(id)%cc(dix(1)+i, dix(2)+j, iv) = 0.25_dp * &
-                  sum(mg%boxes(c_id)%cc(2*i-1:2*i, 2*j-1:2*j, iv))
-#elif NDIM == 3
+          do j=1, hnc; do i=1, hnc; do k=1, hnc
+
+
+
+
              mg%boxes(id)%cc(dix(1)+i, dix(2)+j, dix(3)+k, iv) = &
                   0.125_dp * sum(mg%boxes(c_id)%cc(2*i-1:2*i, &
                   2*j-1:2*j, 2*k-1:2*k, iv))
-#endif
-          end do; CLOSE_DO
+
+          end do; end do; end do
        else
           i = mg%buf(c_rank)%i_recv
-#if NDIM == 2
-          mg%boxes(id)%cc(dix(1)+1:dix(1)+hnc, &
-               dix(2)+1:dix(2)+hnc, iv) = &
-               reshape(mg%buf(c_rank)%recv(i+1:i+dsize), [hnc, hnc])
-#elif NDIM == 3
+
+
+
+
+
           mg%boxes(id)%cc(dix(1)+1:dix(1)+hnc, &
                dix(2)+1:dix(2)+hnc, dix(3)+1:dix(3)+hnc, iv) = &
                reshape(mg%buf(c_rank)%recv(i+1:i+dsize), [hnc, hnc, hnc])
-#endif
+
           mg%buf(c_rank)%i_recv = mg%buf(c_rank)%i_recv + dsize
        end if
     end do
@@ -4442,8 +4104,7 @@ contains
       !
    End Subroutine I_mrgrnk
 
-#if NDIM == 2
-end module m_octree_mg_2d
-#elif NDIM == 3
+
+
+
 end module m_octree_mg_3d
-#endif
