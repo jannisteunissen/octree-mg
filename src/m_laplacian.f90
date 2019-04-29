@@ -25,9 +25,8 @@ contains
        case default
           error stop "laplacian_set_methods: unsupported smoother type"
        end select
+#if NDIM == 2
     case (mg_cylindrical)
-       if (NDIM == 3) error stop "Cylindrical 3D not supported yet"
-
        mg%box_op => box_clpl
 
        select case (mg%smoother_type)
@@ -36,6 +35,7 @@ contains
        case default
           error stop "laplacian_set_methods: unsupported smoother type"
        end select
+#endif
     case default
        error stop "laplacian_set_methods: unsupported geometry"
     end select
@@ -175,6 +175,7 @@ contains
     end associate
   end subroutine box_lpl
 
+#if NDIM == 2
   !> Perform Laplacian operator on a box in cylindrical geometry, using (r,z)
   !> and (r,phi,z) coordinates in 2D/3D.
   subroutine box_clpl(mg, id, nc, i_out)
@@ -192,7 +193,6 @@ contains
     r_inv  = 1/(mg%boxes(id)%r_min(1) + dr(1) * [(i-0.5_dp, i=1,nc)])
 
     associate (cc => mg%boxes(id)%cc, n => mg_iphi)
-#if NDIM == 2
       do j = 1, nc
          do i = 1, nc
             cc(i, j, i_out) = idr2(1) * (&
@@ -202,22 +202,6 @@ contains
                  + idr2(2) * (cc(i, j-1, n) +  cc(i, j+1, n) - 2 * cc(i, j, n))
          end do
       end do
-#elif NDIM == 3
-      do k = 1, nc
-         do j = 1, nc
-            do i = 1, nc
-               cc(i, j, k, i_out) = idr2(1) * (&
-                    r_face(i) * r_inv(i) * cc(i-1, j, k, n) + &
-                    r_face(i+1) * r_inv(i) * cc(i+1, j, k, n) &
-                    - 2 * cc(i, j, k, n)) + &
-                    idr2(2) * r_inv(i)**2 * &
-                    (cc(i, j+1, k, n) + cc(i, j-1, k, n) - 2 * cc(i, j, k, n)) + &
-                    idr2(3) * &
-                    (cc(i, j, k-1, n) + cc(i, j, k+1, n) - 2 * cc(i, j, k, n))
-            end do
-         end do
-      end do
-#endif
     end associate
   end subroutine box_clpl
 
@@ -232,9 +216,6 @@ contains
     integer                   :: IJK, i0, di
     logical                   :: redblack
     real(dp)                  :: idr2(NDIM), dr(NDIM), dr2(NDIM), fac
-#if NDIM == 3
-    real(dp), parameter       :: sixth = 1/6.0_dp
-#endif
     real(dp)                  :: r_face(nc+1), r_inv(nc)
 
     dr     = mg%dr(:, mg%boxes(id)%lvl)
@@ -255,7 +236,6 @@ contains
     ! The parity of redblack_cntr determines which cells we use. If
     ! redblack_cntr is even, we use the even cells and vice versa.
     associate (cc => mg%boxes(id)%cc, n => mg_iphi)
-#if NDIM == 2
       do j = 1, nc
          if (redblack) &
               i0 = 2 - iand(ieor(redblack_cntr, j), 1)
@@ -268,25 +248,8 @@ contains
                  - cc(i, j, mg_irhs))
          end do
       end do
-#elif NDIM == 3
-      do k = 1, nc
-         do j = 1, nc
-            if (redblack) &
-                 i0 = 2 - iand(ieor(redblack_cntr, k+j), 1)
-            do i = i0, nc, di
-               cc(i, j, k, n) = (idr2(1) * ( &
-                    r_face(i+1) * r_inv(i) * cc(i+1, j, k, n) + &
-                    r_face(i) * r_inv(i) * cc(i-1, j, k, n)) + &
-                    idr2(2) * r_inv(i)**2 * ( &
-                    cc(i, j+1, k, n) + cc(i, j-1, k, n)) + &
-                    idr2(3) * (cc(i, j, k+1, n) + &
-                    cc(i, j, k-1, n)) - cc(i, j, k, mg_irhs)) * &
-                    0.5_dp / (idr2(1) + idr2(2) * r_inv(i)**2 + idr2(3))
-            end do
-         end do
-      end do
-#endif
     end associate
   end subroutine box_gs_clpl
+#endif
 
 end module m_laplacian

@@ -611,38 +611,6 @@ contains
     end select
   end subroutine box_set_gc
 
-  subroutine box_set_gc_scalar(box, nb, nc, iv, gc)
-    type(mg_box_t), intent(inout) :: box
-    integer, intent(in)        :: nb, nc, iv
-    real(dp), intent(in)       :: gc
-
-    select case (nb)
-#if NDIM == 2
-    case (mg_neighb_lowx)
-       box%cc(0, 1:nc, iv)    = gc
-    case (mg_neighb_highx)
-       box%cc(nc+1, 1:nc, iv) = gc
-    case (mg_neighb_lowy)
-       box%cc(1:nc, 0, iv)    = gc
-    case (mg_neighb_highy)
-       box%cc(1:nc, nc+1, iv) = gc
-#elif NDIM == 3
-    case (mg_neighb_lowx)
-       box%cc(0, 1:nc, 1:nc, iv)    = gc
-    case (mg_neighb_highx)
-       box%cc(nc+1, 1:nc, 1:nc, iv) = gc
-    case (mg_neighb_lowy)
-       box%cc(1:nc, 0, 1:nc, iv)    = gc
-    case (mg_neighb_highy)
-       box%cc(1:nc, nc+1, 1:nc, iv) = gc
-    case (mg_neighb_lowz)
-       box%cc(1:nc, 1:nc, 0, iv)    = gc
-    case (mg_neighb_highz)
-       box%cc(1:nc, 1:nc, nc+1, iv) = gc
-#endif
-    end select
-  end subroutine box_set_gc_scalar
-
   subroutine bc_to_gc(mg, id, nc, iv, nb, bc_type)
     type(mg_t), intent(inout) :: mg
     integer, intent(in)       :: id
