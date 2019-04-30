@@ -387,8 +387,8 @@ contains
     mg_has_children = (box%children(1) /= mg_no_box)
   end function mg_has_children
 
-  !> Compute the 'child index' for a box with spatial index ix. With 'child
-  !> index' we mean the index in the children(:) array of its parent.
+  !> Compute the child index for a box with spatial index ix. With child index
+  !> we mean the index in the children(:) array of its parent.
   integer function mg_ix_to_ichild(ix)
     integer, intent(in) :: ix(NDIM) !< Spatial index of the box
     ! The index can range from 1 (all ix odd) and 2**$D (all ix even)

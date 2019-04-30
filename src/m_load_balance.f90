@@ -22,7 +22,7 @@ contains
     integer                   :: work_left, my_work, i_cpu
 
     ! Up to this level, all boxes have to be on a single processor because they
-    ! have a different size and the communication routines don't support this
+    ! have a different size and the communication routines do not support this
     single_cpu_lvl = max(mg%first_normal_lvl-1, mg%lowest_lvl)
 
     do lvl = mg%lowest_lvl, single_cpu_lvl
@@ -71,7 +71,7 @@ contains
     integer                   :: single_cpu_lvl, coarse_rank
 
     ! Up to this level, all boxes have to be on a single processor because they
-    ! have a different size and the communication routines don't support this
+    ! have a different size and the communication routines do not support this
     single_cpu_lvl = max(mg%first_normal_lvl-1, mg%lowest_lvl)
 
     do lvl = mg%highest_lvl-1, single_cpu_lvl+1, -1
