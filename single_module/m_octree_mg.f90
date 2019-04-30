@@ -550,8 +550,8 @@ contains
     mg_has_children = (box%children(1) /= mg_no_box)
   end function mg_has_children
 
-  !> Compute the 'child index' for a box with spatial index ix. With 'child
-  !> index' we mean the index in the children(:) array of its parent.
+  !> Compute the child index for a box with spatial index ix. With child index
+  !> we mean the index in the children(:) array of its parent.
   integer function mg_ix_to_ichild(ix)
     integer, intent(in) :: ix(NDIM) !< Spatial index of the box
     ! The index can range from 1 (all ix odd) and 2**$D (all ix even)
@@ -1674,7 +1674,7 @@ contains
     integer                   :: work_left, my_work, i_cpu
 
     ! Up to this level, all boxes have to be on a single processor because they
-    ! have a different size and the communication routines don't support this
+    ! have a different size and the communication routines do not support this
     single_cpu_lvl = max(mg%first_normal_lvl-1, mg%lowest_lvl)
 
     do lvl = mg%lowest_lvl, single_cpu_lvl
@@ -1723,7 +1723,7 @@ contains
     integer                   :: single_cpu_lvl, coarse_rank
 
     ! Up to this level, all boxes have to be on a single processor because they
-    ! have a different size and the communication routines don't support this
+    ! have a different size and the communication routines do not support this
     single_cpu_lvl = max(mg%first_normal_lvl-1, mg%lowest_lvl)
 
     do lvl = mg%highest_lvl-1, single_cpu_lvl+1, -1

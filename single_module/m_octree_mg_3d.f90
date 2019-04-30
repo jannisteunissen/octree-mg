@@ -1,7 +1,5 @@
-# 1 "m_octree_mg.f90"
-# 1 "<built-in>"
-# 1 "<command-line>"
-# 1 "m_octree_mg.f90"
+
+
 ! Single module generated from the octree-mg sources.
 ! This file can be easier to include in existing projects.
 !
@@ -19,13 +17,8 @@
 ! mpif90 -c m_octree_mg_3d.f90 [other options]
 ! mpif90 -c m_octree_mg.f90 -cpp -DNDIM=3 [other options]
 
-# 37 "m_octree_mg.f90"
-
-
-
 
 module m_octree_mg_3d
-
   use mpi
   implicit none
   private
@@ -102,7 +95,6 @@ module m_octree_mg_3d
   !> Maximum number of timers to use
   integer, parameter, public :: mg_max_timers = 20
 
-# 152 "m_octree_mg.f90"
     ! Numbering of children (same location as **corners**)
   integer, parameter, public :: mg_num_children = 8
 
@@ -143,7 +135,6 @@ module m_octree_mg_3d
   integer, parameter, public :: mg_neighb_rev(6) = [2, 1, 4, 3, 6, 5]
   ! Direction (dimension) for a neighbor
   integer, parameter, public :: mg_neighb_dim(6) = [1, 1, 2, 2, 3, 3]
-
 
   !> Lists of blocks per refinement level
   type, public :: mg_lvl_t
@@ -303,11 +294,7 @@ module m_octree_mg_3d
        integer, intent(in)     :: nb      !< Direction
        integer, intent(out)    :: bc_type !< Type of b.c.
        !> Boundary values
-
-
-
        real(dp), intent(out)   :: bc(nc, nc)
-
      end subroutine mg_subr_bc
 
      !> To fill ghost cells near refinement boundaries
@@ -318,11 +305,7 @@ module m_octree_mg_3d
        integer, intent(in)        :: iv !< Index of variable
        integer, intent(in)        :: nb !< Direction
        !> Coarse data
-
-
-
        real(dp), intent(in)       :: cgc(nc, nc)
-
      end subroutine mg_subr_rb
 
      !> Subroutine that performs A * cc(..., i_in) = cc(..., i_out)
@@ -504,17 +487,13 @@ contains
     mg_has_children = (box%children(1) /= mg_no_box)
   end function mg_has_children
 
-  !> Compute the 'child index' for a box with spatial index ix. With 'child
-  !> index' we mean the index in the children(:) array of its parent.
+  !> Compute the child index for a box with spatial index ix. With child index
+  !> we mean the index in the children(:) array of its parent.
   integer function mg_ix_to_ichild(ix)
     integer, intent(in) :: ix(3) !< Spatial index of the box
     ! The index can range from 1 (all ix odd) and 2**$D (all ix even)
-
-
-
     mg_ix_to_ichild = 8 - 4 * iand(ix(3), 1) - &
          2 * iand(ix(2), 1) - iand(ix(1), 1)
-
   end function mg_ix_to_ichild
 
   !> Get the offset of a box with respect to its parent (e.g. in 2d, there can
@@ -563,13 +542,8 @@ contains
     type(mg_box_t), intent(in) :: box
     integer, intent(in)        :: nb
     integer, intent(in)        :: nc
-
-
-
-
     real(dp), intent(out)      :: x(nc, nc, 3)
     integer                    :: i, j
-
     integer                    :: nb_dim, ixs(3-1)
     real(dp)                   :: rmin(3)
 
@@ -583,19 +557,12 @@ contains
        rmin(nb_dim) = rmin(nb_dim) + box%dr(nb_dim) * nc
     end if
 
-
-
-
-
-
-
     do j = 1, nc
        do i = 1, nc
           x(i, j, :) = rmin
           x(i, j, ixs) = x(i, j, ixs) + ([i, j] - 0.5d0) * box%dr(ixs)
        end do
     end do
-
   end subroutine mg_get_face_coords
 
   integer function mg_add_timer(mg, name)
@@ -857,7 +824,6 @@ contains
        case default
           error stop "laplacian_set_methods: unsupported smoother type"
        end select
-# 917 "m_octree_mg.f90"
     case default
        error stop "laplacian_set_methods: unsupported geometry"
     end select
@@ -873,9 +839,7 @@ contains
     integer                   :: i, j, k, i0, di
     real(dp)                  :: idr2(3), fac
     logical                   :: redblack
-
     real(dp), parameter       :: sixth = 1/6.0_dp
-
 
     idr2 = 1/mg%dr(:, mg%boxes(id)%lvl)**2
     fac = 0.5_dp / sum(idr2)
@@ -891,7 +855,6 @@ contains
     ! The parity of redblack_cntr determines which cells we use. If
     ! redblack_cntr is even, we use the even cells and vice versa.
     associate (cc => mg%boxes(id)%cc, n => mg_iphi)
-# 963 "m_octree_mg.f90"
       do k = 1, nc
          do j = 1, nc
             if (redblack) &
@@ -905,7 +868,6 @@ contains
             end do
          end do
       end do
-
     end associate
   end subroutine box_gs_lpl
 
@@ -959,7 +921,6 @@ contains
     idr2 = 1 / mg%dr(:, mg%boxes(id)%lvl)**2
 
     associate (cc => mg%boxes(id)%cc, n => mg_iphi)
-# 1039 "m_octree_mg.f90"
       do k = 1, nc
          do j = 1, nc
             do i = 1, nc
@@ -973,11 +934,9 @@ contains
             end do
          end do
       end do
-
     end associate
   end subroutine box_lpl
 
-# 1132 "m_octree_mg.f90"
 
   !! File ../src/m_vhelmholtz.f90
 
@@ -1047,7 +1006,6 @@ contains
     ! redblack_cntr is even, we use the even cells and vice versa.
     associate (cc => mg%boxes(id)%cc, n => mg_iphi, &
          i_eps => mg_iveps)
-# 1220 "m_octree_mg.f90"
       do k = 1, nc
          do j = 1, nc
             if (redblack) &
@@ -1068,7 +1026,6 @@ contains
             end do
          end do
       end do
-
     end associate
   end subroutine box_gs_vhelmh
 
@@ -1087,7 +1044,6 @@ contains
 
     associate (cc => mg%boxes(id)%cc, n => mg_iphi, &
          i_eps => mg_iveps)
-# 1275 "m_octree_mg.f90"
       do k = 1, nc
          do j = 1, nc
             do i = 1, nc
@@ -1106,7 +1062,6 @@ contains
             end do
          end do
       end do
-
     end associate
   end subroutine box_vhelmh
 
@@ -1179,12 +1134,8 @@ contains
 
     ! Create lowest level
     nx = boxes_per_dim(:, mg%lowest_lvl)
-
-
-
     periodic_offset = [nx(1)-1, (nx(2)-1)*nx(1), &
          (nx(3)-1) * nx(2) * nx(1)]
-
 
     do k=1,nx(3); do j=1,nx(2); do i=1,nx(1)
        mg%n_boxes = mg%n_boxes + 1
@@ -1201,12 +1152,8 @@ contains
        mg%boxes(n)%children(:) = mg_no_box
 
        ! Set default neighbors
-
-
-
        mg%boxes(n)%neighbors(:) = [n-1, n+1, n-nx(1), n+nx(1), &
             n-nx(1)*nx(2), n+nx(1)*nx(2)]
-
 
        ! Handle boundaries
        where ([i, j, k] == 1 .and. .not. periodic)
@@ -1490,7 +1437,7 @@ contains
     integer                   :: work_left, my_work, i_cpu
 
     ! Up to this level, all boxes have to be on a single processor because they
-    ! have a different size and the communication routines don't support this
+    ! have a different size and the communication routines do not support this
     single_cpu_lvl = max(mg%first_normal_lvl-1, mg%lowest_lvl)
 
     do lvl = mg%lowest_lvl, single_cpu_lvl
@@ -1539,7 +1486,7 @@ contains
     integer                   :: single_cpu_lvl, coarse_rank
 
     ! Up to this level, all boxes have to be on a single processor because they
-    ! have a different size and the communication routines don't support this
+    ! have a different size and the communication routines do not support this
     single_cpu_lvl = max(mg%first_normal_lvl-1, mg%lowest_lvl)
 
     do lvl = mg%highest_lvl-1, single_cpu_lvl+1, -1
@@ -1663,7 +1610,6 @@ contains
     ! redblack_cntr is even, we use the even cells and vice versa.
     associate (cc => mg%boxes(id)%cc, n => mg_iphi, &
          i_eps => mg_iveps)
-# 1868 "m_octree_mg.f90"
       do k = 1, nc
          do j = 1, nc
             if (redblack) &
@@ -1683,7 +1629,6 @@ contains
             end do
          end do
       end do
-
     end associate
   end subroutine box_gs_vlpl
 
@@ -1702,7 +1647,6 @@ contains
 
     associate (cc => mg%boxes(id)%cc, n => mg_iphi, &
          i_eps => mg_iveps)
-# 1921 "m_octree_mg.f90"
       do k = 1, nc
          do j = 1, nc
             do i = 1, nc
@@ -1720,7 +1664,6 @@ contains
             end do
          end do
       end do
-
     end associate
   end subroutine box_vlpl
 
@@ -1974,11 +1917,7 @@ contains
     type(mg_t), intent(inout) :: mg
     integer, intent(in)       :: lvl
     integer, intent(in)       :: nc
-
-
-
     real(dp)                  :: bc(nc, nc)
-
     integer                   :: i, id, nb, nb_id, bc_type
 
     do i = 1, size(mg%lvls(lvl)%my_ids)
@@ -2126,11 +2065,7 @@ contains
     integer, intent(in)       :: nc
     integer, intent(in)       :: iv
     logical, intent(in)       :: dry_run
-
-
-
     real(dp)                  :: bc(nc, nc)
-
     integer                   :: nb, nb_id, nb_rank, bc_type
 
     do nb = 1, mg_num_neighbors
@@ -2180,11 +2115,7 @@ contains
     integer, intent(in)       :: iv
     integer, intent(in)       :: nb
     logical, intent(in)       :: dry_run
-
-
-
     real(dp)                  :: gc(nc, nc)
-
     integer                   :: p_id, p_nb_id, ix_offset(3)
     integer                   :: i, dsize, p_nb_rank
 
@@ -2220,11 +2151,7 @@ contains
     integer, intent(in)           :: nb
     integer, intent(in)           :: nc
     integer, intent(in)           :: iv
-
-
-
     real(dp)                      :: gc(nc, nc)
-
 
     call box_gc_for_neighbor(box_nb, mg_neighb_rev(nb), nc, iv, gc)
     call box_set_gc(box, nb, nc, iv, gc)
@@ -2240,11 +2167,7 @@ contains
     integer, intent(in)        :: nb
     logical, intent(in)        :: dry_run
     integer                    :: i, dsize
-
-
-
     real(dp)                   :: gc(nc, nc)
-
 
     i     = mg%buf(nb_rank)%i_send
     dsize = nc**(3-1)
@@ -2275,11 +2198,7 @@ contains
     integer, intent(in)        :: nb
     logical, intent(in)        :: dry_run
     integer                    :: i, dsize, ix_offset(3)
-
-
-
     real(dp)                   :: gc(nc, nc)
-
 
     i     = mg%buf(fine_rank)%i_send
     dsize = nc**(3-1)
@@ -2311,11 +2230,7 @@ contains
     integer, intent(in)        :: iv
     logical, intent(in)        :: dry_run
     integer                    :: i, dsize
-
-
-
     real(dp)                   :: gc(nc, nc)
-
 
     i     = mg%buf(nb_rank)%i_recv
     dsize = nc**(3-1)
@@ -2331,14 +2246,9 @@ contains
   subroutine box_gc_for_neighbor(box, nb, nc, iv, gc)
     type(mg_box_t), intent(in) :: box
     integer, intent(in)     :: nb, nc, iv
-
-
-
     real(dp), intent(out)   :: gc(nc, nc)
 
-
     select case (nb)
-# 2566 "m_octree_mg.f90"
     case (mg_neighb_lowx)
        gc = box%cc(1, 1:nc, 1:nc, iv)
     case (mg_neighb_highx)
@@ -2351,7 +2261,6 @@ contains
        gc = box%cc(1:nc, 1:nc, 1, iv)
     case (mg_neighb_highz)
        gc = box%cc(1:nc, 1:nc, nc, iv)
-
     end select
   end subroutine box_gc_for_neighbor
 
@@ -2361,22 +2270,15 @@ contains
     integer, intent(in)     :: nb       !< Direction of fine neighbor
     integer, intent(in)     :: di(3) !< Index offset of fine neighbor
     integer, intent(in)     :: nc, iv
-
-
-
-
-
     real(dp), intent(out)   :: gc(nc, nc)
     real(dp)                :: tmp(0:nc/2+1, 0:nc/2+1)
     integer                 :: i, j, hnc
-
     real(dp)                :: grad(3-1)
 
     hnc = nc/2
 
     ! First fill a temporary array with data next to the fine grid
     select case (nb)
-# 2613 "m_octree_mg.f90"
     case (mg_neighb_lowx)
        tmp = box%cc(1, di(2):di(2)+hnc+1, di(3):di(3)+hnc+1, iv)
     case (mg_neighb_highx)
@@ -2389,18 +2291,10 @@ contains
        tmp = box%cc(di(1):di(1)+hnc+1, di(2):di(2)+hnc+1, 1, iv)
     case (mg_neighb_highz)
        tmp = box%cc(di(1):di(1)+hnc+1, di(2):di(2)+hnc+1, nc, iv)
-
     end select
 
     ! Now interpolate the coarse grid data to obtain values 'straight' next to
     ! the fine grid points
-
-
-
-
-
-
-
     do j = 1, hnc
        do i = 1, hnc
           grad(1)          = 0.125_dp * (tmp(i+1, j) - tmp(i-1, j))
@@ -2411,20 +2305,14 @@ contains
           gc(2*i, 2*j)     = tmp(i, j) + grad(1) + grad(2)
        end do
     end do
-
   end subroutine box_gc_for_fine_neighbor
 
   subroutine box_get_gc(box, nb, nc, iv, gc)
     type(mg_box_t), intent(in) :: box
     integer, intent(in)        :: nb, nc, iv
-
-
-
     real(dp), intent(out)       :: gc(nc, nc)
 
-
     select case (nb)
-# 2670 "m_octree_mg.f90"
     case (mg_neighb_lowx)
        gc = box%cc(0, 1:nc, 1:nc, iv)
     case (mg_neighb_highx)
@@ -2437,21 +2325,15 @@ contains
        gc = box%cc(1:nc, 1:nc, 0, iv)
     case (mg_neighb_highz)
        gc = box%cc(1:nc, 1:nc, nc+1, iv)
-
     end select
   end subroutine box_get_gc
 
   subroutine box_set_gc(box, nb, nc, iv, gc)
     type(mg_box_t), intent(inout) :: box
     integer, intent(in)        :: nb, nc, iv
-
-
-
     real(dp), intent(in)       :: gc(nc, nc)
 
-
     select case (nb)
-# 2706 "m_octree_mg.f90"
     case (mg_neighb_lowx)
        box%cc(0, 1:nc, 1:nc, iv)    = gc
     case (mg_neighb_highx)
@@ -2464,7 +2346,6 @@ contains
        box%cc(1:nc, 1:nc, 0, iv)    = gc
     case (mg_neighb_highz)
        box%cc(1:nc, 1:nc, nc+1, iv) = gc
-
     end select
   end subroutine box_set_gc
 
@@ -2504,7 +2385,6 @@ contains
     end select
 
     select case (nb)
-# 2780 "m_octree_mg.f90"
     case (mg_neighb_lowx)
        mg%boxes(id)%cc(0, 1:nc, 1:nc, iv) = &
             c0 * mg%boxes(id)%cc(0, 1:nc, 1:nc, iv) + &
@@ -2535,7 +2415,6 @@ contains
             c0 * mg%boxes(id)%cc(1:nc, 1:nc, nc+1, iv) + &
             c1 * mg%boxes(id)%cc(1:nc, 1:nc, nc, iv) + &
             c2 * mg%boxes(id)%cc(1:nc, 1:nc, nc-1, iv)
-
     end select
   end subroutine bc_to_gc
 
@@ -2546,15 +2425,9 @@ contains
     integer, intent(in)       :: iv
     integer, intent(in)       :: nb !< Ghost cell direction
     !> Interpolated coarse grid ghost cell data (but not yet in the nb direction)
-
-
-
     real(dp), intent(in)      :: gc(nc, nc)
-
     integer                   :: i, j, k, ix, dix, di, dj
-
     integer                   :: dk
-
 
     if (mg_neighb_low(nb)) then
        ix = 1
@@ -2565,7 +2438,6 @@ contains
     end if
 
     select case (mg_neighb_dim(nb))
-# 2861 "m_octree_mg.f90"
     case (1)
        i = ix
        di = dix
@@ -2602,7 +2474,6 @@ contains
                   - 0.25_dp * box%cc(i, j, k+dk, iv)
           end do
        end do
-
     end select
 
   end subroutine sides_rb
@@ -2760,18 +2631,12 @@ contains
     real(dp), intent(out)     :: fine(nc, nc, nc) !< Prolonged values
 
     integer  :: i, j, k, hnc
-
-
-
-
     integer  :: ic, jc, kc
     real(dp) :: f0, flx, fhx, fly, fhy, flz, fhz
-
 
     hnc = nc/2
 
     associate (crs => mg%boxes(p_id)%cc)
-# 3085 "m_octree_mg.f90"
       do k = 1, hnc
          kc = k + dix(3)
          do j = 1, hnc
@@ -2798,7 +2663,6 @@ contains
             end do
          end do
       end do
-
     end associate
   end subroutine mg_prolong_sparse
 
@@ -2841,9 +2705,7 @@ contains
     integer                   :: i, j, k, i0, di
     real(dp)                  :: idr2(3), fac
     logical                   :: redblack
-
     real(dp), parameter       :: sixth = 1/6.0_dp
-
 
     idr2 = 1/mg%dr(:, mg%boxes(id)%lvl)**2
     fac = 1.0_dp / (2 * sum(idr2) + helmholtz_lambda)
@@ -2859,7 +2721,6 @@ contains
     ! The parity of redblack_cntr determines which cells we use. If
     ! redblack_cntr is even, we use the even cells and vice versa.
     associate (cc => mg%boxes(id)%cc, n => mg_iphi)
-# 3185 "m_octree_mg.f90"
       do k = 1, nc
          do j = 1, nc
             if (redblack) &
@@ -2873,7 +2734,6 @@ contains
             end do
          end do
       end do
-
     end associate
   end subroutine box_gs_helmh
 
@@ -2889,7 +2749,6 @@ contains
     idr2 = 1 / mg%dr(:, mg%boxes(id)%lvl)**2
 
     associate (cc => mg%boxes(id)%cc, n => mg_iphi)
-# 3224 "m_octree_mg.f90"
       do k = 1, nc
          do j = 1, nc
             do i = 1, nc
@@ -2904,7 +2763,6 @@ contains
             end do
          end do
       end do
-
     end associate
   end subroutine box_helmh
 
@@ -3433,7 +3291,6 @@ contains
     p_rank = mg%boxes(p_id)%rank
 
     if (p_rank /= mg%my_rank) then
-# 3775 "m_octree_mg.f90"
        do k = 1, hnc
           do j = 1, hnc
              do i = 1, hnc
@@ -3442,7 +3299,6 @@ contains
              end do
           end do
        end do
-
 
        ! Buffer
        n = size(tmp)
@@ -3477,26 +3333,15 @@ contains
 
        if (c_rank == mg%my_rank) then
           do j=1, hnc; do i=1, hnc; do k=1, hnc
-
-
-
-
              mg%boxes(id)%cc(dix(1)+i, dix(2)+j, dix(3)+k, iv) = &
                   0.125_dp * sum(mg%boxes(c_id)%cc(2*i-1:2*i, &
                   2*j-1:2*j, 2*k-1:2*k, iv))
-
           end do; end do; end do
        else
           i = mg%buf(c_rank)%i_recv
-
-
-
-
-
           mg%boxes(id)%cc(dix(1)+1:dix(1)+hnc, &
                dix(2)+1:dix(2)+hnc, dix(3)+1:dix(3)+hnc, iv) = &
                reshape(mg%buf(c_rank)%recv(i+1:i+dsize), [hnc, hnc, hnc])
-
           mg%buf(c_rank)%i_recv = mg%buf(c_rank)%i_recv + dsize
        end if
     end do
@@ -4103,8 +3948,5 @@ contains
       Return
       !
    End Subroutine I_mrgrnk
-
-
-
 
 end module m_octree_mg_3d

@@ -105,8 +105,8 @@ end module m_octree_mg_3d
 echo "Generated $module_xd"
 
 # Generate 2D and 3D versions
-gfortran -E -cpp -DNDIM=2 "$module_xd" -o "$module_2d"
+gfortran -E -cpp -P -DNDIM=2 "$module_xd" -o "$module_2d"
 echo "Generated $module_2d"
 
-gfortran -E -cpp -DNDIM=3 "$module_xd" -o "$module_3d"
+gfortran -E -cpp -P -DNDIM=3 "$module_xd" -o "$module_3d"
 echo "Generated $module_3d"
