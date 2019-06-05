@@ -11,3 +11,13 @@
 /single_module/m_octree_mg_3d.mod
 /single_module/m_octree_mg_3d.o
 /single_module/test_uniform_grid_2d
+/lib_2d/*.mod
+/lib_2d/*.o
+/lib_2d/*.a
+/lib_3d/*.mod
+/lib_3d/*.o
+/lib_3d/*.a
+/poisson_3d_fft/PSolver
+/poisson_3d_fft/*.o
+/poisson_3d_fft/*.mod
+/poisson_3d_fft/*.a
