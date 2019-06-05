@@ -22,7 +22,8 @@ code=""
 # Split existing modules into a header and a code section
 for mod in $modules; do
     modname=$"${newline}  !! File ${mod}${newline}"
-    tmp=$(grep -E ' *contains *$' -B 5000 "${mod}")
+    # Grep the lines before/after the 'contains' line
+    tmp=$(grep -E '^ *contains *$' -B 5000 "${mod}")
     if [ -n "$tmp" ]; then
         header="${header}${modname}${tmp}"
     fi
@@ -41,7 +42,7 @@ header=$(echo "$header" | sed 's/^ *contains.*$//')
 header=$(echo "$header" | sed 's/^ *module m_.*$//')
 header=$(echo "$header" | sed 's/^ *Module m_.*$//')
 header=$(echo "$header" | sed 's/^ *#include .*$//')
-header=$(echo "$header" | sed 's/^ *use .*$//')
+header=$(echo "$header" | sed 's/^ *use m_.*$//')
 
 # Merge blank lines
 header=$(echo "$header" | cat -s)
@@ -49,7 +50,7 @@ header=$(echo "$header" | cat -s)
 # Remove certain lines
 code=$(echo "$code" | sed 's/^ *contains.*$//')
 code=$(echo "$code" | sed 's/^ *end module.*$//')
-code=$(echo "$code" | sed 's/^ *use .*$//')
+code=$(echo "$code" | sed 's/^ *use m_.*$//')
 
 # Merge blank lines
 code=$(echo "$code" | cat -s)
@@ -60,7 +61,7 @@ echo '! Single module generated from the octree-mg sources.
 !
 ! Notes:
 ! 1. The module name is here extended by _2d or _3d
-! 2. the free space Poisson solver is not included here.
+! 2. The free space Poisson solver is not included here.
 ! 3. It is best to make changes in the original repository at
 !    https://github.com/jannisteunissen/octree-mg
 ! 4. This file can be generated as follows:
