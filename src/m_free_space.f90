@@ -25,9 +25,11 @@ module m_free_space
 
   ! Public methods
   public :: mg_poisson_free_3d
+#endif
 
 contains
 
+#if NDIM == 3
   !> Solve a free-space Poisson problem in 3D, making use of a FFT solver (on a
   !> coarser grid) to get the boundary conditions. Each call performs an
   !> additional FMG or V-cycle, depending on the argument fmgcycle.
