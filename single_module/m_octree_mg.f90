@@ -3,7 +3,7 @@
 !
 ! Notes:
 ! 1. The module name is here extended by _2d or _3d
-! 2. the free space Poisson solver is not included here.
+! 2. The free space Poisson solver is not included here.
 ! 3. It is best to make changes in the original repository at
 !    https://github.com/jannisteunissen/octree-mg
 ! 4. This file can be generated as follows:
@@ -654,19 +654,19 @@ contains
   end function mg_add_timer
 
   subroutine mg_timer_start(timer)
-
+    use mpi
     type(mg_timer_t), intent(inout) :: timer
     timer%t0 = mpi_wtime()
   end subroutine mg_timer_start
 
   subroutine mg_timer_end(timer)
-
+    use mpi
     type(mg_timer_t), intent(inout) :: timer
     timer%t = timer%t + mpi_wtime() - timer%t0
   end subroutine mg_timer_end
 
   subroutine mg_timers_show(mg)
-
+    use mpi
     type(mg_t), intent(in) :: mg
     integer                :: n, ierr
     real(dp)               :: tmin(mg%n_timers)
@@ -2044,7 +2044,7 @@ contains
 
   !> Initialize MPI if needed, and store MPI information
   subroutine mg_comm_init(mg, comm)
-
+    use mpi
     type(mg_t), intent(inout)     :: mg
     !> MPI communicator (default: MPI_COMM_WORLD)
     integer, intent(in), optional :: comm
@@ -2067,7 +2067,7 @@ contains
   end subroutine mg_comm_init
 
   subroutine sort_and_transfer_buffers(mg, dsize)
-
+    use mpi
     type(mg_t), intent(inout)    :: mg
     integer, intent(in)          :: dsize
     integer                      :: i, n_send, n_recv
@@ -3349,7 +3349,7 @@ contains
 
   !> Perform FAS V-cycle (full approximation scheme).
   subroutine mg_fas_vcycle(mg, highest_lvl, max_res)
-
+    use mpi
     type(mg_t), intent(inout)       :: mg
     integer, intent(in), optional   :: highest_lvl !< Maximum level for V-cycle
     real(dp), intent(out), optional :: max_res     !< Store max(abs(residual))
@@ -3437,7 +3437,7 @@ contains
   end subroutine mg_fas_vcycle
 
   subroutine subtract_mean(mg, iv, include_ghostcells)
-
+    use mpi
     type(mg_t), intent(inout) :: mg
     integer, intent(in)       :: iv
     logical, intent(in)       :: include_ghostcells
