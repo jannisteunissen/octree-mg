@@ -79,8 +79,9 @@ program test_refinement
      print *, "n_iterations     ", n_its
      print *, "time/iteration   ", (t1-t0) / n_its
      print *, "total_time(s)    ", (t1-t0)
+     n = mg%n_boxes * mg%box_size**NDIM
      print *, "unknowns/microsec", 1e-6_dp * n_its * &
-          product(real(domain_size, dp)) / (t1-t0)
+          n / (t1-t0)
      print *, ""
   end if
   call mg_timers_show(mg)
