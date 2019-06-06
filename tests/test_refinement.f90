@@ -80,7 +80,7 @@ program test_refinement
      end do
 
      print *, "n_cpu            ", mg%n_cpu
-     print *, "problem_size     ", domain_size
+     print *, "coarse grid      ", domain_size
      print *, "box_size         ", box_size
      print *, "n_iterations     ", n_its
      print *, "time/iteration   ", (t1-t0) / n_its
