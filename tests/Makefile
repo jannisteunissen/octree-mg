@@ -1,5 +1,5 @@
-PROGS_2D := test_uniform_grid_2d test_performance_2d
-PROGS_3D := test_uniform_grid_3d test_performance_3d test_free_space_3d
+PROGS_2D := test_uniform_grid_2d test_performance_2d test_refinement_2d
+PROGS_3D := test_uniform_grid_3d test_performance_3d test_free_space_3d test_refinement_3d
 LIBS = omg
 
 include ../makerules.make

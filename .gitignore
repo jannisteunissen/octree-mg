@@ -21,3 +21,8 @@
 /poisson_3d_fft/*.o
 /poisson_3d_fft/*.mod
 /poisson_3d_fft/*.a
+/tests/test_refinement_2d
+/tests/test_refinement_3d
+/GPATH
+/GRTAGS
+/GTAGS
