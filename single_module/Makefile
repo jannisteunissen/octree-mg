@@ -1,9 +1,11 @@
 F90 := mpif90
 F90FLAGS := -O2 -Wall -cpp
-PROGS_2D := test_uniform_grid_2d
-PROGS_3D := test_uniform_grid_3d
+PROGS_2D := test_uniform_grid_2d test_refinement_2d
+PROGS_3D := test_uniform_grid_3d test_refinement_3d
 
 .PHONY: all
+
+vpath %.f90 ../tests
 
 all: $(PROGS_2D) $(PROGS_3D)
 
@@ -17,7 +19,7 @@ $(PROGS_3D): m_octree_mg_3d.o
 	$(F90) -c -o $@ $^ $(F90FLAGS)
 
 %_2d: %.f90
-	$(F90) -o $@ $^ $(F90FLAGS) -DNDIM=2
+	$(F90) -o $@ $^ $(F90FLAGS) -DNDIM=2 -DSINGLE_MODULE
 
 %_3d: %.f90
-	$(F90) -o $@ $^ $(F90FLAGS) -DNDIM=3
+	$(F90) -o $@ $^ $(F90FLAGS) -DNDIM=3 -DSINGLE_MODULE

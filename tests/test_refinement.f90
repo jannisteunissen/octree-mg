@@ -1,7 +1,13 @@
 #include "../src/cpp_macros.h"
 program test_refinement
   use mpi
+#ifndef SINGLE_MODULE
   use m_octree_mg
+#elif NDIM == 2
+  use m_octree_mg_2d
+#elif NDIM == 3
+  use m_octree_mg_3d
+#endif
 
   implicit none
 
