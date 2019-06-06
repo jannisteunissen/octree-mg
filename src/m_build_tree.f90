@@ -328,6 +328,10 @@ contains
     integer                   :: c_ids(mg_num_children)
     integer                   :: c_id, c_ix_base(NDIM)
 
+    if (mg%n_boxes + mg_num_children > size(mg%boxes)) then
+       error stop "mg_add_children: not enough space"
+    end if
+
     c_ids                 = [(mg%n_boxes+i, i=1,mg_num_children)]
     mg%n_boxes            = mg%n_boxes + mg_num_children
     mg%boxes(id)%children = c_ids
