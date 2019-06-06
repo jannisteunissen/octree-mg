@@ -27,8 +27,8 @@ program test_one_level
   type(mg_t)          :: mg
 
   n_args = command_argument_count()
-  if (n_args /= NDIM+1) then
-     error stop "Usage: ./test_uniform_grid box_size nx ny [nz]"
+  if (n_args /= NDIM+1 .and. n_args /= NDIM+2) then
+     error stop "Usage: ./test_uniform_grid box_size nx ny [nz] [n_its]"
   end if
 
   call get_command_argument(1, arg_string)
@@ -38,6 +38,11 @@ program test_one_level
      call get_command_argument(1+n, arg_string)
      read(arg_string, *) domain_size(n)
   end do
+
+  if (n_args > NDIM+1) then
+     call get_command_argument(NDIM+2, arg_string)
+     read(arg_string, *) n_its
+  end if
 
   dr =  1.0_dp / domain_size
 
@@ -67,7 +72,7 @@ program test_one_level
   call print_error(mg, 0)
 
   t0 = mpi_wtime()
-  do n = 1, 10
+  do n = 1, n_its
      call mg_fas_fmg(mg, n > 1)
      call print_error(mg, n)
   end do
