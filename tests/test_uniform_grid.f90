@@ -59,7 +59,6 @@ program test_one_level
   call mg_build_rectangle(mg, domain_size, box_size, dr, r_min, &
        periodic, n_finer)
   call mg_load_balance(mg)
-  call mg_load_balance_parents(mg)
 
   call mg_allocate_storage(mg)
   call set_solution(mg)

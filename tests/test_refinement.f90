@@ -216,7 +216,6 @@ contains
 
     ! Assign boxes to MPI processes
     call mg_load_balance(mg)
-    call mg_load_balance_parents(mg)
 
     ! Allocate storage for boxes owned by this process
     call mg_allocate_storage(mg)
