@@ -1,7 +1,13 @@
 #include "../src/cpp_macros.h"
 program test_performance
   use mpi
+#ifndef SINGLE_MODULE
   use m_octree_mg
+#elif NDIM == 2
+  use m_octree_mg_2d
+#elif NDIM == 3
+  use m_octree_mg_3d
+#endif
 
   implicit none
 
@@ -64,8 +70,9 @@ program test_performance
      print *, "n_iterations     ", n_its
      print *, "time/iteration   ", (t1-t0) / n_its
      print *, "total_time(s)    ", (t1-t0)
+     n = mg%n_boxes * mg%box_size**NDIM
      print *, "unknowns/microsec", 1e-6_dp * n_its * &
-          product(real(domain_size, dp)) / (t1-t0)
+          n / (t1-t0)
      print *, ""
   end if
   call mg_timers_show(mg)
