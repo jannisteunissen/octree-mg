@@ -8,7 +8,8 @@ module m_multigrid
   implicit none
   private
 
-  integer :: timer_total         = -1
+  integer :: timer_total_vcycle  = -1
+  integer :: timer_total_fmg     = -1
   integer :: timer_smoother      = -1
   integer :: timer_smoother_gc   = -1
   integer :: timer_coarse        = -1
@@ -67,7 +68,8 @@ contains
 
   subroutine mg_add_timers(mg)
     type(mg_t), intent(inout) :: mg
-    timer_total         = mg_add_timer(mg, "mg total")
+    timer_total_vcycle  = mg_add_timer(mg, "mg total V-cycle")
+    timer_total_fmg     = mg_add_timer(mg, "mg total FMG cycle")
     timer_smoother      = mg_add_timer(mg, "mg smoother")
     timer_smoother_gc   = mg_add_timer(mg, "mg smoother g.c.")
     timer_coarse        = mg_add_timer(mg, "mg coarse")
@@ -83,6 +85,9 @@ contains
     integer                         :: lvl, i, id
 
     call check_methods(mg)
+    if (timer_smoother == -1) call mg_add_timers(mg)
+
+    call mg_timer_start(mg%timers(timer_total_fmg))
 
     if (.not. have_guess) then
        do lvl = mg%highest_lvl, mg%lowest_lvl, -1
@@ -98,7 +103,9 @@ contains
 
     do lvl = mg%highest_lvl,  mg%lowest_lvl+1, -1
        ! Set rhs on coarse grid and restrict phi
+       call mg_timer_start(mg%timers(timer_update_coarse))
        call update_coarse(mg, lvl)
+       call mg_timer_end(mg%timers(timer_update_coarse))
     end do
 
     if (mg%subtract_mean) then
@@ -117,7 +124,9 @@ contains
        if (lvl > mg%lowest_lvl) then
           ! Correct solution at this lvl using lvl-1 data
           ! phi = phi + prolong(phi_coarse - phi_old_coarse)
+          call mg_timer_start(mg%timers(timer_correct))
           call correct_children(mg, lvl-1)
+          call mg_timer_end(mg%timers(timer_correct))
 
           ! Update ghost cells
           call mg_fill_ghost_cells_lvl(mg, lvl, mg_iphi)
@@ -130,6 +139,8 @@ contains
           call mg_fas_vcycle(mg, lvl, standalone=.false.)
        end if
     end do
+
+    call mg_timer_end(mg%timers(timer_total_fmg))
   end subroutine mg_fas_fmg
 
   !> Perform FAS V-cycle (full approximation scheme).
@@ -148,12 +159,9 @@ contains
     if (present(standalone)) is_standalone = standalone
 
     call check_methods(mg)
+    if (timer_smoother == -1) call mg_add_timers(mg)
 
-    if (timer_smoother == -1) then
-       call mg_add_timers(mg)
-    end if
-
-    call mg_timer_start(mg%timers(timer_total))
+    call mg_timer_start(mg%timers(timer_total_vcycle))
 
     if (mg%subtract_mean .and. .not. present(highest_lvl)) then
        ! Assume that this is a stand-alone call. For fully periodic solutions,
@@ -226,7 +234,7 @@ contains
        call subtract_mean(mg, mg_iphi, .true.)
     end if
 
-    call mg_timer_end(mg%timers(timer_total))
+    call mg_timer_end(mg%timers(timer_total_vcycle))
   end subroutine mg_fas_vcycle
 
   subroutine subtract_mean(mg, iv, include_ghostcells)
