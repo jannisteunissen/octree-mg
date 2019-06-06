@@ -125,21 +125,27 @@ contains
 
        ! Perform V-cycle, possibly set residual on last iteration
        if (lvl == mg%highest_lvl) then
-          call mg_fas_vcycle(mg, lvl, max_res)
+          call mg_fas_vcycle(mg, lvl, max_res, standalone=.false.)
        else
-          call mg_fas_vcycle(mg, lvl)
+          call mg_fas_vcycle(mg, lvl, standalone=.false.)
        end if
     end do
   end subroutine mg_fas_fmg
 
   !> Perform FAS V-cycle (full approximation scheme).
-  subroutine mg_fas_vcycle(mg, highest_lvl, max_res)
+  subroutine mg_fas_vcycle(mg, highest_lvl, max_res, standalone)
     use mpi
     type(mg_t), intent(inout)       :: mg
     integer, intent(in), optional   :: highest_lvl !< Maximum level for V-cycle
     real(dp), intent(out), optional :: max_res     !< Store max(abs(residual))
+    !> Whether the V-cycle is called by itself (default: true)
+    logical, intent(in), optional   :: standalone
     integer                         :: lvl, min_lvl, i, max_lvl, ierr
     real(dp)                        :: init_res, res
+    logical                         :: is_standalone
+
+    is_standalone = .true.
+    if (present(standalone)) is_standalone = standalone
 
     call check_methods(mg)
 
@@ -160,7 +166,9 @@ contains
     if (present(highest_lvl)) max_lvl = highest_lvl
 
     ! Ensure ghost cells are filled correctly
-    call mg_fill_ghost_cells_lvl(mg, max_lvl, mg_iphi)
+    if (is_standalone) then
+       call mg_fill_ghost_cells_lvl(mg, max_lvl, mg_iphi)
+    end if
 
     do lvl = max_lvl,  min_lvl+1, -1
        ! Downwards relaxation
