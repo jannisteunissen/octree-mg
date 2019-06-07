@@ -19,7 +19,7 @@ program test_performance
   real(dp), parameter :: pi              = acos(-1.0_dp)
   character(len=40)   :: arg_string
   integer             :: n, ierr, n_args, n_its
-  real(dp)            :: t0, t1
+  real(dp)            :: t0, t1, n_unknowns
   type(mg_t)          :: mg
 
   n_args = command_argument_count()
@@ -70,9 +70,9 @@ program test_performance
      print *, "n_iterations     ", n_its
      print *, "time/iteration   ", (t1-t0) / n_its
      print *, "total_time(s)    ", (t1-t0)
-     n = mg%n_boxes * mg%box_size**NDIM
+     n_unknowns = real(mg%n_boxes, dp) * mg%box_size**NDIM
      print *, "unknowns/microsec", 1e-6_dp * n_its * &
-          n / (t1-t0)
+          n_unknowns / (t1-t0)
      print *, ""
   end if
   call mg_timers_show(mg)
