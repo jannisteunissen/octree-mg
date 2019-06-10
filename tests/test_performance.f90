@@ -15,6 +15,7 @@ program test_performance
   integer             :: domain_size(NDIM)
   real(dp)            :: dr(NDIM), r_min(NDIM) = 0.0_dp
   logical             :: periodic(NDIM)  = .false.
+  logical             :: fmg_cycle       = .true.
   integer             :: n_finer         = 0
   real(dp), parameter :: pi              = acos(-1.0_dp)
   character(len=40)   :: arg_string
@@ -23,8 +24,8 @@ program test_performance
   type(mg_t)          :: mg
 
   n_args = command_argument_count()
-  if (n_args /= NDIM+2) then
-     error stop "Usage: ./test_uniform_grid box_size nx ny [nz] n_its"
+  if (n_args < NDIM+2 .and. n_args > NDIM+3) then
+     error stop "Usage: ./test_uniform_grid box_size nx ny [nz] n_its [FMG?]"
   end if
 
   call get_command_argument(1, arg_string)
@@ -37,6 +38,11 @@ program test_performance
 
   call get_command_argument(NDIM+2, arg_string)
   read(arg_string, *) n_its
+
+  if (n_args > NDIM+2) then
+     call get_command_argument(NDIM+3, arg_string)
+     read(arg_string, *) fmg_cycle
+  end if
 
   dr =  1.0_dp / domain_size
 
@@ -59,11 +65,20 @@ program test_performance
 
   t0 = mpi_wtime()
   do n = 1, n_its
-     call mg_fas_fmg(mg, n > 1)
+     if (fmg_cycle) then
+        call mg_fas_fmg(mg, n > 1)
+     else
+        call mg_fas_vcycle(mg)
+     end if
   end do
   t1 = mpi_wtime()
 
   if (mg%my_rank == 0) then
+     if (fmg_cycle) then
+        print *, "cycle type        FMG"
+     else
+        print *, "cycle type        V-cycle"
+     end if
      print *, "n_cpu            ", mg%n_cpu
      print *, "problem_size     ", domain_size
      print *, "box_size         ", box_size

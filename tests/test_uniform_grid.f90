@@ -18,17 +18,18 @@ program test_one_level
   real(dp)            :: dr(NDIM)
   real(dp)            :: r_min(NDIM)    = 0.0_dp
   logical             :: periodic(NDIM) = .false.
+  logical             :: fmg_cycle      = .true.
   integer             :: n_finer        = 0
   real(dp), parameter :: pi             = acos(-1.0_dp)
   character(len=40)   :: arg_string
   integer             :: n, ierr, n_args
-  real(dp)            :: t0, t1, n_unknowns
+  real(dp)            :: t0, t1, t2, n_unknowns
   integer             :: i_sol, i_eps
   type(mg_t)          :: mg
 
   n_args = command_argument_count()
-  if (n_args /= NDIM+1 .and. n_args /= NDIM+2) then
-     error stop "Usage: ./test_uniform_grid box_size nx ny [nz] [n_its]"
+  if (n_args < NDIM+1 .and. n_args > NDIM+3) then
+     error stop "Usage: ./test_refinement box_size nx ny [nz] [n_its] [FMG?]"
   end if
 
   call get_command_argument(1, arg_string)
@@ -42,6 +43,11 @@ program test_one_level
   if (n_args > NDIM+1) then
      call get_command_argument(NDIM+2, arg_string)
      read(arg_string, *) n_its
+  end if
+
+  if (n_args > NDIM+2) then
+     call get_command_argument(NDIM+3, arg_string)
+     read(arg_string, *) fmg_cycle
   end if
 
   dr =  1.0_dp / domain_size
@@ -61,11 +67,19 @@ program test_one_level
 
   call mg_set_methods(mg)
   call mg_comm_init(mg)
+  t0 = mpi_wtime()
   call mg_build_rectangle(mg, domain_size, box_size, dr, r_min, &
        periodic, n_finer)
   call mg_load_balance(mg)
-
+  t1 = mpi_wtime()
   call mg_allocate_storage(mg)
+  t2 = mpi_wtime()
+
+  if (mg%my_rank == 0) then
+     print *, "mesh construction (s) ", t1-t0
+     print *, "allocate storage (s)  ", t2-t1
+  end if
+
   call set_solution(mg)
   call compute_rhs_and_reset(mg)
 
@@ -73,12 +87,21 @@ program test_one_level
 
   t0 = mpi_wtime()
   do n = 1, n_its
-     call mg_fas_fmg(mg, n > 1)
+     if (fmg_cycle) then
+        call mg_fas_fmg(mg, n > 1)
+     else
+        call mg_fas_vcycle(mg)
+     end if
      call print_error(mg, n)
   end do
   t1 = mpi_wtime()
 
   if (mg%my_rank == 0) then
+     if (fmg_cycle) then
+        print *, "cycle type        FMG"
+     else
+        print *, "cycle type        V-cycle"
+     end if
      print *, "n_cpu            ", mg%n_cpu
      print *, "problem_size     ", domain_size
      print *, "box_size         ", box_size

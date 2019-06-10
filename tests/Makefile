@@ -4,12 +4,28 @@ LIBS = omg
 
 include ../makerules.make
 
-.PHONY: all
+.PHONY: all clean run
 
 all: $(PROGS_2D) $(PROGS_3D)
 
 clean:
 	$(RM) $(PROGS_2D) $(PROGS_3D)
+
+# Run with some combinations of settings
+run: $(PROGS_2D) $(PROGS_3D)
+	mpirun ./test_performance_2d 16 64 64 10 t
+	mpirun ./test_performance_3d 16 64 64 64 10 t
+	mpirun ./test_performance_2d 16 64 64 10 f
+	mpirun ./test_performance_3d 16 64 64 64 10 f
+	mpirun ./test_uniform_grid_2d 16 64 64 10 t
+	mpirun ./test_uniform_grid_3d 16 64 64 64 10 t
+	mpirun ./test_uniform_grid_2d 16 64 64 10 f
+	mpirun ./test_uniform_grid_3d 16 64 64 64 10 f
+	mpirun ./test_refinement_2d 3 16 64 64 10 t
+	mpirun ./test_refinement_3d 3 16 64 64 64 10 t
+	mpirun ./test_refinement_2d 3 16 64 64 10 f
+	mpirun ./test_refinement_3d 3 16 64 64 64 10 f
+	mpirun ./test_free_space_3d 16 64 64 64
 
 $(PROGS_2D): LIBDIRS+=../lib_2d
 $(PROGS_2D): INCDIRS+=../lib_2d

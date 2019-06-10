@@ -17,6 +17,7 @@ program test_refinement
   integer             :: domain_size(NDIM)
   real(dp)            :: dr(NDIM)
   logical             :: periodic(NDIM) = .false.
+  logical             :: fmg_cycle      = .true.
   integer             :: lvl, n_levels
   real(dp), parameter :: pi             = acos(-1.0_dp)
   character(len=40)   :: arg_string
@@ -26,8 +27,8 @@ program test_refinement
   type(mg_t)          :: mg
 
   n_args = command_argument_count()
-  if (n_args /= NDIM+2 .and. n_args /= NDIM+3) then
-     error stop "Usage: ./test_refinement n_levels box_size nx ny [nz] [n_its]"
+  if (n_args < NDIM+2 .and. n_args > NDIM+4) then
+     error stop "Usage: ./test_refinement n_levels box_size nx ny [nz] [n_its] [FMG?]"
   end if
 
   call get_command_argument(1, arg_string)
@@ -44,6 +45,11 @@ program test_refinement
   if (n_args > NDIM+2) then
      call get_command_argument(NDIM+3, arg_string)
      read(arg_string, *) n_its
+  end if
+
+  if (n_args > NDIM+3) then
+     call get_command_argument(NDIM+4, arg_string)
+     read(arg_string, *) fmg_cycle
   end if
 
   dr =  1.0_dp / domain_size
@@ -72,7 +78,11 @@ program test_refinement
 
   t0 = mpi_wtime()
   do n = 1, n_its
-     call mg_fas_fmg(mg, n > 1)
+     if (fmg_cycle) then
+        call mg_fas_fmg(mg, n > 1)
+     else
+        call mg_fas_vcycle(mg)
+     end if
      call print_error(mg, n)
   end do
   t1 = mpi_wtime()
@@ -84,6 +94,11 @@ program test_refinement
              size(mg%lvls(lvl)%leaves), " leaves"
      end do
 
+     if (fmg_cycle) then
+        print *, "cycle type        FMG"
+     else
+        print *, "cycle type        V-cycle"
+     end if
      print *, "n_cpu            ", mg%n_cpu
      print *, "coarse grid      ", domain_size
      print *, "box_size         ", box_size
