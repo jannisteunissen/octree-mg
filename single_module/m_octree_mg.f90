@@ -464,6 +464,7 @@ module m_octree_mg_3d
 !> storage for boxes. The tree structure itself is present on all processes.
 
   ! Public methods
+  public :: mg_load_balance_simple
   public :: mg_load_balance
   public :: mg_load_balance_parents
 
@@ -508,7 +509,8 @@ module m_octree_mg_3d
 
   !! File ../src/m_multigrid.f90
 
-  integer :: timer_total         = -1
+  integer :: timer_total_vcycle  = -1
+  integer :: timer_total_fmg     = -1
   integer :: timer_smoother      = -1
   integer :: timer_smoother_gc   = -1
   integer :: timer_coarse        = -1
@@ -533,9 +535,9 @@ module m_octree_mg_3d
    Integer, Parameter :: kdp = selected_real_kind(15)
    public :: mrgrnk
    private :: kdp
-   private :: R_mrgrnk, I_mrgrnk, D_mrgrnk
+   private :: I_mrgrnk
    interface mrgrnk
-      module procedure D_mrgrnk, R_mrgrnk, I_mrgrnk
+      module procedure I_mrgrnk
    end interface mrgrnk
 contains
 
@@ -1609,6 +1611,10 @@ contains
     integer                   :: c_ids(mg_num_children)
     integer                   :: c_id, c_ix_base(NDIM)
 
+    if (mg%n_boxes + mg_num_children > size(mg%boxes)) then
+       error stop "mg_add_children: not enough space"
+    end if
+
     c_ids                 = [(mg%n_boxes+i, i=1,mg_num_children)]
     mg%n_boxes            = mg%n_boxes + mg_num_children
     mg%boxes(id)%children = c_ids
@@ -1665,10 +1671,12 @@ contains
 
   !! File ../src/m_load_balance.f90
 
-  !> Load balance all boxes in the multigrid tree. Note that in a typical
-  !> application the load balancing of the leaves is already determined, then
-  !> mg_load_balance_parents can be used.
-  subroutine mg_load_balance(mg)
+  !> Load balance all boxes in the multigrid tree, by simply distributing the
+  !> load per grid level. This method will only work well for uniform grids.
+  !>
+  !> Note that in a typical application the load balancing of the leaves is
+  !> already determined, then mg_load_balance_parents can be used.
+  subroutine mg_load_balance_simple(mg)
     type(mg_t), intent(inout) :: mg
     integer                   :: i, id, lvl, single_cpu_lvl
     integer                   :: work_left, my_work, i_cpu
@@ -1709,36 +1717,116 @@ contains
        call update_lvl_info(mg, mg%lvls(lvl))
     end do
 
+  end subroutine mg_load_balance_simple
+
+  !> Load balance all boxes in the multigrid tree. Compared to
+  !> mg_load_balance_simple, this method does a better job of setting the ranks
+  !> of parent boxes
+  !>
+  !> Note that in a typical application the load balancing of the leaves is
+  !> already determined, then mg_load_balance_parents can be used.
+  subroutine mg_load_balance(mg)
+    type(mg_t), intent(inout) :: mg
+    integer                   :: i, id, lvl, single_cpu_lvl
+    integer                   :: work_left, my_work(0:mg%n_cpu), i_cpu
+    integer                   :: c_ids(mg_num_children)
+    integer                   :: c_ranks(mg_num_children)
+    integer                   :: coarse_rank
+
+    ! Up to this level, all boxes have to be on a single processor because they
+    ! have a different size and the communication routines do not support this
+    single_cpu_lvl = max(mg%first_normal_lvl-1, mg%lowest_lvl)
+
+    ! Distribute the boxes equally. Due to the way the mesh is constructed, the
+    ! mg%lvls(lvl)%ids array already contains a Morton-like ordering.
+    do lvl = mg%highest_lvl, single_cpu_lvl+1, -1
+       ! For parents determine the rank based on their child ranks
+       my_work(:) = 0
+
+       do i = 1, size(mg%lvls(lvl)%parents)
+          id = mg%lvls(lvl)%parents(i)
+
+          c_ids = mg%boxes(id)%children
+          c_ranks = mg%boxes(c_ids)%rank
+          i_cpu = most_popular(c_ranks, my_work, mg%n_cpu)
+          mg%boxes(id)%rank = i_cpu
+          my_work(i_cpu) = my_work(i_cpu) + 1
+       end do
+
+       work_left = size(mg%lvls(lvl)%leaves)
+       i_cpu     = 0
+
+       do i = 1, size(mg%lvls(lvl)%leaves)
+          ! Skip this CPU if it already has enough work
+          if ((mg%n_cpu - i_cpu - 1) * my_work(i_cpu) >= &
+               work_left + sum(my_work(i_cpu+1:))) then
+             i_cpu = i_cpu + 1
+          end if
+
+          my_work(i_cpu) = my_work(i_cpu) + 1
+          work_left = work_left - 1
+
+          id = mg%lvls(lvl)%leaves(i)
+          mg%boxes(id)%rank = i_cpu
+       end do
+    end do
+
+    ! Determine most popular CPU for coarse grids
+    coarse_rank = most_popular(mg%boxes(&
+         mg%lvls(single_cpu_lvl+1)%ids)%rank, my_work, mg%n_cpu)
+
+    do lvl = mg%lowest_lvl, single_cpu_lvl
+       do i = 1, size(mg%lvls(lvl)%ids)
+          id = mg%lvls(lvl)%ids(i)
+          mg%boxes(id)%rank = coarse_rank
+       end do
+    end do
+
+    do lvl = mg%lowest_lvl, mg%highest_lvl
+       call update_lvl_info(mg, mg%lvls(lvl))
+    end do
+
   end subroutine mg_load_balance
 
   !> Load balance the parents (non-leafs). Assign them to the rank that has most
   !> children.
-  !>
-  !> @todo In case of ties, assign to the rank with least boxes.
   subroutine mg_load_balance_parents(mg)
     type(mg_t), intent(inout) :: mg
     integer                   :: i, id, lvl
     integer                   :: c_ids(mg_num_children)
     integer                   :: c_ranks(mg_num_children)
     integer                   :: single_cpu_lvl, coarse_rank
+    integer                   :: my_work(0:mg%n_cpu), i_cpu
 
     ! Up to this level, all boxes have to be on a single processor because they
     ! have a different size and the communication routines do not support this
     single_cpu_lvl = max(mg%first_normal_lvl-1, mg%lowest_lvl)
 
     do lvl = mg%highest_lvl-1, single_cpu_lvl+1, -1
+       my_work(:) = 0
+
+       ! Determine amount of work for the leaves
+       do i = 1, size(mg%lvls(lvl)%leaves)
+          id = mg%lvls(lvl)%leaves(i)
+          i_cpu = mg%boxes(id)%rank
+          my_work(i_cpu) = my_work(i_cpu) + 1
+       end do
+
        do i = 1, size(mg%lvls(lvl)%parents)
           id = mg%lvls(lvl)%parents(i)
 
           c_ids = mg%boxes(id)%children
           c_ranks = mg%boxes(c_ids)%rank
-          mg%boxes(id)%rank = most_popular(c_ranks)
+          i_cpu = most_popular(c_ranks, my_work, mg%n_cpu)
+          mg%boxes(id)%rank = i_cpu
+          my_work(i_cpu) = my_work(i_cpu) + 1
        end do
+
     end do
 
     ! Determine most popular CPU for coarse grids
     coarse_rank = most_popular(mg%boxes(&
-         mg%lvls(single_cpu_lvl+1)%ids)%rank)
+         mg%lvls(single_cpu_lvl+1)%ids)%rank, my_work, mg%n_cpu)
 
     do lvl = mg%lowest_lvl, single_cpu_lvl
        do i = 1, size(mg%lvls(lvl)%ids)
@@ -1753,17 +1841,28 @@ contains
 
   end subroutine mg_load_balance_parents
 
-  pure integer function most_popular(list)
-    integer, intent(in) :: list(:)
+  !> Determine most popular rank in the list. In case of ties, assign the rank
+  !> with the least work.
+  pure integer function most_popular(list, work, n_cpu)
+    integer, intent(in) :: list(:) !< List of MPI ranks
+    integer, intent(in) :: n_cpu
+    integer, intent(in) :: work(0:n_cpu-1) !< Existing work per rank
     integer             :: i, best_count, current_count
+    integer             :: my_work, best_work
 
     best_count   = 0
+    best_work    = 0
     most_popular = -1
 
     do i = 1, size(list)
        current_count = count(list == list(i))
+       my_work       = work(list(i))
 
-       if (current_count > best_count) then
+       ! In case of ties, select task with lowest work
+       if (current_count > best_count .or. &
+            current_count == best_count .and. my_work < best_work) then
+          best_count   = current_count
+          best_work    = my_work
           most_popular = list(i)
        end if
     end do
@@ -2975,6 +3074,8 @@ contains
 
   !> In case the fine grid is on a different CPU, perform the prolongation and
   !> store the fine-grid values in the send buffer.
+  !>
+  !> @todo Check whether it's faster to send coarse data and prolong afterwards
   subroutine prolong_set_buffer(mg, id, nc, iv, method)
     type(mg_t), intent(inout) :: mg
     integer, intent(in)       :: id
@@ -3282,7 +3383,8 @@ contains
 
   subroutine mg_add_timers(mg)
     type(mg_t), intent(inout) :: mg
-    timer_total         = mg_add_timer(mg, "mg total")
+    timer_total_vcycle  = mg_add_timer(mg, "mg total V-cycle")
+    timer_total_fmg     = mg_add_timer(mg, "mg total FMG cycle")
     timer_smoother      = mg_add_timer(mg, "mg smoother")
     timer_smoother_gc   = mg_add_timer(mg, "mg smoother g.c.")
     timer_coarse        = mg_add_timer(mg, "mg coarse")
@@ -3298,6 +3400,9 @@ contains
     integer                         :: lvl, i, id
 
     call check_methods(mg)
+    if (timer_smoother == -1) call mg_add_timers(mg)
+
+    call mg_timer_start(mg%timers(timer_total_fmg))
 
     if (.not. have_guess) then
        do lvl = mg%highest_lvl, mg%lowest_lvl, -1
@@ -3313,7 +3418,9 @@ contains
 
     do lvl = mg%highest_lvl,  mg%lowest_lvl+1, -1
        ! Set rhs on coarse grid and restrict phi
+       call mg_timer_start(mg%timers(timer_update_coarse))
        call update_coarse(mg, lvl)
+       call mg_timer_end(mg%timers(timer_update_coarse))
     end do
 
     if (mg%subtract_mean) then
@@ -3332,7 +3439,9 @@ contains
        if (lvl > mg%lowest_lvl) then
           ! Correct solution at this lvl using lvl-1 data
           ! phi = phi + prolong(phi_coarse - phi_old_coarse)
+          call mg_timer_start(mg%timers(timer_correct))
           call correct_children(mg, lvl-1)
+          call mg_timer_end(mg%timers(timer_correct))
 
           ! Update ghost cells
           call mg_fill_ghost_cells_lvl(mg, lvl, mg_iphi)
@@ -3340,29 +3449,34 @@ contains
 
        ! Perform V-cycle, possibly set residual on last iteration
        if (lvl == mg%highest_lvl) then
-          call mg_fas_vcycle(mg, lvl, max_res)
+          call mg_fas_vcycle(mg, lvl, max_res, standalone=.false.)
        else
-          call mg_fas_vcycle(mg, lvl)
+          call mg_fas_vcycle(mg, lvl, standalone=.false.)
        end if
     end do
+
+    call mg_timer_end(mg%timers(timer_total_fmg))
   end subroutine mg_fas_fmg
 
   !> Perform FAS V-cycle (full approximation scheme).
-  subroutine mg_fas_vcycle(mg, highest_lvl, max_res)
+  subroutine mg_fas_vcycle(mg, highest_lvl, max_res, standalone)
     use mpi
     type(mg_t), intent(inout)       :: mg
     integer, intent(in), optional   :: highest_lvl !< Maximum level for V-cycle
     real(dp), intent(out), optional :: max_res     !< Store max(abs(residual))
+    !> Whether the V-cycle is called by itself (default: true)
+    logical, intent(in), optional   :: standalone
     integer                         :: lvl, min_lvl, i, max_lvl, ierr
     real(dp)                        :: init_res, res
+    logical                         :: is_standalone
+
+    is_standalone = .true.
+    if (present(standalone)) is_standalone = standalone
 
     call check_methods(mg)
+    if (timer_smoother == -1) call mg_add_timers(mg)
 
-    if (timer_smoother == -1) then
-       call mg_add_timers(mg)
-    end if
-
-    call mg_timer_start(mg%timers(timer_total))
+    call mg_timer_start(mg%timers(timer_total_vcycle))
 
     if (mg%subtract_mean .and. .not. present(highest_lvl)) then
        ! Assume that this is a stand-alone call. For fully periodic solutions,
@@ -3375,7 +3489,9 @@ contains
     if (present(highest_lvl)) max_lvl = highest_lvl
 
     ! Ensure ghost cells are filled correctly
-    call mg_fill_ghost_cells_lvl(mg, max_lvl, mg_iphi)
+    if (is_standalone) then
+       call mg_fill_ghost_cells_lvl(mg, max_lvl, mg_iphi)
+    end if
 
     do lvl = max_lvl,  min_lvl+1, -1
        ! Downwards relaxation
@@ -3433,7 +3549,7 @@ contains
        call subtract_mean(mg, mg_iphi, .true.)
     end if
 
-    call mg_timer_end(mg%timers(timer_total))
+    call mg_timer_end(mg%timers(timer_total_vcycle))
   end subroutine mg_fas_vcycle
 
   subroutine subtract_mean(mg, iv, include_ghostcells)
@@ -3843,405 +3959,6 @@ contains
 
   !! File ../src/m_mrgrnk.f90
 
-   Subroutine D_mrgrnk (XDONT, IRNGT)
-      ! __________________________________________________________
-      !   MRGRNK = Merge-sort ranking of an array
-      !   For performance reasons, the first 2 passes are taken
-      !   out of the standard loop, and use dedicated coding.
-      ! __________________________________________________________
-      ! __________________________________________________________
-      Real (kind=kdp), Dimension (:), Intent (In) :: XDONT
-      Integer, Dimension (:), Intent (Out) :: IRNGT
-      ! __________________________________________________________
-      Real (kind=kdp) :: XVALA, XVALB
-      !
-      Integer, Dimension (SIZE(IRNGT)) :: JWRKT
-      Integer :: LMTNA, LMTNC, IRNG1, IRNG2
-      Integer :: NVAL, IIND, IWRKD, IWRK, IWRKF, JINDA, IINDA, IINDB
-      !
-      NVAL = Min (SIZE(XDONT), SIZE(IRNGT))
-      Select Case (NVAL)
-      Case (:0)
-         Return
-      Case (1)
-         IRNGT (1) = 1
-         Return
-      Case Default
-         Continue
-      End Select
-      !
-      !  Fill-in the index array, creating ordered couples
-      !
-      Do IIND = 2, NVAL, 2
-         If (XDONT(IIND-1) <= XDONT(IIND)) Then
-            IRNGT (IIND-1) = IIND - 1
-            IRNGT (IIND) = IIND
-         Else
-            IRNGT (IIND-1) = IIND
-            IRNGT (IIND) = IIND - 1
-         End If
-      End Do
-      If (Modulo(NVAL, 2) /= 0) Then
-         IRNGT (NVAL) = NVAL
-      End If
-      !
-      !  We will now have ordered subsets A - B - A - B - ...
-      !  and merge A and B couples into     C   -   C   - ...
-      !
-      LMTNA = 2
-      LMTNC = 4
-      !
-      !  First iteration. The length of the ordered subsets goes from 2 to 4
-      !
-      Do
-         If (NVAL <= 2) Exit
-         !
-         !   Loop on merges of A and B into C
-         !
-         Do IWRKD = 0, NVAL - 1, 4
-            If ((IWRKD+4) > NVAL) Then
-               If ((IWRKD+2) >= NVAL) Exit
-               !
-               !   1 2 3
-               !
-               If (XDONT(IRNGT(IWRKD+2)) <= XDONT(IRNGT(IWRKD+3))) Exit
-               !
-               !   1 3 2
-               !
-               If (XDONT(IRNGT(IWRKD+1)) <= XDONT(IRNGT(IWRKD+3))) Then
-                  IRNG2 = IRNGT (IWRKD+2)
-                  IRNGT (IWRKD+2) = IRNGT (IWRKD+3)
-                  IRNGT (IWRKD+3) = IRNG2
-                  !
-                  !   3 1 2
-                  !
-               Else
-                  IRNG1 = IRNGT (IWRKD+1)
-                  IRNGT (IWRKD+1) = IRNGT (IWRKD+3)
-                  IRNGT (IWRKD+3) = IRNGT (IWRKD+2)
-                  IRNGT (IWRKD+2) = IRNG1
-               End If
-               Exit
-            End If
-            !
-            !   1 2 3 4
-            !
-            If (XDONT(IRNGT(IWRKD+2)) <= XDONT(IRNGT(IWRKD+3))) Cycle
-            !
-            !   1 3 x x
-            !
-            If (XDONT(IRNGT(IWRKD+1)) <= XDONT(IRNGT(IWRKD+3))) Then
-               IRNG2 = IRNGT (IWRKD+2)
-               IRNGT (IWRKD+2) = IRNGT (IWRKD+3)
-               If (XDONT(IRNG2) <= XDONT(IRNGT(IWRKD+4))) Then
-                  !   1 3 2 4
-                  IRNGT (IWRKD+3) = IRNG2
-               Else
-                  !   1 3 4 2
-                  IRNGT (IWRKD+3) = IRNGT (IWRKD+4)
-                  IRNGT (IWRKD+4) = IRNG2
-               End If
-               !
-               !   3 x x x
-               !
-            Else
-               IRNG1 = IRNGT (IWRKD+1)
-               IRNG2 = IRNGT (IWRKD+2)
-               IRNGT (IWRKD+1) = IRNGT (IWRKD+3)
-               If (XDONT(IRNG1) <= XDONT(IRNGT(IWRKD+4))) Then
-                  IRNGT (IWRKD+2) = IRNG1
-                  If (XDONT(IRNG2) <= XDONT(IRNGT(IWRKD+4))) Then
-                     !   3 1 2 4
-                     IRNGT (IWRKD+3) = IRNG2
-                  Else
-                     !   3 1 4 2
-                     IRNGT (IWRKD+3) = IRNGT (IWRKD+4)
-                     IRNGT (IWRKD+4) = IRNG2
-                  End If
-               Else
-                  !   3 4 1 2
-                  IRNGT (IWRKD+2) = IRNGT (IWRKD+4)
-                  IRNGT (IWRKD+3) = IRNG1
-                  IRNGT (IWRKD+4) = IRNG2
-               End If
-            End If
-         End Do
-         !
-         !  The Cs become As and Bs
-         !
-         LMTNA = 4
-         Exit
-      End Do
-      !
-      !  Iteration loop. Each time, the length of the ordered subsets
-      !  is doubled.
-      !
-      Do
-         If (LMTNA >= NVAL) Exit
-         IWRKF = 0
-         LMTNC = 2 * LMTNC
-         !
-         !   Loop on merges of A and B into C
-         !
-         Do
-            IWRK = IWRKF
-            IWRKD = IWRKF + 1
-            JINDA = IWRKF + LMTNA
-            IWRKF = IWRKF + LMTNC
-            If (IWRKF >= NVAL) Then
-               If (JINDA >= NVAL) Exit
-               IWRKF = NVAL
-            End If
-            IINDA = 1
-            IINDB = JINDA + 1
-            !
-            !   Shortcut for the case when the max of A is smaller
-            !   than the min of B. This line may be activated when the
-            !   initial set is already close to sorted.
-            !
-            !          IF (XDONT(IRNGT(JINDA)) <= XDONT(IRNGT(IINDB))) CYCLE
-            !
-            !  One steps in the C subset, that we build in the final rank array
-            !
-            !  Make a copy of the rank array for the merge iteration
-            !
-            JWRKT (1:LMTNA) = IRNGT (IWRKD:JINDA)
-            !
-            XVALA = XDONT (JWRKT(IINDA))
-            XVALB = XDONT (IRNGT(IINDB))
-            !
-            Do
-               IWRK = IWRK + 1
-               !
-               !  We still have unprocessed values in both A and B
-               !
-               If (XVALA > XVALB) Then
-                  IRNGT (IWRK) = IRNGT (IINDB)
-                  IINDB = IINDB + 1
-                  If (IINDB > IWRKF) Then
-                     !  Only A still with unprocessed values
-                     IRNGT (IWRK+1:IWRKF) = JWRKT (IINDA:LMTNA)
-                     Exit
-                  End If
-                  XVALB = XDONT (IRNGT(IINDB))
-               Else
-                  IRNGT (IWRK) = JWRKT (IINDA)
-                  IINDA = IINDA + 1
-                  If (IINDA > LMTNA) Exit! Only B still with unprocessed values
-                  XVALA = XDONT (JWRKT(IINDA))
-               End If
-               !
-            End Do
-         End Do
-         !
-         !  The Cs become As and Bs
-         !
-         LMTNA = 2 * LMTNA
-      End Do
-      !
-      Return
-      !
-   End Subroutine D_mrgrnk
-
-   Subroutine R_mrgrnk (XDONT, IRNGT)
-      ! __________________________________________________________
-      !   MRGRNK = Merge-sort ranking of an array
-      !   For performance reasons, the first 2 passes are taken
-      !   out of the standard loop, and use dedicated coding.
-      ! __________________________________________________________
-      ! _________________________________________________________
-      Real, Dimension (:), Intent (In) :: XDONT
-      Integer, Dimension (:), Intent (Out) :: IRNGT
-      ! __________________________________________________________
-      Real :: XVALA, XVALB
-      !
-      Integer, Dimension (SIZE(IRNGT)) :: JWRKT
-      Integer :: LMTNA, LMTNC, IRNG1, IRNG2
-      Integer :: NVAL, IIND, IWRKD, IWRK, IWRKF, JINDA, IINDA, IINDB
-      !
-      NVAL = Min (SIZE(XDONT), SIZE(IRNGT))
-      Select Case (NVAL)
-      Case (:0)
-         Return
-      Case (1)
-         IRNGT (1) = 1
-         Return
-      Case Default
-         Continue
-      End Select
-      !
-      !  Fill-in the index array, creating ordered couples
-      !
-      Do IIND = 2, NVAL, 2
-         If (XDONT(IIND-1) <= XDONT(IIND)) Then
-            IRNGT (IIND-1) = IIND - 1
-            IRNGT (IIND) = IIND
-         Else
-            IRNGT (IIND-1) = IIND
-            IRNGT (IIND) = IIND - 1
-         End If
-      End Do
-      If (Modulo(NVAL, 2) /= 0) Then
-         IRNGT (NVAL) = NVAL
-      End If
-      !
-      !  We will now have ordered subsets A - B - A - B - ...
-      !  and merge A and B couples into     C   -   C   - ...
-      !
-      LMTNA = 2
-      LMTNC = 4
-      !
-      !  First iteration. The length of the ordered subsets goes from 2 to 4
-      !
-      Do
-         If (NVAL <= 2) Exit
-         !
-         !   Loop on merges of A and B into C
-         !
-         Do IWRKD = 0, NVAL - 1, 4
-            If ((IWRKD+4) > NVAL) Then
-               If ((IWRKD+2) >= NVAL) Exit
-               !
-               !   1 2 3
-               !
-               If (XDONT(IRNGT(IWRKD+2)) <= XDONT(IRNGT(IWRKD+3))) Exit
-               !
-               !   1 3 2
-               !
-               If (XDONT(IRNGT(IWRKD+1)) <= XDONT(IRNGT(IWRKD+3))) Then
-                  IRNG2 = IRNGT (IWRKD+2)
-                  IRNGT (IWRKD+2) = IRNGT (IWRKD+3)
-                  IRNGT (IWRKD+3) = IRNG2
-                  !
-                  !   3 1 2
-                  !
-               Else
-                  IRNG1 = IRNGT (IWRKD+1)
-                  IRNGT (IWRKD+1) = IRNGT (IWRKD+3)
-                  IRNGT (IWRKD+3) = IRNGT (IWRKD+2)
-                  IRNGT (IWRKD+2) = IRNG1
-               End If
-               Exit
-            End If
-            !
-            !   1 2 3 4
-            !
-            If (XDONT(IRNGT(IWRKD+2)) <= XDONT(IRNGT(IWRKD+3))) Cycle
-            !
-            !   1 3 x x
-            !
-            If (XDONT(IRNGT(IWRKD+1)) <= XDONT(IRNGT(IWRKD+3))) Then
-               IRNG2 = IRNGT (IWRKD+2)
-               IRNGT (IWRKD+2) = IRNGT (IWRKD+3)
-               If (XDONT(IRNG2) <= XDONT(IRNGT(IWRKD+4))) Then
-                  !   1 3 2 4
-                  IRNGT (IWRKD+3) = IRNG2
-               Else
-                  !   1 3 4 2
-                  IRNGT (IWRKD+3) = IRNGT (IWRKD+4)
-                  IRNGT (IWRKD+4) = IRNG2
-               End If
-               !
-               !   3 x x x
-               !
-            Else
-               IRNG1 = IRNGT (IWRKD+1)
-               IRNG2 = IRNGT (IWRKD+2)
-               IRNGT (IWRKD+1) = IRNGT (IWRKD+3)
-               If (XDONT(IRNG1) <= XDONT(IRNGT(IWRKD+4))) Then
-                  IRNGT (IWRKD+2) = IRNG1
-                  If (XDONT(IRNG2) <= XDONT(IRNGT(IWRKD+4))) Then
-                     !   3 1 2 4
-                     IRNGT (IWRKD+3) = IRNG2
-                  Else
-                     !   3 1 4 2
-                     IRNGT (IWRKD+3) = IRNGT (IWRKD+4)
-                     IRNGT (IWRKD+4) = IRNG2
-                  End If
-               Else
-                  !   3 4 1 2
-                  IRNGT (IWRKD+2) = IRNGT (IWRKD+4)
-                  IRNGT (IWRKD+3) = IRNG1
-                  IRNGT (IWRKD+4) = IRNG2
-               End If
-            End If
-         End Do
-         !
-         !  The Cs become As and Bs
-         !
-         LMTNA = 4
-         Exit
-      End Do
-      !
-      !  Iteration loop. Each time, the length of the ordered subsets
-      !  is doubled.
-      !
-      Do
-         If (LMTNA >= NVAL) Exit
-         IWRKF = 0
-         LMTNC = 2 * LMTNC
-         !
-         !   Loop on merges of A and B into C
-         !
-         Do
-            IWRK = IWRKF
-            IWRKD = IWRKF + 1
-            JINDA = IWRKF + LMTNA
-            IWRKF = IWRKF + LMTNC
-            If (IWRKF >= NVAL) Then
-               If (JINDA >= NVAL) Exit
-               IWRKF = NVAL
-            End If
-            IINDA = 1
-            IINDB = JINDA + 1
-            !
-            !   Shortcut for the case when the max of A is smaller
-            !   than the min of B. This line may be activated when the
-            !   initial set is already close to sorted.
-            !
-            !          IF (XDONT(IRNGT(JINDA)) <= XDONT(IRNGT(IINDB))) CYCLE
-            !
-            !  One steps in the C subset, that we build in the final rank array
-            !
-            !  Make a copy of the rank array for the merge iteration
-            !
-            JWRKT (1:LMTNA) = IRNGT (IWRKD:JINDA)
-            !
-            XVALA = XDONT (JWRKT(IINDA))
-            XVALB = XDONT (IRNGT(IINDB))
-            !
-            Do
-               IWRK = IWRK + 1
-               !
-               !  We still have unprocessed values in both A and B
-               !
-               If (XVALA > XVALB) Then
-                  IRNGT (IWRK) = IRNGT (IINDB)
-                  IINDB = IINDB + 1
-                  If (IINDB > IWRKF) Then
-                     !  Only A still with unprocessed values
-                     IRNGT (IWRK+1:IWRKF) = JWRKT (IINDA:LMTNA)
-                     Exit
-                  End If
-                  XVALB = XDONT (IRNGT(IINDB))
-               Else
-                  IRNGT (IWRK) = JWRKT (IINDA)
-                  IINDA = IINDA + 1
-                  If (IINDA > LMTNA) Exit! Only B still with unprocessed values
-                  XVALA = XDONT (JWRKT(IINDA))
-               End If
-               !
-            End Do
-         End Do
-         !
-         !  The Cs become As and Bs
-         !
-         LMTNA = 2 * LMTNA
-      End Do
-      !
-      Return
-      !
-   End Subroutine R_mrgrnk
    Subroutine I_mrgrnk (XDONT, IRNGT)
       ! __________________________________________________________
       !   MRGRNK = Merge-sort ranking of an array
