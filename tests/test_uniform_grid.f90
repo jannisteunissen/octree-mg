@@ -28,7 +28,7 @@ program test_one_level
   type(mg_t)          :: mg
 
   n_args = command_argument_count()
-  if (n_args < NDIM+1 .and. n_args > NDIM+3) then
+  if (n_args < NDIM+1 .or. n_args > NDIM+3) then
      error stop "Usage: ./test_refinement box_size nx ny [nz] [n_its] [FMG?]"
   end if
 

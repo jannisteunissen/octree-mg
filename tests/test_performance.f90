@@ -24,7 +24,7 @@ program test_performance
   type(mg_t)          :: mg
 
   n_args = command_argument_count()
-  if (n_args < NDIM+2 .and. n_args > NDIM+3) then
+  if (n_args < NDIM+2 .or. n_args > NDIM+3) then
      error stop "Usage: ./test_uniform_grid box_size nx ny [nz] n_its [FMG?]"
   end if
 
