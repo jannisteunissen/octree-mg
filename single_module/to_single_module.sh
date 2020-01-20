@@ -111,3 +111,13 @@ echo "Generated $module_2d"
 
 gfortran -E -cpp -P -DNDIM=3 "$module_xd" -o "$module_3d"
 echo "Generated $module_3d"
+
+# Now generate a compatible module m_free_space
+module_free="m_free_space.f90"
+gfortran -E -cpp -P -DNDIM=3 "../src/m_free_space.f90" -o "$module_free"
+sed -i 's/use m_data_structures/use m_octree_mg_3d/g' "$module_free"
+sed -i 's/use m_multigrid.*//g' "$module_free"
+sed -i 's/use m_restrict.*//g' "$module_free"
+sed -i 's/use m_prolong.*//g' "$module_free"
+sed -i 's/use m_ghost_cells.*//g' "$module_free"
+echo "Generated $module_free"

@@ -30,7 +30,6 @@ You can either include a full copy of `octree-mg` using e.g. git submodules of s
   means stencils with diagonal elements are not possible.
 * Point-wise smoothers are employed, so currently a requirement is that dx, dy and dz are similar
 
-## TODO
+## Using the free-space solver in MPI-AMRVAC
 
-* Add test with refinement boundaries (is tested elsewhere already)
-* Provide better load balancing for stand-alone usage
+The "single-module" version of this library is included in [MPI-AMRVAC](http://amrvac.org/), but it does not include the free-space module. An example of how to do this can be found under [tests/multigrid/free_space_3d](https://github.com/amrvac/amrvac/tree/master/tests/multigrid/free_space_3d) in the MPI-AMRVAC folder, see in particular the file `local.make`.
