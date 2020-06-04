@@ -1,6 +1,6 @@
 #if NDIM == 1
 #define KJI_DO(lo,hi) i=lo,hi
-#define KJI_DO_VEC(hi) do i=1,hi(1)
+#define KJI_DO_VEC(hi) i=1,hi(1)
 #define CLOSE_DO
 #define IJK i
 #define DTIMES(TXT) TXT

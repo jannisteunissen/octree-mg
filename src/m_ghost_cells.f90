@@ -81,7 +81,9 @@ contains
     type(mg_t), intent(inout) :: mg
     integer, intent(in)       :: lvl
     integer, intent(in)       :: nc
-#if NDIM == 2
+#if NDIM == 1
+    real(dp)                  :: bc
+#elif NDIM == 2
     real(dp)                  :: bc(nc)
 #elif NDIM == 3
     real(dp)                  :: bc(nc, nc)
@@ -233,7 +235,9 @@ contains
     integer, intent(in)       :: nc
     integer, intent(in)       :: iv
     logical, intent(in)       :: dry_run
-#if NDIM == 2
+#if NDIM == 1
+    real(dp)                  :: bc
+#elif NDIM == 2
     real(dp)                  :: bc(nc)
 #elif NDIM == 3
     real(dp)                  :: bc(nc, nc)
@@ -287,7 +291,9 @@ contains
     integer, intent(in)       :: iv
     integer, intent(in)       :: nb
     logical, intent(in)       :: dry_run
-#if NDIM == 2
+#if NDIM == 1
+    real(dp)                  :: gc
+#elif NDIM == 2
     real(dp)                  :: gc(nc)
 #elif NDIM == 3
     real(dp)                  :: gc(nc, nc)
@@ -303,7 +309,11 @@ contains
     if (p_nb_rank /= mg%my_rank) then
        i = mg%buf(p_nb_rank)%i_recv
        if (.not. dry_run) then
+#if NDIM > 1
           gc = reshape(mg%buf(p_nb_rank)%recv(i+1:i+dsize), shape(gc))
+#else
+          gc = mg%buf(p_nb_rank)%recv(i+1)
+#endif
        end if
        mg%buf(p_nb_rank)%i_recv = mg%buf(p_nb_rank)%i_recv + dsize
     else if (.not. dry_run) then
@@ -327,7 +337,9 @@ contains
     integer, intent(in)           :: nb
     integer, intent(in)           :: nc
     integer, intent(in)           :: iv
-#if NDIM == 2
+#if NDIM == 1
+    real(dp)                      :: gc
+#elif NDIM == 2
     real(dp)                      :: gc(nc)
 #elif NDIM == 3
     real(dp)                      :: gc(nc, nc)
@@ -347,7 +359,9 @@ contains
     integer, intent(in)        :: nb
     logical, intent(in)        :: dry_run
     integer                    :: i, dsize
-#if NDIM == 2
+#if NDIM == 1
+    real(dp)                   :: gc
+#elif NDIM == 2
     real(dp)                   :: gc(nc)
 #elif NDIM == 3
     real(dp)                   :: gc(nc, nc)
@@ -358,7 +372,11 @@ contains
 
     if (.not. dry_run) then
        call box_gc_for_neighbor(box, nb, nc, iv, gc)
+#if NDIM > 1
        mg%buf(nb_rank)%send(i+1:i+dsize) = pack(gc, .true.)
+#else
+       mg%buf(nb_rank)%send(i+1:i+dsize) = gc
+#endif
     end if
 
     ! Later the buffer is sorted, using the fact that loops go from low to high
@@ -382,7 +400,9 @@ contains
     integer, intent(in)        :: nb
     logical, intent(in)        :: dry_run
     integer                    :: i, dsize, ix_offset(NDIM)
-#if NDIM == 2
+#if NDIM == 1
+    real(dp)                   :: gc
+#elif NDIM == 2
     real(dp)                   :: gc(nc)
 #elif NDIM == 3
     real(dp)                   :: gc(nc, nc)
@@ -394,7 +414,11 @@ contains
     if (.not. dry_run) then
        ix_offset = mg_get_child_offset(mg, fine_id)
        call box_gc_for_fine_neighbor(box, nb, ix_offset, nc, iv, gc)
+#if NDIM > 1
        mg%buf(fine_rank)%send(i+1:i+dsize) = pack(gc, .true.)
+#else
+       mg%buf(fine_rank)%send(i+1) = gc
+#endif
     end if
 
     ! Later the buffer is sorted, using the fact that loops go from low to high
@@ -418,7 +442,9 @@ contains
     integer, intent(in)        :: iv
     logical, intent(in)        :: dry_run
     integer                    :: i, dsize
-#if NDIM == 2
+#if NDIM == 1
+    real(dp)                   :: gc
+#elif NDIM == 2
     real(dp)                   :: gc(nc)
 #elif NDIM == 3
     real(dp)                   :: gc(nc, nc)
@@ -428,7 +454,11 @@ contains
     dsize = nc**(NDIM-1)
 
     if (.not. dry_run) then
+#if NDIM > 1
        gc = reshape(mg%buf(nb_rank)%recv(i+1:i+dsize), shape(gc))
+#else
+       gc = mg%buf(nb_rank)%recv(i+1)
+#endif
        call box_set_gc(box, nb, nc, iv, gc)
     end if
     mg%buf(nb_rank)%i_recv = mg%buf(nb_rank)%i_recv + dsize
@@ -438,14 +468,21 @@ contains
   subroutine box_gc_for_neighbor(box, nb, nc, iv, gc)
     type(mg_box_t), intent(in) :: box
     integer, intent(in)     :: nb, nc, iv
-#if NDIM == 2
+#if NDIM == 1
+    real(dp), intent(out)   :: gc
+#elif NDIM == 2
     real(dp), intent(out)   :: gc(nc)
 #elif NDIM == 3
     real(dp), intent(out)   :: gc(nc, nc)
 #endif
 
     select case (nb)
-#if NDIM == 2
+#if NDIM == 1
+    case (mg_neighb_lowx)
+       gc = box%cc(1, iv)
+    case (mg_neighb_highx)
+       gc = box%cc(nc, iv)
+#elif NDIM == 2
     case (mg_neighb_lowx)
        gc = box%cc(1, 1:nc, iv)
     case (mg_neighb_highx)
@@ -477,22 +514,30 @@ contains
     integer, intent(in)     :: nb       !< Direction of fine neighbor
     integer, intent(in)     :: di(NDIM) !< Index offset of fine neighbor
     integer, intent(in)     :: nc, iv
-#if NDIM == 2
+#if NDIM == 1
+    real(dp), intent(out)   :: gc
+    real(dp)                :: tmp
+    integer                 :: hnc
+#elif NDIM == 2
     real(dp), intent(out)   :: gc(nc)
-    real(dp)                :: tmp(0:nc/2+1)
+    real(dp)                :: tmp(0:nc/2+1), grad(NDIM-1)
     integer                 :: i, hnc
 #elif NDIM == 3
     real(dp), intent(out)   :: gc(nc, nc)
-    real(dp)                :: tmp(0:nc/2+1, 0:nc/2+1)
+    real(dp)                :: tmp(0:nc/2+1, 0:nc/2+1), grad(NDIM-1)
     integer                 :: i, j, hnc
 #endif
-    real(dp)                :: grad(NDIM-1)
 
     hnc = nc/2
 
     ! First fill a temporary array with data next to the fine grid
     select case (nb)
-#if NDIM == 2
+#if NDIM == 1
+    case (mg_neighb_lowx)
+       tmp = box%cc(1, iv)
+    case (mg_neighb_highx)
+       tmp = box%cc(nc, iv)
+#elif NDIM == 2
     case (mg_neighb_lowx)
        tmp = box%cc(1, di(2):di(2)+hnc+1, iv)
     case (mg_neighb_highx)
@@ -519,7 +564,9 @@ contains
 
     ! Now interpolate the coarse grid data to obtain values 'straight' next to
     ! the fine grid points
-#if NDIM == 2
+#if NDIM == 1
+    gc = tmp
+#elif NDIM == 2
     do i = 1, hnc
        grad(1) = 0.125_dp * (tmp(i+1) - tmp(i-1))
        gc(2*i-1) = tmp(i) - grad(1)
@@ -542,14 +589,21 @@ contains
   subroutine box_get_gc(box, nb, nc, iv, gc)
     type(mg_box_t), intent(in) :: box
     integer, intent(in)        :: nb, nc, iv
-#if NDIM == 2
+#if NDIM == 1
+    real(dp), intent(out)       :: gc
+#elif NDIM == 2
     real(dp), intent(out)       :: gc(nc)
 #elif NDIM == 3
     real(dp), intent(out)       :: gc(nc, nc)
 #endif
 
     select case (nb)
-#if NDIM == 2
+#if NDIM == 1
+    case (mg_neighb_lowx)
+       gc = box%cc(0, iv)
+    case (mg_neighb_highx)
+       gc = box%cc(nc+1, iv)
+#elif NDIM == 2
     case (mg_neighb_lowx)
        gc = box%cc(0, 1:nc, iv)
     case (mg_neighb_highx)
@@ -578,14 +632,21 @@ contains
   subroutine box_set_gc(box, nb, nc, iv, gc)
     type(mg_box_t), intent(inout) :: box
     integer, intent(in)        :: nb, nc, iv
-#if NDIM == 2
+#if NDIM == 1
+    real(dp), intent(in)       :: gc
+#elif NDIM == 2
     real(dp), intent(in)       :: gc(nc)
 #elif NDIM == 3
     real(dp), intent(in)       :: gc(nc, nc)
 #endif
 
     select case (nb)
-#if NDIM == 2
+#if NDIM == 1
+    case (mg_neighb_lowx)
+       box%cc(0, iv)    = gc
+    case (mg_neighb_highx)
+       box%cc(nc+1, iv) = gc
+#elif NDIM == 2
     case (mg_neighb_lowx)
        box%cc(0, 1:nc, iv)    = gc
     case (mg_neighb_highx)
@@ -647,7 +708,18 @@ contains
     end select
 
     select case (nb)
-#if NDIM == 2
+#if NDIM == 1
+    case (mg_neighb_lowx)
+       mg%boxes(id)%cc(0, iv) = &
+            c0 * mg%boxes(id)%cc(0, iv) + &
+            c1 * mg%boxes(id)%cc(1, iv) + &
+            c2 * mg%boxes(id)%cc(2, iv)
+    case (mg_neighb_highx)
+       mg%boxes(id)%cc(nc+1, iv) = &
+            c0 * mg%boxes(id)%cc(nc+1, iv) + &
+            c1 * mg%boxes(id)%cc(nc, iv) + &
+            c2 * mg%boxes(id)%cc(nc-1, iv)
+#elif NDIM == 2
     case (mg_neighb_lowx)
        mg%boxes(id)%cc(0, 1:nc, iv) = &
             c0 * mg%boxes(id)%cc(0, 1:nc, iv) + &
@@ -710,7 +782,9 @@ contains
     integer, intent(in)       :: iv
     integer, intent(in)       :: nb !< Ghost cell direction
     !> Interpolated coarse grid ghost cell data (but not yet in the nb direction)
-#if NDIM == 2
+#if NDIM == 1
+    real(dp), intent(in)      :: gc
+#elif NDIM == 2
     real(dp), intent(in)      :: gc(nc)
 #elif NDIM == 3
     real(dp), intent(in)      :: gc(nc, nc)
@@ -729,7 +803,12 @@ contains
     end if
 
     select case (mg_neighb_dim(nb))
-#if NDIM == 2
+#if NDIM == 1
+    case (1)
+       i = ix
+       di = dix
+       box%cc(i-di, iv) = (2 * gc + box%cc(i, iv))/3.0_dp
+#elif NDIM == 2
     case (1)
        i = ix
        di = dix

@@ -165,7 +165,10 @@ contains
     real(dp), intent(out)     :: fine(DTIMES(nc)) !< Prolonged values
 
     integer  :: IJK, hnc
-#if NDIM == 2
+#if NDIM == 1
+    integer  :: ic
+    real(dp) :: f0, flx, fhx
+#elif NDIM == 2
     integer  :: ic, jc
     real(dp) :: f0, flx, fhx, fly, fhy
 #elif NDIM == 3
@@ -176,7 +179,18 @@ contains
     hnc = nc/2
 
     associate (crs => mg%boxes(p_id)%cc)
-#if NDIM == 2
+#if NDIM == 1
+      do i = 1, hnc
+         ic = i + dix(1)
+
+         f0  = 0.5_dp * crs(ic, iv)
+         flx = 0.25_dp * crs(ic-1, iv)
+         fhx = 0.25_dp * crs(ic+1, iv)
+
+         fine(2*i-1)   = f0 + flx
+         fine(2*i  )   = f0 + fhx
+      end do
+#elif NDIM == 2
       do j = 1, hnc
          jc = j + dix(2)
          do i = 1, hnc

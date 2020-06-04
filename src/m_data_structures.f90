@@ -74,7 +74,36 @@ module m_data_structures
   !> Maximum number of timers to use
   integer, parameter, public :: mg_max_timers = 20
 
-#if NDIM == 2
+#if NDIM == 1
+  ! Numbering of children (same location as **corners**)
+  integer, parameter, public :: mg_num_children = 2
+
+  ! Index offset for each child
+  integer, parameter, public :: mg_child_dix(1, 2) = reshape([0,1], [1,2])
+  ! Reverse child index in each direction
+  integer, parameter, public :: mg_child_rev(2, 1) = reshape([2,1], [2,1])
+  ! Children adjacent to a neighbor
+  integer, parameter, public :: mg_child_adj_nb(1, 2) = reshape([1,2], [1,2])
+  ! Which children have a low index per dimension
+  logical, parameter, public :: mg_child_low(1, 2) = reshape([.true., .false.], [1, 2])
+
+  ! Neighbor topology information
+  integer, parameter, public :: mg_num_neighbors = 2
+  integer, parameter, public :: mg_neighb_lowx = 1
+  integer, parameter, public :: mg_neighb_highx = 2
+
+  ! Index offsets of neighbors
+  integer, parameter, public :: mg_neighb_dix(1, 2) = reshape([-1,1], [1,2])
+  ! Which neighbors have a lower index
+  logical, parameter, public :: mg_neighb_low(2) = [.true., .false.]
+  ! Opposite of nb_low, but now as -1,1 integers
+  integer, parameter, public :: mg_neighb_high_pm(2) = [-1, 1]
+
+  ! Reverse neighbors
+  integer, parameter, public :: mg_neighb_rev(2) = [2, 1]
+  ! Direction (dimension) for a neighbor
+  integer, parameter, public :: mg_neighb_dim(2) = [1, 1]
+#elif NDIM == 2
   ! Numbering of children (same location as **corners**)
   integer, parameter, public :: mg_num_children = 4
 
@@ -307,7 +336,9 @@ module m_data_structures
        integer, intent(in)     :: nb      !< Direction
        integer, intent(out)    :: bc_type !< Type of b.c.
        !> Boundary values
-#if NDIM == 2
+#if NDIM == 1
+       real(dp), intent(out)   :: bc
+#elif NDIM == 2
        real(dp), intent(out)   :: bc(nc)
 #elif NDIM == 3
        real(dp), intent(out)   :: bc(nc, nc)
@@ -322,7 +353,9 @@ module m_data_structures
        integer, intent(in)        :: iv !< Index of variable
        integer, intent(in)        :: nb !< Direction
        !> Coarse data
-#if NDIM == 2
+#if NDIM == 1
+       real(dp), intent(in)       :: cgc
+#elif NDIM == 2
        real(dp), intent(in)       :: cgc(nc)
 #elif NDIM == 3
        real(dp), intent(in)       :: cgc(nc, nc)
@@ -392,7 +425,9 @@ contains
   integer function mg_ix_to_ichild(ix)
     integer, intent(in) :: ix(NDIM) !< Spatial index of the box
     ! The index can range from 1 (all ix odd) and 2**$D (all ix even)
-#if NDIM == 2
+#if NDIM == 1
+    mg_ix_to_ichild = 2 - iand(ix(1), 1)
+#elif NDIM == 2
     mg_ix_to_ichild = 4 - 2 * iand(ix(2), 1) - iand(ix(1), 1)
 #elif NDIM == 3
     mg_ix_to_ichild = 8 - 4 * iand(ix(3), 1) - &
@@ -446,7 +481,9 @@ contains
     type(mg_box_t), intent(in) :: box
     integer, intent(in)        :: nb
     integer, intent(in)        :: nc
-#if NDIM == 2
+#if NDIM == 1
+    real(dp), intent(out)      :: x(2)
+#elif NDIM == 2
     real(dp), intent(out)      :: x(nc, 2)
     integer                    :: i
 #elif NDIM == 3
@@ -456,17 +493,23 @@ contains
     integer                    :: nb_dim, ixs(NDIM-1)
     real(dp)                   :: rmin(NDIM)
 
-    ! Determine directions perpendicular to neighbor
     nb_dim = mg_neighb_dim(nb)
-    ixs                     = [(i, i = 1, NDIM-1)]
+
+#if NDIM > 1
+    ! Determine directions perpendicular to neighbor
+    ixs = [(i, i = 1, NDIM-1)]
     ixs(nb_dim:) = ixs(nb_dim:) + 1
+#endif
 
     rmin = box%r_min
     if (.not. mg_neighb_low(nb)) then
        rmin(nb_dim) = rmin(nb_dim) + box%dr(nb_dim) * nc
     end if
 
-#if NDIM == 2
+#if NDIM == 1
+    x(1) = rmin(1)
+    x(2) = rmin(1) + box%dr(1) * nc
+#elif NDIM == 2
     do i = 1, nc
        x(i, :) = rmin
        x(i, ixs(1)) = x(i, ixs(1)) + (i-0.5d0) * box%dr(ixs(1))

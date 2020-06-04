@@ -70,7 +70,15 @@ contains
     ! The parity of redblack_cntr determines which cells we use. If
     ! redblack_cntr is even, we use the even cells and vice versa.
     associate (cc => mg%boxes(id)%cc, n => mg_iphi)
-#if NDIM == 2
+#if NDIM == 1
+      if (redblack) i0 = 2 - iand(redblack_cntr, 1)
+
+         do i = i0, nc, di
+            cc(i, n) = fac * ( &
+                 idr2(1) * (cc(i+1, n) + cc(i-1, n)) - &
+                 cc(i, mg_irhs))
+         end do
+#elif NDIM == 2
       do j = 1, nc
          if (redblack) &
               i0 = 2 - iand(ieor(redblack_cntr, j), 1)
@@ -112,7 +120,13 @@ contains
     idr2 = 1 / mg%dr(:, mg%boxes(id)%lvl)**2
 
     associate (cc => mg%boxes(id)%cc, n => mg_iphi)
-#if NDIM == 2
+#if NDIM == 1
+      do i = 1, nc
+         cc(i, i_out) = &
+              idr2(1) * (cc(i-1, n) + cc(i+1, n) - 2 * cc(i, n)) - &
+              helmholtz_lambda * cc(i, n)
+      end do
+#elif NDIM == 2
       do j = 1, nc
          do i = 1, nc
             cc(i, j, i_out) = &

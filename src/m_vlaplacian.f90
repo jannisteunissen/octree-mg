@@ -72,7 +72,19 @@ contains
     ! redblack_cntr is even, we use the even cells and vice versa.
     associate (cc => mg%boxes(id)%cc, n => mg_iphi, &
          i_eps => mg_iveps)
-#if NDIM == 2
+#if NDIM == 1
+      if (redblack) i0 = 2 - iand(redblack_cntr, 1)
+
+      do i = i0, nc, di
+         a0     = cc(i, i_eps)
+         u(1:2) = cc(i-1:i+1:2, n)
+         a(1:2) = cc(i-1:i+1:2, i_eps)
+         c(:)   = 2 * a0 * a(:) / (a0 + a(:)) * idr2
+
+         cc(i, n) = &
+              (sum(c(:) * u(:)) - cc(i, mg_irhs)) / sum(c(:))
+      end do
+#elif NDIM == 2
       do j = 1, nc
          if (redblack) &
               i0 = 2 - iand(ieor(redblack_cntr, j), 1)
@@ -128,7 +140,17 @@ contains
 
     associate (cc => mg%boxes(id)%cc, n => mg_iphi, &
          i_eps => mg_iveps)
-#if NDIM == 2
+#if NDIM == 1
+      do i = 1, nc
+         a0     = cc(i, i_eps)
+         a(1:2) = cc(i-1:i+1:2, i_eps)
+         u0     = cc(i, n)
+         u(1:2) = cc(i-1:i+1:2, n)
+
+         cc(i, i_out) = sum(2 * idr2 * &
+              a0*a(:)/(a0 + a(:)) * (u(:) - u0))
+      end do
+#elif NDIM == 2
       do j = 1, nc
          do i = 1, nc
             a0     = cc(i, j, i_eps)

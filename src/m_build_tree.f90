@@ -82,7 +82,9 @@ contains
 
     ! Create lowest level
     nx = boxes_per_dim(:, mg%lowest_lvl)
-#if NDIM == 2
+#if NDIM == 1
+    periodic_offset = [nx(1)-1]
+#elif NDIM == 2
     periodic_offset = [nx(1)-1, (nx(2)-1)*nx(1)]
 #elif NDIM == 3
     periodic_offset = [nx(1)-1, (nx(2)-1)*nx(1), &
@@ -104,7 +106,9 @@ contains
        mg%boxes(n)%children(:) = mg_no_box
 
        ! Set default neighbors
-#if NDIM == 2
+#if NDIM == 1
+       mg%boxes(n)%neighbors(:) = [n-1, n+1]
+#elif NDIM == 2
        mg%boxes(n)%neighbors(:) = [n-1, n+1, n-nx(1), n+nx(1)]
 #elif NDIM == 3
        mg%boxes(n)%neighbors(:) = [n-1, n+1, n-nx(1), n+nx(1), &
