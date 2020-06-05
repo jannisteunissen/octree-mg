@@ -2,7 +2,7 @@
 ! This file can be easier to include in existing projects.
 !
 ! Notes:
-! 1. The module name is here extended by _2d or _3d
+! 1. The module name is here extended by _1d, _2d or _3d
 ! 2. The free space Poisson solver is not included here.
 ! 3. It is best to make changes in the original repository at
 !    https://github.com/jannisteunissen/octree-mg
@@ -11,13 +11,14 @@
 !    ./to_single_module.sh
 !
 ! The modules can be compiled with:
+! mpif90 -c m_octree_mg_1d.f90 [other options]
 ! mpif90 -c m_octree_mg_2d.f90 [other options]
 ! mpif90 -c m_octree_mg_3d.f90 [other options]
-! mpif90 -c m_octree_mg.f90 -cpp -DNDIM=3 [other options]
+! mpif90 -c m_octree_mg.f90 -cpp -DNDIM=<1,2,3> [other options]
 
 #if NDIM == 1
 #define KJI_DO(lo,hi) i=lo,hi
-#define KJI_DO_VEC(hi) do i=1,hi(1)
+#define KJI_DO_VEC(hi) i=1,hi(1)
 #define CLOSE_DO
 #define IJK i
 #define DTIMES(TXT) TXT
@@ -35,7 +36,9 @@
 #define DTIMES(TXT) TXT, TXT, TXT
 #endif
 
-#if NDIM == 2
+#if NDIM == 1
+module m_octree_mg_1d
+#elif NDIM == 2
 module m_octree_mg_2d
 #elif NDIM == 3
 module m_octree_mg_3d
@@ -116,7 +119,36 @@ module m_octree_mg_3d
   !> Maximum number of timers to use
   integer, parameter, public :: mg_max_timers = 20
 
-#if NDIM == 2
+#if NDIM == 1
+  ! Numbering of children (same location as **corners**)
+  integer, parameter, public :: mg_num_children = 2
+
+  ! Index offset for each child
+  integer, parameter, public :: mg_child_dix(1, 2) = reshape([0,1], [1,2])
+  ! Reverse child index in each direction
+  integer, parameter, public :: mg_child_rev(2, 1) = reshape([2,1], [2,1])
+  ! Children adjacent to a neighbor
+  integer, parameter, public :: mg_child_adj_nb(1, 2) = reshape([1,2], [1,2])
+  ! Which children have a low index per dimension
+  logical, parameter, public :: mg_child_low(1, 2) = reshape([.true., .false.], [1, 2])
+
+  ! Neighbor topology information
+  integer, parameter, public :: mg_num_neighbors = 2
+  integer, parameter, public :: mg_neighb_lowx = 1
+  integer, parameter, public :: mg_neighb_highx = 2
+
+  ! Index offsets of neighbors
+  integer, parameter, public :: mg_neighb_dix(1, 2) = reshape([-1,1], [1,2])
+  ! Which neighbors have a lower index
+  logical, parameter, public :: mg_neighb_low(2) = [.true., .false.]
+  ! Opposite of nb_low, but now as -1,1 integers
+  integer, parameter, public :: mg_neighb_high_pm(2) = [-1, 1]
+
+  ! Reverse neighbors
+  integer, parameter, public :: mg_neighb_rev(2) = [2, 1]
+  ! Direction (dimension) for a neighbor
+  integer, parameter, public :: mg_neighb_dim(2) = [1, 1]
+#elif NDIM == 2
   ! Numbering of children (same location as **corners**)
   integer, parameter, public :: mg_num_children = 4
 
@@ -349,7 +381,9 @@ module m_octree_mg_3d
        integer, intent(in)     :: nb      !< Direction
        integer, intent(out)    :: bc_type !< Type of b.c.
        !> Boundary values
-#if NDIM == 2
+#if NDIM == 1
+       real(dp), intent(out)   :: bc(1)
+#elif NDIM == 2
        real(dp), intent(out)   :: bc(nc)
 #elif NDIM == 3
        real(dp), intent(out)   :: bc(nc, nc)
@@ -364,7 +398,9 @@ module m_octree_mg_3d
        integer, intent(in)        :: iv !< Index of variable
        integer, intent(in)        :: nb !< Direction
        !> Coarse data
-#if NDIM == 2
+#if NDIM == 1
+       real(dp), intent(in)       :: cgc(1)
+#elif NDIM == 2
        real(dp), intent(in)       :: cgc(nc)
 #elif NDIM == 3
        real(dp), intent(in)       :: cgc(nc, nc)
@@ -557,7 +593,9 @@ contains
   integer function mg_ix_to_ichild(ix)
     integer, intent(in) :: ix(NDIM) !< Spatial index of the box
     ! The index can range from 1 (all ix odd) and 2**$D (all ix even)
-#if NDIM == 2
+#if NDIM == 1
+    mg_ix_to_ichild = 2 - iand(ix(1), 1)
+#elif NDIM == 2
     mg_ix_to_ichild = 4 - 2 * iand(ix(2), 1) - iand(ix(1), 1)
 #elif NDIM == 3
     mg_ix_to_ichild = 8 - 4 * iand(ix(3), 1) - &
@@ -611,27 +649,35 @@ contains
     type(mg_box_t), intent(in) :: box
     integer, intent(in)        :: nb
     integer, intent(in)        :: nc
-#if NDIM == 2
+#if NDIM == 1
+    real(dp), intent(out)      :: x(2)
+#elif NDIM == 2
     real(dp), intent(out)      :: x(nc, 2)
-    integer                    :: i
+    integer                    :: i, ixs(NDIM-1)
 #elif NDIM == 3
     real(dp), intent(out)      :: x(nc, nc, 3)
-    integer                    :: i, j
+    integer                    :: i, j, ixs(NDIM-1)
 #endif
-    integer                    :: nb_dim, ixs(NDIM-1)
+    integer                    :: nb_dim
     real(dp)                   :: rmin(NDIM)
 
-    ! Determine directions perpendicular to neighbor
     nb_dim = mg_neighb_dim(nb)
-    ixs                     = [(i, i = 1, NDIM-1)]
+
+#if NDIM > 1
+    ! Determine directions perpendicular to neighbor
+    ixs = [(i, i = 1, NDIM-1)]
     ixs(nb_dim:) = ixs(nb_dim:) + 1
+#endif
 
     rmin = box%r_min
     if (.not. mg_neighb_low(nb)) then
        rmin(nb_dim) = rmin(nb_dim) + box%dr(nb_dim) * nc
     end if
 
-#if NDIM == 2
+#if NDIM == 1
+    x(1) = rmin(1)
+    x(2) = rmin(1) + box%dr(1) * nc
+#elif NDIM == 2
     do i = 1, nc
        x(i, :) = rmin
        x(i, ixs(1)) = x(i, ixs(1)) + (i-0.5d0) * box%dr(ixs(1))
@@ -949,7 +995,15 @@ contains
     ! The parity of redblack_cntr determines which cells we use. If
     ! redblack_cntr is even, we use the even cells and vice versa.
     associate (cc => mg%boxes(id)%cc, n => mg_iphi)
-#if NDIM == 2
+#if NDIM == 1
+      if (redblack) i0 = 2 - iand(redblack_cntr, 1)
+
+      do i = i0, nc, di
+         cc(i, n) = fac * ( &
+              idr2(1) * (cc(i+1, n) + cc(i-1, n)) - &
+              cc(i, mg_irhs))
+      end do
+#elif NDIM == 2
       do j = 1, nc
          if (redblack) &
               i0 = 2 - iand(ieor(redblack_cntr, j), 1)
@@ -1029,7 +1083,12 @@ contains
     idr2 = 1 / mg%dr(:, mg%boxes(id)%lvl)**2
 
     associate (cc => mg%boxes(id)%cc, n => mg_iphi)
-#if NDIM == 2
+#if NDIM == 1
+      do i = 1, nc
+            cc(i, i_out) = &
+                 idr2(1) * (cc(i-1, n) + cc(i+1, n) - 2 * cc(i, n))
+         end do
+#elif NDIM == 2
       do j = 1, nc
          do i = 1, nc
             cc(i, j, i_out) = &
@@ -1200,7 +1259,20 @@ contains
     ! redblack_cntr is even, we use the even cells and vice versa.
     associate (cc => mg%boxes(id)%cc, n => mg_iphi, &
          i_eps => mg_iveps)
-#if NDIM == 2
+#if NDIM == 1
+      if (redblack) i0 = 2 - iand(redblack_cntr, 1)
+
+      do i = i0, nc, di
+         a0     = cc(i, i_eps)
+         u(1:2) = cc(i-1:i+1:2, n)
+         a(1:2) = cc(i-1:i+1:2, i_eps)
+         c(:)   = 2 * a0 * a(:) / (a0 + a(:)) * idr2
+
+         cc(i, n) = &
+              (sum(c(:) * u(:)) - cc(i, mg_irhs)) / &
+              (sum(c(:)) + vhelmholtz_lambda)
+      end do
+#elif NDIM == 2
       do j = 1, nc
          if (redblack) &
               i0 = 2 - iand(ieor(redblack_cntr, j), 1)
@@ -1258,7 +1330,18 @@ contains
 
     associate (cc => mg%boxes(id)%cc, n => mg_iphi, &
          i_eps => mg_iveps)
-#if NDIM == 2
+#if NDIM == 1
+      do i = 1, nc
+         a0     = cc(i, i_eps)
+         a(1:2) = cc(i-1:i+1:2, i_eps)
+         u0     = cc(i, n)
+         u(1:2) = cc(i-1:i+1:2, n)
+
+         cc(i, i_out) = sum(2 * idr2 * &
+              a0*a(:)/(a0 + a(:)) * (u(:) - u0)) - &
+              vhelmholtz_lambda * u0
+      end do
+#elif NDIM == 2
       do j = 1, nc
          do i = 1, nc
             a0     = cc(i, j, i_eps)
@@ -1365,7 +1448,9 @@ contains
 
     ! Create lowest level
     nx = boxes_per_dim(:, mg%lowest_lvl)
-#if NDIM == 2
+#if NDIM == 1
+    periodic_offset = [nx(1)-1]
+#elif NDIM == 2
     periodic_offset = [nx(1)-1, (nx(2)-1)*nx(1)]
 #elif NDIM == 3
     periodic_offset = [nx(1)-1, (nx(2)-1)*nx(1), &
@@ -1387,7 +1472,9 @@ contains
        mg%boxes(n)%children(:) = mg_no_box
 
        ! Set default neighbors
-#if NDIM == 2
+#if NDIM == 1
+       mg%boxes(n)%neighbors(:) = [n-1, n+1]
+#elif NDIM == 2
        mg%boxes(n)%neighbors(:) = [n-1, n+1, n-nx(1), n+nx(1)]
 #elif NDIM == 3
        mg%boxes(n)%neighbors(:) = [n-1, n+1, n-nx(1), n+nx(1), &
@@ -1772,8 +1859,12 @@ contains
     end do
 
     ! Determine most popular CPU for coarse grids
-    coarse_rank = most_popular(mg%boxes(&
-         mg%lvls(single_cpu_lvl+1)%ids)%rank, my_work, mg%n_cpu)
+    if (single_cpu_lvl < mg%highest_lvl) then
+       coarse_rank = most_popular(mg%boxes(&
+            mg%lvls(single_cpu_lvl+1)%ids)%rank, my_work, mg%n_cpu)
+    else
+       coarse_rank = 0
+    end if
 
     do lvl = mg%lowest_lvl, single_cpu_lvl
        do i = 1, size(mg%lvls(lvl)%ids)
@@ -1825,8 +1916,12 @@ contains
     end do
 
     ! Determine most popular CPU for coarse grids
-    coarse_rank = most_popular(mg%boxes(&
-         mg%lvls(single_cpu_lvl+1)%ids)%rank, my_work, mg%n_cpu)
+    if (single_cpu_lvl < mg%highest_lvl) then
+       coarse_rank = most_popular(mg%boxes(&
+            mg%lvls(single_cpu_lvl+1)%ids)%rank, my_work, mg%n_cpu)
+    else
+       coarse_rank = 0
+    end if
 
     do lvl = mg%lowest_lvl, single_cpu_lvl
        do i = 1, size(mg%lvls(lvl)%ids)
@@ -1946,7 +2041,19 @@ contains
     ! redblack_cntr is even, we use the even cells and vice versa.
     associate (cc => mg%boxes(id)%cc, n => mg_iphi, &
          i_eps => mg_iveps)
-#if NDIM == 2
+#if NDIM == 1
+      if (redblack) i0 = 2 - iand(redblack_cntr, 1)
+
+      do i = i0, nc, di
+         a0     = cc(i, i_eps)
+         u(1:2) = cc(i-1:i+1:2, n)
+         a(1:2) = cc(i-1:i+1:2, i_eps)
+         c(:)   = 2 * a0 * a(:) / (a0 + a(:)) * idr2
+
+         cc(i, n) = &
+              (sum(c(:) * u(:)) - cc(i, mg_irhs)) / sum(c(:))
+      end do
+#elif NDIM == 2
       do j = 1, nc
          if (redblack) &
               i0 = 2 - iand(ieor(redblack_cntr, j), 1)
@@ -2002,7 +2109,17 @@ contains
 
     associate (cc => mg%boxes(id)%cc, n => mg_iphi, &
          i_eps => mg_iveps)
-#if NDIM == 2
+#if NDIM == 1
+      do i = 1, nc
+         a0     = cc(i, i_eps)
+         a(1:2) = cc(i-1:i+1:2, i_eps)
+         u0     = cc(i, n)
+         u(1:2) = cc(i-1:i+1:2, n)
+
+         cc(i, i_out) = sum(2 * idr2 * &
+              a0*a(:)/(a0 + a(:)) * (u(:) - u0))
+      end do
+#elif NDIM == 2
       do j = 1, nc
          do i = 1, nc
             a0     = cc(i, j, i_eps)
@@ -2288,7 +2405,9 @@ contains
     type(mg_t), intent(inout) :: mg
     integer, intent(in)       :: lvl
     integer, intent(in)       :: nc
-#if NDIM == 2
+#if NDIM == 1
+    real(dp)                  :: bc(1)
+#elif NDIM == 2
     real(dp)                  :: bc(nc)
 #elif NDIM == 3
     real(dp)                  :: bc(nc, nc)
@@ -2440,7 +2559,9 @@ contains
     integer, intent(in)       :: nc
     integer, intent(in)       :: iv
     logical, intent(in)       :: dry_run
-#if NDIM == 2
+#if NDIM == 1
+    real(dp)                  :: bc(1)
+#elif NDIM == 2
     real(dp)                  :: bc(nc)
 #elif NDIM == 3
     real(dp)                  :: bc(nc, nc)
@@ -2494,7 +2615,9 @@ contains
     integer, intent(in)       :: iv
     integer, intent(in)       :: nb
     logical, intent(in)       :: dry_run
-#if NDIM == 2
+#if NDIM == 1
+    real(dp)                  :: gc(1)
+#elif NDIM == 2
     real(dp)                  :: gc(nc)
 #elif NDIM == 3
     real(dp)                  :: gc(nc, nc)
@@ -2534,7 +2657,9 @@ contains
     integer, intent(in)           :: nb
     integer, intent(in)           :: nc
     integer, intent(in)           :: iv
-#if NDIM == 2
+#if NDIM == 1
+    real(dp)                      :: gc(1)
+#elif NDIM == 2
     real(dp)                      :: gc(nc)
 #elif NDIM == 3
     real(dp)                      :: gc(nc, nc)
@@ -2554,7 +2679,9 @@ contains
     integer, intent(in)        :: nb
     logical, intent(in)        :: dry_run
     integer                    :: i, dsize
-#if NDIM == 2
+#if NDIM == 1
+    real(dp)                   :: gc(1)
+#elif NDIM == 2
     real(dp)                   :: gc(nc)
 #elif NDIM == 3
     real(dp)                   :: gc(nc, nc)
@@ -2589,7 +2716,9 @@ contains
     integer, intent(in)        :: nb
     logical, intent(in)        :: dry_run
     integer                    :: i, dsize, ix_offset(NDIM)
-#if NDIM == 2
+#if NDIM == 1
+    real(dp)                   :: gc(1)
+#elif NDIM == 2
     real(dp)                   :: gc(nc)
 #elif NDIM == 3
     real(dp)                   :: gc(nc, nc)
@@ -2625,7 +2754,9 @@ contains
     integer, intent(in)        :: iv
     logical, intent(in)        :: dry_run
     integer                    :: i, dsize
-#if NDIM == 2
+#if NDIM == 1
+    real(dp)                   :: gc(1)
+#elif NDIM == 2
     real(dp)                   :: gc(nc)
 #elif NDIM == 3
     real(dp)                   :: gc(nc, nc)
@@ -2635,7 +2766,11 @@ contains
     dsize = nc**(NDIM-1)
 
     if (.not. dry_run) then
+#if NDIM > 1
        gc = reshape(mg%buf(nb_rank)%recv(i+1:i+dsize), shape(gc))
+#else
+       gc = mg%buf(nb_rank)%recv(i+1)
+#endif
        call box_set_gc(box, nb, nc, iv, gc)
     end if
     mg%buf(nb_rank)%i_recv = mg%buf(nb_rank)%i_recv + dsize
@@ -2645,14 +2780,21 @@ contains
   subroutine box_gc_for_neighbor(box, nb, nc, iv, gc)
     type(mg_box_t), intent(in) :: box
     integer, intent(in)     :: nb, nc, iv
-#if NDIM == 2
+#if NDIM == 1
+    real(dp), intent(out)   :: gc(1)
+#elif NDIM == 2
     real(dp), intent(out)   :: gc(nc)
 #elif NDIM == 3
     real(dp), intent(out)   :: gc(nc, nc)
 #endif
 
     select case (nb)
-#if NDIM == 2
+#if NDIM == 1
+    case (mg_neighb_lowx)
+       gc = box%cc(1, iv)
+    case (mg_neighb_highx)
+       gc = box%cc(nc, iv)
+#elif NDIM == 2
     case (mg_neighb_lowx)
        gc = box%cc(1, 1:nc, iv)
     case (mg_neighb_highx)
@@ -2684,22 +2826,30 @@ contains
     integer, intent(in)     :: nb       !< Direction of fine neighbor
     integer, intent(in)     :: di(NDIM) !< Index offset of fine neighbor
     integer, intent(in)     :: nc, iv
-#if NDIM == 2
+#if NDIM == 1
+    real(dp), intent(out)   :: gc(1)
+    real(dp)                :: tmp
+    integer                 :: hnc
+#elif NDIM == 2
     real(dp), intent(out)   :: gc(nc)
-    real(dp)                :: tmp(0:nc/2+1)
+    real(dp)                :: tmp(0:nc/2+1), grad(NDIM-1)
     integer                 :: i, hnc
 #elif NDIM == 3
     real(dp), intent(out)   :: gc(nc, nc)
-    real(dp)                :: tmp(0:nc/2+1, 0:nc/2+1)
+    real(dp)                :: tmp(0:nc/2+1, 0:nc/2+1), grad(NDIM-1)
     integer                 :: i, j, hnc
 #endif
-    real(dp)                :: grad(NDIM-1)
 
     hnc = nc/2
 
     ! First fill a temporary array with data next to the fine grid
     select case (nb)
-#if NDIM == 2
+#if NDIM == 1
+    case (mg_neighb_lowx)
+       tmp = box%cc(1, iv)
+    case (mg_neighb_highx)
+       tmp = box%cc(nc, iv)
+#elif NDIM == 2
     case (mg_neighb_lowx)
        tmp = box%cc(1, di(2):di(2)+hnc+1, iv)
     case (mg_neighb_highx)
@@ -2722,11 +2872,15 @@ contains
     case (mg_neighb_highz)
        tmp = box%cc(di(1):di(1)+hnc+1, di(2):di(2)+hnc+1, nc, iv)
 #endif
+    case default
+       error stop
     end select
 
     ! Now interpolate the coarse grid data to obtain values 'straight' next to
     ! the fine grid points
-#if NDIM == 2
+#if NDIM == 1
+    gc = tmp
+#elif NDIM == 2
     do i = 1, hnc
        grad(1) = 0.125_dp * (tmp(i+1) - tmp(i-1))
        gc(2*i-1) = tmp(i) - grad(1)
@@ -2749,14 +2903,21 @@ contains
   subroutine box_get_gc(box, nb, nc, iv, gc)
     type(mg_box_t), intent(in) :: box
     integer, intent(in)        :: nb, nc, iv
-#if NDIM == 2
+#if NDIM == 1
+    real(dp), intent(out)       :: gc(1)
+#elif NDIM == 2
     real(dp), intent(out)       :: gc(nc)
 #elif NDIM == 3
     real(dp), intent(out)       :: gc(nc, nc)
 #endif
 
     select case (nb)
-#if NDIM == 2
+#if NDIM == 1
+    case (mg_neighb_lowx)
+       gc = box%cc(0, iv)
+    case (mg_neighb_highx)
+       gc = box%cc(nc+1, iv)
+#elif NDIM == 2
     case (mg_neighb_lowx)
        gc = box%cc(0, 1:nc, iv)
     case (mg_neighb_highx)
@@ -2785,14 +2946,21 @@ contains
   subroutine box_set_gc(box, nb, nc, iv, gc)
     type(mg_box_t), intent(inout) :: box
     integer, intent(in)        :: nb, nc, iv
-#if NDIM == 2
+#if NDIM == 1
+    real(dp), intent(in)       :: gc(1)
+#elif NDIM == 2
     real(dp), intent(in)       :: gc(nc)
 #elif NDIM == 3
     real(dp), intent(in)       :: gc(nc, nc)
 #endif
 
     select case (nb)
-#if NDIM == 2
+#if NDIM == 1
+    case (mg_neighb_lowx)
+       box%cc(0, iv)    = gc(1)
+    case (mg_neighb_highx)
+       box%cc(nc+1, iv) = gc(1)
+#elif NDIM == 2
     case (mg_neighb_lowx)
        box%cc(0, 1:nc, iv)    = gc
     case (mg_neighb_highx)
@@ -2854,7 +3022,18 @@ contains
     end select
 
     select case (nb)
-#if NDIM == 2
+#if NDIM == 1
+    case (mg_neighb_lowx)
+       mg%boxes(id)%cc(0, iv) = &
+            c0 * mg%boxes(id)%cc(0, iv) + &
+            c1 * mg%boxes(id)%cc(1, iv) + &
+            c2 * mg%boxes(id)%cc(2, iv)
+    case (mg_neighb_highx)
+       mg%boxes(id)%cc(nc+1, iv) = &
+            c0 * mg%boxes(id)%cc(nc+1, iv) + &
+            c1 * mg%boxes(id)%cc(nc, iv) + &
+            c2 * mg%boxes(id)%cc(nc-1, iv)
+#elif NDIM == 2
     case (mg_neighb_lowx)
        mg%boxes(id)%cc(0, 1:nc, iv) = &
             c0 * mg%boxes(id)%cc(0, 1:nc, iv) + &
@@ -2917,15 +3096,17 @@ contains
     integer, intent(in)       :: iv
     integer, intent(in)       :: nb !< Ghost cell direction
     !> Interpolated coarse grid ghost cell data (but not yet in the nb direction)
-#if NDIM == 2
+#if NDIM == 1
+    real(dp), intent(in)      :: gc(1)
+    integer                   :: di
+#elif NDIM == 2
     real(dp), intent(in)      :: gc(nc)
+    integer                   :: di, dj
 #elif NDIM == 3
     real(dp), intent(in)      :: gc(nc, nc)
+    integer                   :: di, dj, dk
 #endif
-    integer                   :: IJK, ix, dix, di, dj
-#if NDIM == 3
-    integer                   :: dk
-#endif
+    integer                   :: IJK, ix, dix
 
     if (mg_neighb_low(nb)) then
        ix = 1
@@ -2936,7 +3117,12 @@ contains
     end if
 
     select case (mg_neighb_dim(nb))
-#if NDIM == 2
+#if NDIM == 1
+    case (1)
+       i = ix
+       di = dix
+       box%cc(i-di, iv) = (2 * gc(1) + box%cc(i, iv))/3.0_dp
+#elif NDIM == 2
     case (1)
        i = ix
        di = dix
@@ -3153,7 +3339,10 @@ contains
     real(dp), intent(out)     :: fine(DTIMES(nc)) !< Prolonged values
 
     integer  :: IJK, hnc
-#if NDIM == 2
+#if NDIM == 1
+    integer  :: ic
+    real(dp) :: f0, flx, fhx
+#elif NDIM == 2
     integer  :: ic, jc
     real(dp) :: f0, flx, fhx, fly, fhy
 #elif NDIM == 3
@@ -3164,7 +3353,18 @@ contains
     hnc = nc/2
 
     associate (crs => mg%boxes(p_id)%cc)
-#if NDIM == 2
+#if NDIM == 1
+      do i = 1, hnc
+         ic = i + dix(1)
+
+         f0  = 0.75_dp * crs(ic, iv)
+         flx = 0.25_dp * crs(ic-1, iv)
+         fhx = 0.25_dp * crs(ic+1, iv)
+
+         fine(2*i-1)   = f0 + flx
+         fine(2*i  )   = f0 + fhx
+      end do
+#elif NDIM == 2
       do j = 1, hnc
          jc = j + dix(2)
          do i = 1, hnc
@@ -3270,7 +3470,15 @@ contains
     ! The parity of redblack_cntr determines which cells we use. If
     ! redblack_cntr is even, we use the even cells and vice versa.
     associate (cc => mg%boxes(id)%cc, n => mg_iphi)
-#if NDIM == 2
+#if NDIM == 1
+      if (redblack) i0 = 2 - iand(redblack_cntr, 1)
+
+         do i = i0, nc, di
+            cc(i, n) = fac * ( &
+                 idr2(1) * (cc(i+1, n) + cc(i-1, n)) - &
+                 cc(i, mg_irhs))
+         end do
+#elif NDIM == 2
       do j = 1, nc
          if (redblack) &
               i0 = 2 - iand(ieor(redblack_cntr, j), 1)
@@ -3312,7 +3520,13 @@ contains
     idr2 = 1 / mg%dr(:, mg%boxes(id)%lvl)**2
 
     associate (cc => mg%boxes(id)%cc, n => mg_iphi)
-#if NDIM == 2
+#if NDIM == 1
+      do i = 1, nc
+         cc(i, i_out) = &
+              idr2(1) * (cc(i-1, n) + cc(i+1, n) - 2 * cc(i, n)) - &
+              helmholtz_lambda * cc(i, n)
+      end do
+#elif NDIM == 2
       do j = 1, nc
          do i = 1, nc
             cc(i, j, i_out) = &
@@ -3882,7 +4096,12 @@ contains
     p_rank = mg%boxes(p_id)%rank
 
     if (p_rank /= mg%my_rank) then
-#if NDIM == 2
+#if NDIM == 1
+       do i = 1, hnc
+          tmp(i) = 0.5_dp * &
+               sum(mg%boxes(id)%cc(2*i-1:2*i, iv))
+       end do
+#elif NDIM == 2
        do j = 1, hnc
           do i = 1, hnc
              tmp(i, j) = 0.25_dp * &
@@ -3933,7 +4152,10 @@ contains
 
        if (c_rank == mg%my_rank) then
           do KJI_DO(1, hnc)
-#if NDIM == 2
+#if NDIM == 1
+             mg%boxes(id)%cc(dix(1)+i, iv) = 0.5_dp * &
+                  sum(mg%boxes(c_id)%cc(2*i-1:2*i, iv))
+#elif NDIM == 2
              mg%boxes(id)%cc(dix(1)+i, dix(2)+j, iv) = 0.25_dp * &
                   sum(mg%boxes(c_id)%cc(2*i-1:2*i, 2*j-1:2*j, iv))
 #elif NDIM == 3
@@ -3944,7 +4166,10 @@ contains
           end do; CLOSE_DO
        else
           i = mg%buf(c_rank)%i_recv
-#if NDIM == 2
+#if NDIM == 1
+          mg%boxes(id)%cc(dix(1)+1:dix(1)+hnc, iv) = &
+               reshape(mg%buf(c_rank)%recv(i+1:i+dsize), [hnc])
+#elif NDIM == 2
           mg%boxes(id)%cc(dix(1)+1:dix(1)+hnc, &
                dix(2)+1:dix(2)+hnc, iv) = &
                reshape(mg%buf(c_rank)%recv(i+1:i+dsize), [hnc, hnc])
@@ -4161,7 +4386,9 @@ contains
       !
    End Subroutine I_mrgrnk
 
-#if NDIM == 2
+#if NDIM == 1
+end module m_octree_mg_1d
+#elif NDIM == 2
 end module m_octree_mg_2d
 #elif NDIM == 3
 end module m_octree_mg_3d

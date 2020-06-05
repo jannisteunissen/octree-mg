@@ -3,6 +3,8 @@ program test_refinement
   use mpi
 #ifndef SINGLE_MODULE
   use m_octree_mg
+#elif NDIM == 1
+  use m_octree_mg_1d
 #elif NDIM == 2
   use m_octree_mg_2d
 #elif NDIM == 3

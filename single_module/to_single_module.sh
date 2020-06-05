@@ -13,6 +13,7 @@ modules="../src/m_data_structures.f90 ../src/m_allocate_storage.f90
 
 # Name of the new modules
 module_xd="m_octree_mg.f90"
+module_1d="m_octree_mg_1d.f90"
 module_2d="m_octree_mg_2d.f90"
 module_3d="m_octree_mg_3d.f90"
 newline=$'\n'
@@ -60,7 +61,7 @@ echo '! Single module generated from the octree-mg sources.
 ! This file can be easier to include in existing projects.
 !
 ! Notes:
-! 1. The module name is here extended by _2d or _3d
+! 1. The module name is here extended by _1d, _2d or _3d
 ! 2. The free space Poisson solver is not included here.
 ! 3. It is best to make changes in the original repository at
 !    https://github.com/jannisteunissen/octree-mg
@@ -69,9 +70,10 @@ echo '! Single module generated from the octree-mg sources.
 !    ./to_single_module.sh
 !
 ! The modules can be compiled with:
+! mpif90 -c m_octree_mg_1d.f90 [other options]
 ! mpif90 -c m_octree_mg_2d.f90 [other options]
 ! mpif90 -c m_octree_mg_3d.f90 [other options]
-! mpif90 -c m_octree_mg.f90 -cpp -DNDIM=3 [other options]
+! mpif90 -c m_octree_mg.f90 -cpp -DNDIM=<1,2,3> [other options]
 ' > "$module_xd"
 
 # Copy in preprocessor directives
@@ -79,7 +81,9 @@ cat "../src/cpp_macros.h" >> "$module_xd"
 
 # Beginning of the module
 echo '
-#if NDIM == 2
+#if NDIM == 1
+module m_octree_mg_1d
+#elif NDIM == 2
 module m_octree_mg_2d
 #elif NDIM == 3
 module m_octree_mg_3d
@@ -98,14 +102,19 @@ echo "$code" >> "$module_xd"
 
 # Close the module
 echo '
-#if NDIM == 2
+#if NDIM == 1
+end module m_octree_mg_1d
+#elif NDIM == 2
 end module m_octree_mg_2d
 #elif NDIM == 3
 end module m_octree_mg_3d
 #endif' >> "$module_xd"
 echo "Generated $module_xd"
 
-# Generate 2D and 3D versions
+# Generate 1D, 2D and 3D versions
+gfortran -E -cpp -P -DNDIM=1 "$module_xd" -o "$module_1d"
+echo "Generated $module_1d"
+
 gfortran -E -cpp -P -DNDIM=2 "$module_xd" -o "$module_2d"
 echo "Generated $module_2d"
 
