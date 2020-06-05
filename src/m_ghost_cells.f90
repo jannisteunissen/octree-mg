@@ -548,6 +548,8 @@ contains
     case (mg_neighb_highz)
        tmp = box%cc(di(1):di(1)+hnc+1, di(2):di(2)+hnc+1, nc, iv)
 #endif
+    case default
+       error stop
     end select
 
     ! Now interpolate the coarse grid data to obtain values 'straight' next to
@@ -772,15 +774,15 @@ contains
     !> Interpolated coarse grid ghost cell data (but not yet in the nb direction)
 #if NDIM == 1
     real(dp), intent(in)      :: gc(1)
+    integer                   :: di
 #elif NDIM == 2
     real(dp), intent(in)      :: gc(nc)
+    integer                   :: di, dj
 #elif NDIM == 3
     real(dp), intent(in)      :: gc(nc, nc)
+    integer                   :: di, dj, dk
 #endif
-    integer                   :: IJK, ix, dix, di, dj
-#if NDIM == 3
-    integer                   :: dk
-#endif
+    integer                   :: IJK, ix, dix
 
     if (mg_neighb_low(nb)) then
        ix = 1

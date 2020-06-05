@@ -485,12 +485,12 @@ contains
     real(dp), intent(out)      :: x(2)
 #elif NDIM == 2
     real(dp), intent(out)      :: x(nc, 2)
-    integer                    :: i
+    integer                    :: i, ixs(NDIM-1)
 #elif NDIM == 3
     real(dp), intent(out)      :: x(nc, nc, 3)
-    integer                    :: i, j
+    integer                    :: i, j, ixs(NDIM-1)
 #endif
-    integer                    :: nb_dim, ixs(NDIM-1)
+    integer                    :: nb_dim
     real(dp)                   :: rmin(NDIM)
 
     nb_dim = mg_neighb_dim(nb)
