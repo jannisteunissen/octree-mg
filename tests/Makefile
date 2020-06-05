@@ -1,4 +1,4 @@
-PROGS_1D := test_uniform_grid_1d
+PROGS_1D := test_uniform_grid_1d test_performance_1d test_refinement_1d
 PROGS_2D := test_uniform_grid_2d test_performance_2d test_refinement_2d
 PROGS_3D := test_uniform_grid_3d test_performance_3d test_free_space_3d test_refinement_3d
 LIBS = omg

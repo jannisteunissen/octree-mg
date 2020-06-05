@@ -31,7 +31,8 @@ program test_one_level
 
   n_args = command_argument_count()
   if (n_args < NDIM+1 .or. n_args > NDIM+3) then
-     error stop "Usage: ./test_uniform_grid box_size nx ny [nz] [n_its] [FMG?]"
+     error stop "Usage: ./test_uniform_grid box_size domain_size(NDIM)" &
+          // " [n_its] [FMG?]"
   end if
 
   call get_command_argument(1, arg_string)

@@ -28,7 +28,8 @@ program test_refinement
 
   n_args = command_argument_count()
   if (n_args < NDIM+2 .or. n_args > NDIM+4) then
-     error stop "Usage: ./test_refinement n_levels box_size nx ny [nz] [n_its] [FMG?]"
+     error stop "Usage: ./test_refinement n_levels box_size domain_size(NDIM)" &
+          // " [n_its] [FMG?]"
   end if
 
   call get_command_argument(1, arg_string)
@@ -88,10 +89,11 @@ program test_refinement
   t1 = mpi_wtime()
 
   if (mg%my_rank == 0) then
-     do lvl = 1, mg%highest_lvl
-        write(*, '(A,I0,A,I0,A,I0,A)') " lvl_", lvl, ": ", &
+     do lvl = mg%lowest_lvl, mg%highest_lvl
+        write(*, '(A,I0,A,I0,A,I0,A,I0)') " lvl_", lvl, ": ", &
              size(mg%lvls(lvl)%ids), " boxes, ", &
-             size(mg%lvls(lvl)%leaves), " leaves"
+             size(mg%lvls(lvl)%leaves), " leaves, box size: ", &
+             mg%box_size_lvl(lvl)
      end do
 
      if (fmg_cycle) then
