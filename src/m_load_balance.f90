@@ -115,8 +115,12 @@ contains
     end do
 
     ! Determine most popular CPU for coarse grids
-    coarse_rank = most_popular(mg%boxes(&
-         mg%lvls(single_cpu_lvl+1)%ids)%rank, my_work, mg%n_cpu)
+    if (single_cpu_lvl < mg%highest_lvl) then
+       coarse_rank = most_popular(mg%boxes(&
+            mg%lvls(single_cpu_lvl+1)%ids)%rank, my_work, mg%n_cpu)
+    else
+       coarse_rank = 0
+    end if
 
     do lvl = mg%lowest_lvl, single_cpu_lvl
        do i = 1, size(mg%lvls(lvl)%ids)
@@ -168,8 +172,12 @@ contains
     end do
 
     ! Determine most popular CPU for coarse grids
-    coarse_rank = most_popular(mg%boxes(&
-         mg%lvls(single_cpu_lvl+1)%ids)%rank, my_work, mg%n_cpu)
+    if (single_cpu_lvl < mg%highest_lvl) then
+       coarse_rank = most_popular(mg%boxes(&
+            mg%lvls(single_cpu_lvl+1)%ids)%rank, my_work, mg%n_cpu)
+    else
+       coarse_rank = 0
+    end if
 
     do lvl = mg%lowest_lvl, single_cpu_lvl
        do i = 1, size(mg%lvls(lvl)%ids)
