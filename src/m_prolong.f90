@@ -183,7 +183,7 @@ contains
       do i = 1, hnc
          ic = i + dix(1)
 
-         f0  = 0.5_dp * crs(ic, iv)
+         f0  = 0.75_dp * crs(ic, iv)
          flx = 0.25_dp * crs(ic-1, iv)
          fhx = 0.25_dp * crs(ic+1, iv)
 
