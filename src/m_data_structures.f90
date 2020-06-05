@@ -337,7 +337,7 @@ module m_data_structures
        integer, intent(out)    :: bc_type !< Type of b.c.
        !> Boundary values
 #if NDIM == 1
-       real(dp), intent(out)   :: bc
+       real(dp), intent(out)   :: bc(1)
 #elif NDIM == 2
        real(dp), intent(out)   :: bc(nc)
 #elif NDIM == 3
@@ -354,7 +354,7 @@ module m_data_structures
        integer, intent(in)        :: nb !< Direction
        !> Coarse data
 #if NDIM == 1
-       real(dp), intent(in)       :: cgc
+       real(dp), intent(in)       :: cgc(1)
 #elif NDIM == 2
        real(dp), intent(in)       :: cgc(nc)
 #elif NDIM == 3
