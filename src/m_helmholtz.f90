@@ -52,9 +52,6 @@ contains
     integer                   :: IJK, i0, di
     real(dp)                  :: idr2(NDIM), fac
     logical                   :: redblack
-#if NDIM == 3
-    real(dp), parameter       :: sixth = 1/6.0_dp
-#endif
 
     idr2 = 1/mg%dr(:, mg%boxes(id)%lvl)**2
     fac = 1.0_dp / (2 * sum(idr2) + helmholtz_lambda)
