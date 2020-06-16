@@ -13,6 +13,12 @@ contains
   subroutine laplacian_set_methods(mg)
     type(mg_t), intent(inout) :: mg
 
+    if (all(mg%periodic)) then
+       ! For a fully periodic Laplacian, remove the mean from the rhs and phi so
+       ! that a unique and periodic solution can be found
+       mg%subtract_mean = .true.
+    end if
+
     select case (mg%geometry_type)
     case (mg_cartesian)
        mg%box_op => box_lpl

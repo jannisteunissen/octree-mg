@@ -25,6 +25,8 @@ contains
        mg%n_extra_vars = max(1, mg%n_extra_vars)
     end if
 
+    mg%subtract_mean = .false.
+
     ! Use Neumann zero boundary conditions for the variable coefficient, since
     ! it is needed in ghost cells.
     mg%bc(:, mg_iveps)%bc_type = mg_bc_neumann

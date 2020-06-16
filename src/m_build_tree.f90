@@ -33,10 +33,6 @@ contains
     if (any(modulo(domain_size, box_size) /= 0)) &
          error stop "box_size does not divide domain_size"
 
-    if (all(periodic)) then
-       mg%subtract_mean = .true.
-    end if
-
     nx                       = domain_size
     mg%box_size              = box_size
     mg%box_size_lvl(1)       = box_size
@@ -44,6 +40,7 @@ contains
     mg%first_normal_lvl      = 1
     mg%dr(:, 1)              = dx
     mg%r_min(:)              = r_min
+    mg%periodic              = periodic
     boxes_per_dim(:, :)      = 0
     boxes_per_dim(:, 1)      = domain_size / box_size
 

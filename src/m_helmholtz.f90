@@ -18,6 +18,8 @@ contains
   subroutine helmholtz_set_methods(mg)
     type(mg_t), intent(inout) :: mg
 
+    mg%subtract_mean = .false.
+
     select case (mg%geometry_type)
     case (mg_cartesian)
        mg%box_op => box_helmh

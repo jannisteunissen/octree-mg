@@ -285,6 +285,9 @@ module m_data_structures
      !> Whether boundary condition data has been stored for mg solution
      logical :: phi_bc_data_stored = .false.
 
+     !> Whether a dimension is periodic
+     logical :: periodic(NDIM) = .false.
+
      !> To store pre-defined boundary conditions per direction per variable
      type(mg_bc_t) :: bc(mg_num_neighbors, mg_max_num_vars)
 
