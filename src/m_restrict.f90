@@ -125,7 +125,12 @@ contains
     p_rank = mg%boxes(p_id)%rank
 
     if (p_rank /= mg%my_rank) then
-#if NDIM == 2
+#if NDIM == 1
+       do i = 1, hnc
+          tmp(i) = 0.5_dp * &
+               sum(mg%boxes(id)%cc(2*i-1:2*i, iv))
+       end do
+#elif NDIM == 2
        do j = 1, hnc
           do i = 1, hnc
              tmp(i, j) = 0.25_dp * &
@@ -176,7 +181,10 @@ contains
 
        if (c_rank == mg%my_rank) then
           do KJI_DO(1, hnc)
-#if NDIM == 2
+#if NDIM == 1
+             mg%boxes(id)%cc(dix(1)+i, iv) = 0.5_dp * &
+                  sum(mg%boxes(c_id)%cc(2*i-1:2*i, iv))
+#elif NDIM == 2
              mg%boxes(id)%cc(dix(1)+i, dix(2)+j, iv) = 0.25_dp * &
                   sum(mg%boxes(c_id)%cc(2*i-1:2*i, 2*j-1:2*j, iv))
 #elif NDIM == 3
@@ -187,7 +195,10 @@ contains
           end do; CLOSE_DO
        else
           i = mg%buf(c_rank)%i_recv
-#if NDIM == 2
+#if NDIM == 1
+          mg%boxes(id)%cc(dix(1)+1:dix(1)+hnc, iv) = &
+               reshape(mg%buf(c_rank)%recv(i+1:i+dsize), [hnc])
+#elif NDIM == 2
           mg%boxes(id)%cc(dix(1)+1:dix(1)+hnc, &
                dix(2)+1:dix(2)+hnc, iv) = &
                reshape(mg%buf(c_rank)%recv(i+1:i+dsize), [hnc, hnc])

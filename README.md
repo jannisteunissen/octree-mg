@@ -6,6 +6,8 @@ quadtree/octree grids, which can be used to solve elliptic PDEs such as
 Poissons's equation. The provided solvers can be used in existing
 adaptive-mesh-refinement (AMR) frameworks that employ quadtree/octree grids.
 
+The code is described in detail in the publication [A geometric multigrid library for quadtree/octree AMR grids coupled to MPI-AMRVAC](https://doi.org/10.1016/j.cpc.2019.106866), also available at [arXiv](https://arxiv.org/abs/1901.11370).
+
 ## Usage
 
 Type `make` in the top folder, and run the programs in the `tests` folder.

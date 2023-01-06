@@ -13,6 +13,12 @@ contains
   subroutine laplacian_set_methods(mg)
     type(mg_t), intent(inout) :: mg
 
+    if (all(mg%periodic)) then
+       ! For a fully periodic Laplacian, remove the mean from the rhs and phi so
+       ! that a unique and periodic solution can be found
+       mg%subtract_mean = .true.
+    end if
+
     select case (mg%geometry_type)
     case (mg_cartesian)
        mg%box_op => box_lpl
@@ -69,7 +75,15 @@ contains
     ! The parity of redblack_cntr determines which cells we use. If
     ! redblack_cntr is even, we use the even cells and vice versa.
     associate (cc => mg%boxes(id)%cc, n => mg_iphi)
-#if NDIM == 2
+#if NDIM == 1
+      if (redblack) i0 = 2 - iand(redblack_cntr, 1)
+
+      do i = i0, nc, di
+         cc(i, n) = fac * ( &
+              idr2(1) * (cc(i+1, n) + cc(i-1, n)) - &
+              cc(i, mg_irhs))
+      end do
+#elif NDIM == 2
       do j = 1, nc
          if (redblack) &
               i0 = 2 - iand(ieor(redblack_cntr, j), 1)
@@ -149,7 +163,12 @@ contains
     idr2 = 1 / mg%dr(:, mg%boxes(id)%lvl)**2
 
     associate (cc => mg%boxes(id)%cc, n => mg_iphi)
-#if NDIM == 2
+#if NDIM == 1
+      do i = 1, nc
+            cc(i, i_out) = &
+                 idr2(1) * (cc(i-1, n) + cc(i+1, n) - 2 * cc(i, n))
+         end do
+#elif NDIM == 2
       do j = 1, nc
          do i = 1, nc
             cc(i, j, i_out) = &

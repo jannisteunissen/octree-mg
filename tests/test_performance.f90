@@ -3,6 +3,8 @@ program test_performance
   use mpi
 #ifndef SINGLE_MODULE
   use m_octree_mg
+#elif NDIM == 1
+  use m_octree_mg_1d
 #elif NDIM == 2
   use m_octree_mg_2d
 #elif NDIM == 3
@@ -25,7 +27,7 @@ program test_performance
 
   n_args = command_argument_count()
   if (n_args < NDIM+2 .or. n_args > NDIM+3) then
-     error stop "Usage: ./test_uniform_grid box_size nx ny [nz] n_its [FMG?]"
+     error stop "Usage: ./test_uniform_grid box_size domain_size(NDIM) n_its [FMG?]"
   end if
 
   call get_command_argument(1, arg_string)
