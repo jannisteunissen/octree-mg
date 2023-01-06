@@ -60,9 +60,15 @@ program test_one_level
   mg%operator_type = mg_laplacian
   mg%smoother_type = mg_smoother_gs
 
+  ! This sets Dirichlet zero boundary conditions
+  ! do n = 1, mg_num_neighbors
+  !    mg%bc(n, mg_iphi)%bc_type = mg_bc_dirichlet
+  !    mg%bc(n, mg_iphi)%bc_value = 1.0_dp
+  ! end do
+
+  ! This specifies a function for the boundary conditions
   do n = 1, mg_num_neighbors
-     mg%bc(n, mg_iphi)%bc_type = mg_bc_dirichlet
-     mg%bc(n, mg_iphi)%bc_value = 0.0_dp
+     mg%bc(n, mg_iphi)%boundary_cond => my_boundary_condition
   end do
 
   call mg_set_methods(mg)
@@ -120,10 +126,15 @@ program test_one_level
 
 contains
 
+  real(dp) function solution(r)
+    real(dp), intent(in) :: r(NDIM)
+    solution = product(sin(2 * pi * n_modes * r))
+  end function solution
+
   subroutine set_solution(mg)
     type(mg_t), intent(inout) :: mg
     integer                   :: n, id, lvl, nc, IJK
-    real(dp)                  :: r(NDIM), sol
+    real(dp)                  :: r(NDIM)
 
     do lvl = mg%lowest_lvl, mg%highest_lvl
        nc = mg%box_size_lvl(lvl)
@@ -131,8 +142,7 @@ contains
           id = mg%lvls(lvl)%my_ids(n)
           do KJI_DO(0, nc+1)
              r = mg%boxes(id)%r_min + ([IJK] - 0.5_dp) * mg%dr(:, lvl)
-             sol = product(sin(2 * pi * n_modes * r))
-             mg%boxes(id)%cc(IJK, i_sol) = sol
+             mg%boxes(id)%cc(IJK, i_sol) = solution(r)
              mg%boxes(id)%cc(IJK, i_eps) = max(1.0_dp, 1.0_dp + r(1))
           end do; CLOSE_DO
        end do
@@ -160,9 +170,10 @@ contains
     type(mg_t), intent(inout) :: mg
     integer, intent(in)       :: it
     integer                   :: n, nc, id, lvl, IJK, ierr
-    real(dp)                  :: sol, val, err, max_err
+    real(dp)                  :: sol, val, err, max_err, res, max_res
 
     err = 0.0_dp
+    res = 0.0_dp
 
     do lvl = mg%highest_lvl, mg%highest_lvl
        nc = mg%box_size_lvl(lvl)
@@ -172,7 +183,7 @@ contains
              sol = mg%boxes(id)%cc(IJK, i_sol)
              val = mg%boxes(id)%cc(IJK, mg_iphi)
              err = max(err, abs(val-sol))
-             ! err = max(err, abs(mg%boxes(id)%cc(IJK, mg_ires)))
+             res = max(res, abs(mg%boxes(id)%cc(IJK, mg_ires)))
              ! print *, lvl, id, i, j, sol, val, abs(sol-val)
           end do; CLOSE_DO
        end do
@@ -180,7 +191,43 @@ contains
 
     call mpi_reduce(err, max_err, 1, MPI_DOUBLE, MPI_MAX, 0, &
          mpi_comm_world, ierr)
-    if (mg%my_rank == 0) print *, it, "max err", max_err
+    call mpi_reduce(res, max_res, 1, MPI_DOUBLE, MPI_MAX, 0, &
+         mpi_comm_world, ierr)
+    if (mg%my_rank == 0) write(*, "(I4,A,E12.4,A,E12.4)") it, &
+         "  max solution error", max_err, &
+         "  max residual", max_res
   end subroutine print_error
+
+  subroutine my_boundary_condition(box, nc, iv, nb, bc_type, bc)
+    type(mg_box_t), intent(in) :: box
+    integer, intent(in)        :: nc
+    integer, intent(in)        :: iv         !< Index of variable
+    integer, intent(in)        :: nb         !< Direction
+    integer, intent(out)       :: bc_type    !< Type of b.c.
+#if NDIM == 2
+    real(dp), intent(out)      :: bc(nc)     !< Boundary values
+    real(dp)                   :: x(nc, 2)
+    integer                    :: i
+#elif NDIM == 3
+    real(dp), intent(out)      :: bc(nc, nc) !< Boundary values
+    real(dp)                   :: x(nc, nc, 3)
+    integer                    :: i, j
+#endif
+
+    call mg_get_face_coords(box, nb, nc, x)
+    bc_type = mg_bc_dirichlet
+
+#if NDIM == 2
+    do i = 1, nc
+       bc(i) = solution(x(i, :))
+    end do
+#elif NDIM == 3
+    do j = 1, nc
+       do i = 1, nc
+          bc(i, j) = solution(x(i, j, :))
+       end do
+    end do
+#endif
+  end subroutine my_boundary_condition
 
 end program test_one_level
