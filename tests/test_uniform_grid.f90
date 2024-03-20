@@ -207,7 +207,10 @@ contains
     integer, intent(in)        :: iv         !< Index of variable
     integer, intent(in)        :: nb         !< Direction
     integer, intent(out)       :: bc_type    !< Type of b.c.
-#if NDIM == 2
+#if NDIM == 1
+    real(dp), intent(out)      :: bc(1)      !< Boundary values
+    real(dp)                   :: x(1)
+#elif NDIM == 2
     real(dp), intent(out)      :: bc(nc)     !< Boundary values
     real(dp)                   :: x(nc, 2)
     integer                    :: i
@@ -220,7 +223,9 @@ contains
     call mg_get_face_coords(box, nb, nc, x)
     bc_type = mg_bc_dirichlet
 
-#if NDIM == 2
+#if NDIM == 1
+    bc(1) = solution(x(1))
+#elif NDIM == 2
     do i = 1, nc
        bc(i) = solution(x(i, :))
     end do

@@ -485,7 +485,7 @@ contains
     integer, intent(in)        :: nb
     integer, intent(in)        :: nc
 #if NDIM == 1
-    real(dp), intent(out)      :: x(2)
+    real(dp), intent(out)      :: x(1)
 #elif NDIM == 2
     real(dp), intent(out)      :: x(nc, 2)
     integer                    :: i, ixs(NDIM-1)
@@ -511,7 +511,6 @@ contains
 
 #if NDIM == 1
     x(1) = rmin(1)
-    x(2) = rmin(1) + box%dr(1) * nc
 #elif NDIM == 2
     do i = 1, nc
        x(i, :) = rmin
