@@ -24,7 +24,7 @@ contains
     real(dp), intent(in)      :: r_min(NDIM)
     logical, intent(in)       :: periodic(NDIM)
     integer, intent(in)       :: n_finer
-    integer                   :: IJK, lvl, n, id, nx(NDIM)
+    integer                   :: IJK, lvl, n, id, nx(NDIM), IJK_vec(NDIM), idim
     integer                   :: boxes_per_dim(NDIM, mg_lvl_lo:1)
     integer                   :: periodic_offset(NDIM)
 
@@ -113,23 +113,24 @@ contains
 #endif
 
        ! Handle boundaries
-       where ([IJK] == 1 .and. .not. periodic)
-          mg%boxes(n)%neighbors(1:mg_num_neighbors:2) = &
-               mg_physical_boundary
-       end where
-       where ([IJK] == 1 .and. periodic)
-          mg%boxes(n)%neighbors(1:mg_num_neighbors:2) = &
-               n + periodic_offset
-       end where
+       IJK_vec = [IJK]
+       do idim = 1, NDIM
+          if (IJK_vec(idim) == 1) then
+             if (periodic(idim)) then
+                mg%boxes(n)%neighbors(2*idim-1) = n + periodic_offset(idim)
+             else
+                mg%boxes(n)%neighbors(2*idim-1) = mg_physical_boundary
+             end if
+          end if
 
-       where ([IJK] == nx .and. .not. periodic)
-          mg%boxes(n)%neighbors(2:mg_num_neighbors:2) = &
-               mg_physical_boundary
-       end where
-       where ([IJK] == nx .and. periodic)
-          mg%boxes(n)%neighbors(2:mg_num_neighbors:2) = &
-               n - periodic_offset
-       end where
+          if (IJK_vec(idim) == nx(idim)) then
+             if (periodic(idim)) then
+                mg%boxes(n)%neighbors(2*idim) = n - periodic_offset(idim)
+             else
+                mg%boxes(n)%neighbors(2*idim) = mg_physical_boundary
+             end if
+          end if
+       end do
     end do; CLOSE_DO
 
     mg%lvls(mg%lowest_lvl)%ids = [(n, n=1, mg%n_boxes)]
