@@ -9,6 +9,7 @@ module m_diffusion
 
   public :: diffusion_solve
   public :: diffusion_solve_vcoeff
+  public :: diffusion_solve_acoeff
 
 contains
 
@@ -105,6 +106,55 @@ contains
        error stop "diffusion_solve: no convergence"
     end if
   end subroutine diffusion_solve_vcoeff
+
+  !> Solve a diffusion equation implicitly, assuming anisotropic diffusion
+  !> coefficient which has been stored in mg_iveps1, mg_iveps2, mg_iveps3
+  !> (also on coarse grids). The
+  !> solution at time t should be stored in mg_iphi, which is on output replaced
+  !> by the solution at time t+dt.
+  subroutine diffusion_solve_acoeff(mg, dt, order, max_res)
+    use m_ahelmholtz
+    type(mg_t), intent(inout) :: mg
+    real(dp), intent(in)      :: dt
+    integer, intent(in)       :: order
+    real(dp), intent(in)      :: max_res
+    integer, parameter        :: max_its = 10
+    integer                   :: n
+    real(dp)                  :: res
+
+    mg%operator_type = mg_ahelmholtz
+    call mg_set_methods(mg)
+
+    select case (order)
+    case (1)
+       call ahelmholtz_set_lambda(1/dt)
+       call set_rhs(mg, -1/dt, 0.0_dp)
+    case (2)
+       call ahelmholtz_set_lambda(0.0d0)
+       call mg_apply_op(mg, mg_irhs)
+       call ahelmholtz_set_lambda(2/dt)
+       call set_rhs(mg, -2/dt, -1.0_dp)
+    case default
+       error stop "diffusion_solve: order should be 1 or 2"
+    end select
+
+    ! Start with an FMG cycle
+    call mg_fas_fmg(mg, .true., max_res=res)
+
+    ! Add V-cycles if necessary
+    do n = 1, max_its
+       if (res <= max_res) exit
+       call mg_fas_vcycle(mg, max_res=res)
+    end do
+
+    if (n == max_its + 1) then
+       if (mg%my_rank == 0) then
+          print *, "Did you specify boundary conditions correctly?"
+          print *, "Or is the variation in diffusion too large?"
+       end if
+       error stop "diffusion_solve: no convergence"
+    end if
+  end subroutine diffusion_solve_acoeff
 
   subroutine set_rhs(mg, f1, f2)
     type(mg_t), intent(inout) :: mg

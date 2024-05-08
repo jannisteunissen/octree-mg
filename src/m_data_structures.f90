@@ -22,6 +22,9 @@ module m_data_structures
   !> Indicates a variable-coefficient Helmholtz equation
   integer, parameter, public :: mg_vhelmholtz = 4
 
+  !> Indicates a anisotropic-coefficient Helmholtz equation
+  integer, parameter, public :: mg_ahelmholtz = 5
+
   !> Cartesian coordinate system
   integer, parameter, public :: mg_cartesian   = 1
   !> Cylindrical coordinate system
@@ -51,6 +54,15 @@ module m_data_structures
 
   !> Index of the variable coefficient (at cell centers)
   integer, parameter, public :: mg_iveps = 5
+
+  !> Indexes of anisotropic variable coefficients
+  integer, parameter, public :: mg_iveps1 = 5
+#if NDIM > 1
+  integer, parameter, public :: mg_iveps2 = 6
+#endif
+#if NDIM > 2
+  integer, parameter, public :: mg_iveps3 = 7
+#endif
 
   !> Minimum allowed grid level
   integer, parameter, public :: mg_lvl_lo = -20

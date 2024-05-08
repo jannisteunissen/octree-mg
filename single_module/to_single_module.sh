@@ -9,7 +9,7 @@ modules="../src/m_data_structures.f90 ../src/m_allocate_storage.f90
 ../src/m_build_tree.f90 ../src/m_load_balance.f90 ../src/m_vlaplacian.f90
 ../src/m_communication.f90 ../src/m_ghost_cells.f90 ../src/m_prolong.f90
 ../src/m_helmholtz.f90 ../src/m_multigrid.f90 ../src/m_restrict.f90
-../src/m_mrgrnk.f90"
+../src/m_mrgrnk.f90 ../src/m_ahelmholtz.f90"
 
 # Name of the new modules
 module_xd="m_octree_mg.f90"

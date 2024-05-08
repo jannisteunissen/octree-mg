@@ -6,13 +6,14 @@ endif
 OBJECTS += m_data_structures.o m_build_tree.o m_load_balance.o m_ghost_cells.o	\
 m_allocate_storage.o m_mrgrnk.o m_restrict.o m_communication.o m_prolong.o	\
 m_multigrid.o m_octree_mg.o m_laplacian.o m_vlaplacian.o m_helmholtz.o		\
-m_vhelmholtz.o m_diffusion.o m_free_space.o
+m_vhelmholtz.o m_ahelmholtz.o m_diffusion.o m_free_space.o
 
 ifeq ($(NDIM), 3)
 m_free_space.o: poisson_solver.mod
 endif
 
 # Dependencies
+m_ahelmholtz.o: m_data_structures.mod
 m_allocate_storage.o: m_data_structures.mod
 m_allocate_storage.o: m_ghost_cells.mod
 m_allocate_storage.o: m_prolong.mod
@@ -20,6 +21,7 @@ m_allocate_storage.o: m_restrict.mod
 m_build_tree.o: m_data_structures.mod
 m_communication.o: m_data_structures.mod
 m_communication.o: m_mrgrnk.mod
+m_diffusion.o: m_ahelmholtz.mod
 m_diffusion.o: m_data_structures.mod
 m_diffusion.o: m_helmholtz.mod
 m_diffusion.o: m_multigrid.mod
@@ -34,6 +36,7 @@ m_ghost_cells.o: m_data_structures.mod
 m_helmholtz.o: m_data_structures.mod
 m_laplacian.o: m_data_structures.mod
 m_load_balance.o: m_data_structures.mod
+m_multigrid.o: m_ahelmholtz.mod
 m_multigrid.o: m_data_structures.mod
 m_multigrid.o: m_ghost_cells.mod
 m_multigrid.o: m_helmholtz.mod
@@ -42,6 +45,7 @@ m_multigrid.o: m_prolong.mod
 m_multigrid.o: m_restrict.mod
 m_multigrid.o: m_vhelmholtz.mod
 m_multigrid.o: m_vlaplacian.mod
+m_octree_mg.o: m_ahelmholtz.mod
 m_octree_mg.o: m_allocate_storage.mod
 m_octree_mg.o: m_build_tree.mod
 m_octree_mg.o: m_communication.mod
