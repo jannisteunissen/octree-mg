@@ -1,4 +1,4 @@
-F90 = mpifort
+F90 = mpif90
 
 # Determine compiler brand
 compiler_version = $(shell $(F90) --version)
